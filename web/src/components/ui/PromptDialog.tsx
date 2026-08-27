@@ -1,4 +1,4 @@
-import { useId, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { Modal } from './Modal';
 
 interface PromptDialogProps {
@@ -9,8 +9,19 @@ interface PromptDialogProps {
   submitLabel: string;
   busy?: boolean;
   error?: string | null;
+  /**
+   * Preselect the initial value on open, so typing replaces it. `'stem'` leaves
+   * the extension out of the selection and therefore intact.
+   */
+  preselect?: 'stem' | 'all';
   onSubmit: (value: string) => void;
   onCancel: () => void;
+}
+
+/** Where the extension starts. A leading dot is part of the name, not an extension. */
+function stemEnd(name: string): number {
+  const dot = name.lastIndexOf('.');
+  return dot > 0 ? dot : name.length;
 }
 
 export function PromptDialog({
@@ -21,13 +32,23 @@ export function PromptDialog({
   submitLabel,
   busy,
   error,
+  preselect,
   onSubmit,
   onCancel,
 }: PromptDialogProps) {
   const [value, setValue] = useState(initialValue);
   const inputId = useId();
   const hintId = useId();
+  const inputRef = useRef<HTMLInputElement>(null);
   const trimmed = value.trim();
+
+  // Runs after <Modal>'s focus trap has focused the field — child effects settle
+  // before the parent's — so the selection is not undone by the focus that follows.
+  useEffect(() => {
+    const input = inputRef.current;
+    if (!preselect || !input) return;
+    input.setSelectionRange(0, preselect === 'stem' ? stemEnd(input.value) : input.value.length);
+  }, [preselect]);
 
   return (
     <Modal
@@ -63,6 +84,7 @@ export function PromptDialog({
         </label>
         <input
           id={inputId}
+          ref={inputRef}
           className="input"
           value={value}
           onChange={(event) => setValue(event.target.value)}

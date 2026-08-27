@@ -10,6 +10,7 @@ import type {
   SaveRequest,
   SearchHit,
   SessionInfo,
+  TaskToggleRequest,
   TreeNode,
 } from './types';
 import { API_BASE, docUrl, fileUrl, folderUrl, rawUrl, resourceUrl } from './paths';
@@ -258,6 +259,26 @@ export async function createDocument(rootId: string, path: string, content: stri
 /** Every document carrying `tag`, including nested tags beneath it. */
 export async function fetchTagged(rootId: string, tag: string, signal?: AbortSignal): Promise<DocumentMeta[]> {
   return getJson<DocumentMeta[]>(resourceUrl('tag', rootId, tag), signal);
+}
+
+/**
+ * Tick or untick one task-list checkbox.
+ *
+ * Carries `baseMtimeMs` exactly as a save does: a checkbox is a smaller edit, not a
+ * licence to overwrite someone else's. Returns the document's new meta so the caller can
+ * keep its concurrency token current for the next tick.
+ */
+export async function toggleTask(
+  rootId: string,
+  path: string,
+  toggle: TaskToggleRequest,
+): Promise<DocumentMeta> {
+  const response = await request(resourceUrl('task', rootId, path), {
+    method: 'POST',
+    json: toggle,
+    mutating: true,
+  });
+  return (await response.json()) as DocumentMeta;
 }
 
 export async function createFolder(rootId: string, path: string): Promise<void> {

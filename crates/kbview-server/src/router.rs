@@ -60,6 +60,7 @@ fn protected_routes() -> Router<Arc<AppState>> {
                 .layer(axum::extract::DefaultBodyLimit::max(write::MAX_WRITE_BYTES)),
         )
         .route("/raw/{root_id}/{*path}", get(read::raw))
+        .route("/task/{root_id}/{*path}", post(write::toggle_task))
         .route(
             "/file/{root_id}/{*path}",
             get(files::file)

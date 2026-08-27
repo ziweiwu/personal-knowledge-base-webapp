@@ -442,50 +442,82 @@ pub fn rewrite_wikilinks(src: &str, rename: RenameContext<'_>) -> Option<String>
 }
 
 /// What a rewrite needs to know about the rename it is applying.
-/// Who is being renamed, where to, and the link graph to resolve against.
+/// Who is being renamed, where to, and the two link graphs to resolve against.
 ///
-/// Four loose `&str` arguments in a row invite a silent transposition — `old_path` and
+/// Loose `&str` arguments in a row invite a silent transposition — `old_path` and
 /// `new_path` are the same type, and swapping them rewrites every link the wrong way.
 /// Naming them at the call site removes that class of mistake.
+///
+/// Two resolvers, not one, because the question is asked twice: *before* the rename, to
+/// decide whether a link pointed at the renamed document at all, and *after* it, to check
+/// that the replacement text still means that same document. Without the second, a bare
+/// link can be rewritten into a name that now resolves somewhere else entirely.
 pub struct RenameContext<'a> {
-    /// The document whose links are being rewritten.
-    pub from_path: &'a str,
+    /// The linking document, as it is named before the rename.
+    pub source_before: &'a str,
+    /// The linking document, as it will be named after it (unchanged unless it moved too).
+    pub source_after: &'a str,
     /// The path being renamed away from.
     pub old_path: &'a str,
     /// The path being renamed to.
     pub new_path: &'a str,
-    pub resolver: &'a Resolver,
+    /// The corpus as it stands now.
+    pub before: &'a Resolver,
+    /// The corpus as it will stand once the rename is applied.
+    pub after: &'a Resolver,
 }
 
 /// The target replacements for every link that pointed at the renamed document, as
 /// `(start, end, replacement)` byte ranges into the source.
 fn retarget_edits(links: &[WikiLink], rename: RenameContext) -> Vec<(usize, usize, String)> {
-    let new_stem = Path::new(rename.new_path)
-        .file_stem()
-        .map(|stem| stem.to_string_lossy().to_string())
-        .unwrap_or_else(|| rename.new_path.to_string());
-    let new_full = rename
+    let bare = bare_link_name(rename.new_path);
+    let qualified = rename
         .new_path
         .strip_suffix(".md")
         .unwrap_or(rename.new_path)
         .to_string();
 
+    // Keep the author's shorthand only when it still points at the renamed document.
+    // `[[a]]` meaning `x/a.md` must not become `[[b]]` when a different `y/b.md` exists —
+    // that is not a broken link the reader can spot, it is a plausible link to the wrong
+    // document, which is the failure this module exists to avoid.
+    let bare_is_unambiguous =
+        rename.after.resolve(rename.source_after, &bare).as_deref() == Some(rename.new_path);
+
     let mut edits = Vec::new();
     for link in links {
-        let resolved = rename.resolver.resolve(rename.from_path, &link.target);
+        let resolved = rename.before.resolve(rename.source_before, &link.target);
         if resolved.as_deref() != Some(rename.old_path) {
             continue;
         }
-        let replacement = if link.target.contains('/') {
-            new_full.clone()
+        let replacement = if link.target.contains('/') || !bare_is_unambiguous {
+            qualified.clone()
         } else {
-            new_stem.clone()
+            bare.clone()
         };
         if replacement != link.target {
             edits.push((link.target_start, link.target_end, replacement));
         }
     }
     edits
+}
+
+/// The shorthand a reader would write for this path.
+///
+/// Only markdown may drop its extension: a wikilink resolves `.md` implicitly, so
+/// `[[note]]` finds `note.md`. Dropping it from anything else turns `![[img.png]]` into
+/// `[[img]]`, which resolves to a *different* file — `img.md` — and silently converts an
+/// image embed into a link to a note.
+fn bare_link_name(path: &str) -> String {
+    let name = Path::new(path);
+    let keep_extension = !path.to_lowercase().ends_with(".md");
+    let part = if keep_extension {
+        name.file_name()
+    } else {
+        name.file_stem()
+    };
+    part.map(|value| value.to_string_lossy().to_string())
+        .unwrap_or_else(|| path.to_string())
 }
 
 fn apply_edits(src: &str, edits: &[(usize, usize, String)]) -> String {
@@ -768,15 +800,47 @@ mod tests {
         assert!(scan_wikilinks("[[unclosed\nnext line]]").is_empty());
     }
 
+    /// A corpus with a deliberate stem collision (`Alpha` in two folders) and a
+    /// non-markdown file, so rewrite tests can express the cases that actually bite.
+    const CORPUS: &[&str] = &[
+        "index.md",
+        "notes/Alpha.md",
+        "notes/deep/Alpha.md",
+        "notes/Beta.md",
+        "assets/img.png",
+        "assets/img.md",
+        "Projects/My Project.md",
+    ];
+
     fn resolver() -> Resolver {
-        Resolver::new([
-            "index.md",
-            "notes/Alpha.md",
-            "notes/deep/Alpha.md",
-            "notes/Beta.md",
-            "assets/img.png",
-            "Projects/My Project.md",
-        ])
+        Resolver::new(CORPUS.iter().copied())
+    }
+
+    /// The corpus as it stands once `old` has become `new`.
+    fn resolver_after(old: &str, new: &str) -> Resolver {
+        Resolver::new(
+            CORPUS
+                .iter()
+                .map(|path| if *path == old { new } else { *path })
+                .collect::<Vec<_>>(),
+        )
+    }
+
+    /// Rewrite `src` for a rename, wiring up both corpora.
+    fn rewrite_for_rename(src: &str, source: &str, old: &str, new: &str) -> Option<String> {
+        let before = resolver();
+        let after = resolver_after(old, new);
+        rewrite_wikilinks(
+            src,
+            RenameContext {
+                source_before: source,
+                source_after: source,
+                old_path: old,
+                new_path: new,
+                before: &before,
+                after: &after,
+            },
+        )
     }
 
     #[test]
@@ -870,18 +934,8 @@ mod tests {
 
     #[test]
     fn rewrites_only_links_that_resolve_to_the_renamed_file() {
-        let r = resolver();
         let src = "[[Beta]] and [[notes/Beta]] and [[Alpha]] and prose about Beta.";
-        let out = rewrite_wikilinks(
-            src,
-            RenameContext {
-                from_path: "index.md",
-                old_path: "notes/Beta.md",
-                new_path: "notes/Gamma.md",
-                resolver: &r,
-            },
-        )
-        .unwrap();
+        let out = rewrite_for_rename(src, "index.md", "notes/Beta.md", "notes/Gamma.md").unwrap();
         assert_eq!(
             out,
             "[[Gamma]] and [[notes/Gamma]] and [[Alpha]] and prose about Beta."
@@ -890,18 +944,8 @@ mod tests {
 
     #[test]
     fn rewriting_preserves_alias_and_heading() {
-        let r = resolver();
         let src = "[[Beta|the beta note]] and [[Beta#Section]] and ![[Beta]]";
-        let out = rewrite_wikilinks(
-            src,
-            RenameContext {
-                from_path: "index.md",
-                old_path: "notes/Beta.md",
-                new_path: "notes/Gamma.md",
-                resolver: &r,
-            },
-        )
-        .unwrap();
+        let out = rewrite_for_rename(src, "index.md", "notes/Beta.md", "notes/Gamma.md").unwrap();
         assert_eq!(
             out,
             "[[Gamma|the beta note]] and [[Gamma#Section]] and ![[Gamma]]"
@@ -910,36 +954,81 @@ mod tests {
 
     #[test]
     fn rewriting_leaves_code_blocks_alone() {
-        let r = resolver();
         let src = "```\n[[Beta]]\n```\n[[Beta]]";
-        let out = rewrite_wikilinks(
-            src,
-            RenameContext {
-                from_path: "index.md",
-                old_path: "notes/Beta.md",
-                new_path: "notes/Gamma.md",
-                resolver: &r,
-            },
-        )
-        .unwrap();
+        let out = rewrite_for_rename(src, "index.md", "notes/Beta.md", "notes/Gamma.md").unwrap();
         assert_eq!(
             out, "```\n[[Beta]]\n```\n[[Gamma]]",
             "a link inside a code sample must survive a rename"
         );
     }
 
+    /// `[[a]]` in `y/c.md` unambiguously meant `x/a.md`. Renaming it to `x/b.md` must not
+    /// leave a bare `[[b]]`, because from `y/c.md` that resolves to its own sibling
+    /// `y/b.md` — a different document. A plausible link to the wrong note is worse than a
+    /// visible broken one, and the server reports the rename as a success either way.
+    #[test]
+    fn a_bare_link_is_qualified_when_the_new_name_would_resolve_elsewhere() {
+        let before = Resolver::new(["x/a.md", "y/b.md", "y/c.md"]);
+        let after = Resolver::new(["x/b.md", "y/b.md", "y/c.md"]);
+        let out = rewrite_wikilinks(
+            "Link to [[a]].",
+            RenameContext {
+                source_before: "y/c.md",
+                source_after: "y/c.md",
+                old_path: "x/a.md",
+                new_path: "x/b.md",
+                before: &before,
+                after: &after,
+            },
+        )
+        .unwrap();
+        assert_eq!(
+            out, "Link to [[x/b]].",
+            "a bare rewrite would have pointed at y/b.md"
+        );
+    }
+
+    #[test]
+    fn a_bare_link_stays_bare_when_the_new_stem_is_still_unique() {
+        let out = rewrite_for_rename(
+            "See [[Beta]].",
+            "index.md",
+            "notes/Beta.md",
+            "notes/Gamma.md",
+        )
+        .unwrap();
+        assert_eq!(
+            out, "See [[Gamma]].",
+            "the author's shorthand should survive"
+        );
+    }
+
+    /// `![[img.png]]` is an image embed. Dropping the extension makes it `[[img]]`, which
+    /// resolves to `img.md` — a different file, and no longer an image.
+    #[test]
+    fn a_non_markdown_target_keeps_its_extension() {
+        let out = rewrite_for_rename(
+            "Embed ![[img.png]]",
+            "index.md",
+            "assets/img.png",
+            "media/picture.png",
+        )
+        .unwrap();
+        assert!(
+            out.contains("picture.png"),
+            "the extension must survive or the embed becomes a link to a note: {out}"
+        );
+        assert!(!out.contains("[[picture]]"), "got {out}");
+    }
+
     #[test]
     fn rewriting_a_document_with_no_matching_links_changes_nothing() {
-        let r = resolver();
         assert_eq!(
-            rewrite_wikilinks(
+            rewrite_for_rename(
                 "[[Alpha]] only",
-                RenameContext {
-                    from_path: "index.md",
-                    old_path: "notes/Beta.md",
-                    new_path: "notes/Gamma.md",
-                    resolver: &r,
-                }
+                "index.md",
+                "notes/Beta.md",
+                "notes/Gamma.md"
             ),
             None
         );
@@ -947,16 +1036,12 @@ mod tests {
 
     #[test]
     fn rewrites_a_name_containing_spaces() {
-        let r = resolver();
         let src = "see [[My Project]] now";
-        let out = rewrite_wikilinks(
+        let out = rewrite_for_rename(
             src,
-            RenameContext {
-                from_path: "index.md",
-                old_path: "Projects/My Project.md",
-                new_path: "Projects/Renamed Project.md",
-                resolver: &r,
-            },
+            "index.md",
+            "Projects/My Project.md",
+            "Projects/Renamed Project.md",
         )
         .unwrap();
         assert_eq!(out, "see [[Renamed Project]] now");

@@ -5,7 +5,8 @@ vault, a plain folder of markdown, or a pile of PDFs and Word files — reachabl
 phone over Tailscale, behind a password.
 
 - **Markdown** with the Obsidian dialect: wikilinks, embeds and transclusion, callouts,
-  tags, backlinks, GFM tables and task lists, maths, mermaid diagrams.
+  tags, backlinks, GFM tables, maths, mermaid diagrams. Task-list checkboxes are live —
+  ticking one in the browser writes the single character back to the file.
 - **Other formats**: `.docx` converted to HTML, PDFs shown inline, images, CSV as a
   sortable table, source files highlighted. Anything else is listed and downloadable.
 - **Any folder**, not just vaults. Obsidian features switch on when a `.obsidian/`

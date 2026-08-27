@@ -7,6 +7,7 @@ import type { SearchHit } from '../../api/types';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import { useEscapeKey } from '../../hooks/useEscapeKey';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
+import { useInertBackground } from '../../hooks/useInertBackground';
 import { kindIcon } from '../../lib/format';
 import { parseSnippet } from '../../lib/snippet';
 import { Spinner } from '../ui/States';
@@ -62,6 +63,10 @@ export function SearchPalette({ rootId, rootName, onClose }: SearchPaletteProps)
   const navigate = useNavigate();
   const listId = useId();
 
+  // Same contract as <Modal>: this panel lives outside #root, so the page behind
+  // it can be taken out of the accessibility tree. Declared before the focus
+  // trap so its cleanup un-inerts before focus is handed back.
+  useInertBackground();
   useFocusTrap(panelRef);
   useEscapeKey(onClose);
   useBodyScrollLock('locked');

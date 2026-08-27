@@ -97,4 +97,20 @@ snippet: string, score: number, };
 
 export type SessionInfo = { email: string, };
 
+/**
+ * Tick or untick one task-list checkbox.
+ *
+ * Deliberately not a content write: the request names a line and the state it wants, so
+ * the narrowest possible edit is the only one this route can make.
+ */
+export type TaskToggleRequest = { 
+/**
+ * 1-based line in the markdown source, as rendered into `data-task-line`.
+ */
+line: number, checked: boolean, 
+/**
+ * The `mtimeMs` the client last read, exactly as a save carries it.
+ */
+baseMtimeMs: number, };
+
 export type TreeNode = { name: string, path: string, isDir: boolean, kind?: DocumentKind, children?: Array<TreeNode>, };

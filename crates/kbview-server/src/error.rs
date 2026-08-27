@@ -13,6 +13,10 @@ pub enum AppError {
     Forbidden(String),
     /// A write would have overwritten someone else's change. Carries both versions.
     Conflict(Box<SaveConflict>),
+    /// The same precondition failing where there is no edited buffer to hand back — a
+    /// checkbox click. Same 409 a save gets, because the cause is the same; no body,
+    /// because there is nothing to choose between.
+    Stale(String),
     AlreadyExists(String),
     RateLimited(u64),
     ReadOnly,
@@ -32,6 +36,7 @@ impl AppError {
             Self::BadRequest(_) => (StatusCode::BAD_REQUEST, "bad_request"),
             Self::Forbidden(_) => (StatusCode::FORBIDDEN, "forbidden"),
             Self::Conflict(_) => (StatusCode::CONFLICT, "conflict"),
+            Self::Stale(_) => (StatusCode::CONFLICT, "stale"),
             Self::AlreadyExists(_) => (StatusCode::CONFLICT, "already_exists"),
             Self::RateLimited(_) => (StatusCode::TOO_MANY_REQUESTS, "rate_limited"),
             Self::ReadOnly => (StatusCode::FORBIDDEN, "read_only"),
@@ -47,6 +52,7 @@ impl AppError {
             Self::BadRequest(why) => why.clone(),
             Self::Forbidden(why) => why.clone(),
             Self::Conflict(_) => "This file changed on disk since you opened it".into(),
+            Self::Stale(why) => why.clone(),
             Self::AlreadyExists(path) => format!("{path} already exists"),
             Self::RateLimited(seconds) => {
                 format!("Too many attempts. Try again in {seconds} seconds.")

@@ -46,7 +46,7 @@ interface FolderPageProps {
 }
 
 export function FolderPage({ rootId, path, onTitleChange }: FolderPageProps) {
-  const { canEdit, root } = useVault();
+  const { canEdit, root, localChangeToken } = useVault();
   const actions = useFileActions();
   const [sortKey, setSortKeyState] = useState<SortKey>(
     () => readStoredOneOf(SORT_STORAGE_KEY, SORT_KEYS) ?? 'name',
@@ -61,6 +61,15 @@ export function FolderPage({ rootId, path, onTitleChange }: FolderPageProps) {
   const load = useCallback((signal: AbortSignal) => fetchFolder(rootId, path, signal), [rootId, path]);
   const resource = useAsyncResource(load);
   const { data: listing, reload } = resource;
+
+  // An upload or a delete made from this tab produces no change event we can see
+  // — the stream drops our own echo — so the listing is refetched on the local
+  // signal instead of waiting for a manual reload.
+  const [seenChangeToken, setSeenChangeToken] = useState(localChangeToken);
+  if (seenChangeToken !== localChangeToken) {
+    setSeenChangeToken(localChangeToken);
+    reload();
+  }
 
   // A filter is remembered per folder, never globally: one folder's filter must never
   // silently hide a different folder's contents. Navigating swaps in that folder's own

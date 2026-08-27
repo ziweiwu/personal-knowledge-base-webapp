@@ -1,9 +1,10 @@
-import { Suspense, lazy, useCallback, useEffect, useState } from 'react';
+import { Suspense, lazy, useCallback, useEffect, useRef, useState } from 'react';
 import { fetchDocument } from '../api/client';
 import { eventTouches } from '../api/events';
 import { baseName } from '../api/paths';
 import type { ChangeEvent, DocumentMeta } from '../api/types';
 import { DocumentBody } from '../components/viewers/registry';
+import { toggleTask } from '../api/client';
 import { Banner, ErrorState, LoadingState } from '../components/ui/States';
 import { useAsyncResource } from '../hooks/useAsyncResource';
 import { useChangeEvents } from '../hooks/useChangeEvents';
@@ -32,6 +33,12 @@ export function DocumentPage({ rootId, path, onTitleChange }: DocumentPageProps)
   const load = useCallback((signal: AbortSignal) => fetchDocument(rootId, path, signal), [rootId, path]);
   const resource = useAsyncResource(load);
   const { data: payload, setData } = resource;
+
+  // Read inside an async handler, where a captured `payload` would already be stale.
+  const payloadRef = useRef(payload);
+  useEffect(() => {
+    payloadRef.current = payload;
+  }, [payload]);
 
   const [editing, setEditing] = useState(false);
   const [editorDirty, setEditorDirty] = useState(false);
@@ -62,6 +69,27 @@ export function DocumentPage({ rootId, path, onTitleChange }: DocumentPageProps)
     [rootId, path, editing, editorDirty, reload],
   );
   useChangeEvents(onChange);
+
+  /**
+   * Ticking a checkbox is a write, so it carries the mtime the page was loaded with, and
+   * the returned meta becomes the token for the next tick. A refusal means the document
+   * moved underneath the click: reload it and report failure so the box springs back.
+   */
+  const onToggleTask = useCallback(
+    async (line: number, checked: boolean) => {
+      const base = payloadRef.current?.meta.mtimeMs;
+      if (base === undefined) return false;
+      try {
+        const meta = await toggleTask(rootId, path, { line, checked, baseMtimeMs: base });
+        setData((current) => (current ? { ...current, meta } : current));
+        return true;
+      } catch {
+        reload();
+        return false;
+      }
+    },
+    [rootId, path, setData, reload],
+  );
 
   const onSaved = useCallback(
     (meta: DocumentMeta) => {
@@ -125,7 +153,10 @@ export function DocumentPage({ rootId, path, onTitleChange }: DocumentPageProps)
         <div className="editor__bar" style={{ marginBottom: 12 }}>
           {editable ? (
             <button type="button" className="btn" onClick={() => setEditing(true)}>
-              ✏️ Edit
+              {/* Decorative: its siblings carry no icon, and announcing "pencil Edit"
+                  makes this one button read differently from the rest of the row. */}
+              <span aria-hidden="true">✏️</span>
+              Edit
             </button>
           ) : null}
           {canEdit ? (
@@ -133,7 +164,7 @@ export function DocumentPage({ rootId, path, onTitleChange }: DocumentPageProps)
               <button type="button" className="btn" onClick={() => actions.rename(path, false)}>
                 Rename
               </button>
-              <button type="button" className="btn btn--ghost" onClick={() => actions.remove(path, false)}>
+              <button type="button" className="btn btn--danger-quiet" onClick={() => actions.remove(path, false)}>
                 Delete
               </button>
             </>
@@ -155,7 +186,11 @@ export function DocumentPage({ rootId, path, onTitleChange }: DocumentPageProps)
         ) : null}
       </div>
 
-      <DocumentBody payload={payload} rootId={rootId} />
+      <DocumentBody
+        payload={payload}
+        rootId={rootId}
+        onToggleTask={editable ? onToggleTask : undefined}
+      />
     </article>
   );
 }

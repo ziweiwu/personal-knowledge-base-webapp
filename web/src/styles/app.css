@@ -29,7 +29,12 @@
   align-items: center;
   gap: 8px;
   height: var(--topbar-h);
-  padding: 0 8px;
+  /*
+   * `viewport-fit=cover` puts the page under the notch. In landscape the inset lands on
+   * the left or right — whichever way the phone is held — and the hamburger and search
+   * button sit right on that edge, so both sides take the inset rather than only the top.
+   */
+  padding: 0 calc(8px + env(safe-area-inset-right)) 0 calc(8px + env(safe-area-inset-left));
   padding-top: env(safe-area-inset-top);
   height: calc(var(--topbar-h) + env(safe-area-inset-top));
   border-bottom: 1px solid var(--border);
@@ -61,6 +66,15 @@
   text-overflow: ellipsis;
   direction: rtl;
   text-align: left;
+  /* Room for the padded hit boxes below; the two lines still fit --topbar-h. */
+  line-height: 26px;
+}
+
+/* WCAG 2.5.8: the crumb text alone measured 13px tall, and on a phone these are
+   the way back out of a deep folder. Padding grows the target without taking
+   the links out of the inline flow that the ellipsis truncation depends on. */
+.topbar__crumbs a {
+  padding: 6px 4px;
 }
 
 /* -------------------------------------------------------------- buttons -- */
@@ -120,6 +134,20 @@
 
 .btn--ghost:hover:not(:disabled) {
   background: var(--bg-hover);
+}
+
+/*
+ * A destructive action that is not the primary one on its row. It keeps the
+ * resting border of an ordinary button — without one it read as plain text —
+ * and only the label colour sets it apart.
+ */
+.btn--danger-quiet {
+  color: var(--danger);
+}
+
+.btn--danger-quiet:hover:not(:disabled) {
+  background: var(--danger-subtle);
+  border-color: var(--danger);
 }
 
 .btn--icon {
@@ -238,6 +266,7 @@
     transform: translateX(-102%);
     transition: transform 0.18s ease;
     padding-top: env(safe-area-inset-top);
+    padding-left: env(safe-area-inset-left);
   }
 
   .sidebar--open {
@@ -605,8 +634,17 @@
 /* --------------------------------------------------------------- viewer -- */
 
 .doc {
+  /*
+   * Scroll-past room at the tail. A fixed 96px is a ninth of a portrait phone
+   * but over a quarter of a landscape one, where the empty band read as the
+   * document having ended early — so it scales with the viewport and is
+   * clamped rather than pinned. `vh` deliberately, not `dvh`: dvh changes as
+   * the mobile toolbar hides and shows, which would reflow the page mid-scroll.
+   */
+  --doc-tail: calc(clamp(16px, 10vh, 96px) + env(safe-area-inset-bottom));
   max-width: 100%;
-  padding: 16px 16px 96px;
+  padding: 16px calc(16px + env(safe-area-inset-right)) var(--doc-tail)
+    calc(16px + env(safe-area-inset-left));
   display: flex;
   flex-direction: column;
   gap: 16px;
@@ -1249,6 +1287,43 @@ kbd {
   background: var(--danger);
 }
 
+/* -------------------------------------------------- scroll affordance -- */
+
+/*
+ * Boxes that scroll sideways get a shadow at whichever edge still has content
+ * past it. Touch devices show no scrollbar, so without this a wide table or
+ * code block looks simply cropped.
+ *
+ * Four background layers: two "covers" painted in the box's own surface colour
+ * that travel *with* the content, over two shadows pinned to the box. When
+ * there is nothing to scroll the two pairs coincide and the shadows are hidden
+ * exactly — which is why this needs no measurement and no script.
+ */
+.scroll-x,
+.csv-wrap,
+.prose pre,
+.prose math[display='block'] {
+  --scroll-surface: var(--bg);
+
+  background-image:
+    linear-gradient(to right, var(--scroll-surface), transparent),
+    linear-gradient(to left, var(--scroll-surface), transparent),
+    linear-gradient(to right, var(--scroll-shadow), transparent),
+    linear-gradient(to left, var(--scroll-shadow), transparent);
+  background-position: left center, right center, left center, right center;
+  background-size: 28px 100%, 28px 100%, 16px 100%, 16px 100%;
+  background-repeat: no-repeat;
+  background-attachment: local, local, scroll, scroll;
+}
+
+.prose pre {
+  --scroll-surface: var(--code-bg);
+}
+
+.prose pre.mermaid {
+  --scroll-surface: var(--bg-subtle);
+}
+
 @media (min-width: 900px) {
   .only-mobile {
     display: none !important;
@@ -1261,6 +1336,7 @@ kbd {
   }
 
   .doc {
-    padding: 12px 12px 96px;
+    padding: 12px calc(12px + env(safe-area-inset-right)) var(--doc-tail)
+      calc(12px + env(safe-area-inset-left));
   }
 }

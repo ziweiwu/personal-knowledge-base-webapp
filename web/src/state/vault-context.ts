@@ -10,6 +10,13 @@ export interface VaultContextValue {
   treeLoading: boolean;
   treeError: Error | null;
   reloadTree: () => void;
+  /**
+   * Bumped after a mutation this client made. The event stream deliberately
+   * drops our own echo, so nothing else tells the open folder or document that
+   * its contents just changed underneath it.
+   */
+  localChangeToken: number;
+  notifyLocalChange: () => void;
 }
 
 export const VaultContext = createContext<VaultContextValue | null>(null);

@@ -63,7 +63,7 @@ yourself adding incremental indexing or a cache invalidation graph, check whethe
 corpus actually grew first.
 
 ```
-crates/kbview-core/    domain: paths, kinds, links, frontmatter, index, search, wire types
+crates/kbview-core/    domain: paths, kinds, links, frontmatter, tasks, index, search, wire types
 crates/kbview-docx/    OOXML -> HTML, deliberately isolated
 crates/kbview-server/  axum, auth, rendering, watching, CLI
 web/                   Vite + React + TS
@@ -88,9 +88,18 @@ code blocks and inline code. Never replace this with a regex over the document: 
 in `crates/kbview-core/src/links.rs` cover prose that merely mentions the name, and links inside code samples,
 because both get corrupted by naive replacement.
 
+**A task checkbox's line number comes from the raw file, never from the parsed
+document.** `kbview_core::tasks::task_lines` scans the source with the same scanner
+`set_task_state` writes through, and `enable_task_checkboxes` pairs its results with the
+rendered checkboxes. Do not go back to comrak's `sourcepos` for this: the parser sees a
+*prepared* source with frontmatter stripped and callouts expanded, so its line numbers
+drift from the file on disk and a click silently ticks a different task. The pairing is
+checked on both count and ticked state; on any disagreement no checkbox is wired up at
+all, because a dead checkbox is a smaller failure than one editing the wrong line.
+
 **The auth gate is a `route_layer` on the whole `/api` group** in `crates/kbview-server/src/router.rs`, not
-per-route. A new route is protected by construction. `tests/api.rs` asserts this for every
-route; add new routes to that list.
+per-route. A new route is protected by construction. `crates/kbview-server/tests/api.rs`
+asserts this for every route; add new routes to that list.
 
 ### The API's shape
 
@@ -99,6 +108,11 @@ it as a segment (`/api/doc/{root}/{path…}`), routes that act on the **root** t
 query parameter (`/api/tree?root=`, `/api/search?root=`, `/api/rename?root=`). Uploads are
 raw bytes to `POST /api/file/{root}/{path…}`, deliberately separate from the JSON
 `POST /api/doc/…` so neither has to infer its body shape from a content type.
+
+Ticking a checkbox is `POST /api/task/{root}/{path…}`, deliberately not a save: it names a
+line and a state, so it cannot carry content even if asked. It takes the same
+`baseMtimeMs` precondition and answers a mismatch with the same 409 — as `AppError::Stale`,
+which has no body, since a click has no edited buffer to offer back.
 
 Mutating requests carry `X-Kbview-Origin`, echoed on the change event so the tab that made
 a change ignores its own echo. `AppState` remembers the mtime it wrote and only attributes

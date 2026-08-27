@@ -160,6 +160,23 @@ pub struct SaveConflict {
     pub disk_mtime_ms: i64,
 }
 
+/// Tick or untick one task-list checkbox.
+///
+/// Deliberately not a content write: the request names a line and the state it wants, so
+/// the narrowest possible edit is the only one this route can make.
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, export_to = "types.ts")]
+pub struct TaskToggleRequest {
+    /// 1-based line in the markdown source, as rendered into `data-task-line`.
+    #[ts(type = "number")]
+    pub line: usize,
+    pub checked: bool,
+    /// The `mtimeMs` the client last read, exactly as a save carries it.
+    #[ts(type = "number")]
+    pub base_mtime_ms: i64,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export, export_to = "types.ts")]

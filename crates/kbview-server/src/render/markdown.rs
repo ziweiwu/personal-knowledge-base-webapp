@@ -360,7 +360,7 @@ fn render_math<'a>(node: &'a comrak::nodes::AstNode<'a>, warnings: &mut Vec<Stri
                 latex2mathml::DisplayStyle::Inline
             };
             match latex2mathml::latex_to_mathml(&math.literal, flavour) {
-                Ok(mathml) => Some(mathml),
+                Ok(mathml) => Some(wrap_math_row(&mathml)),
                 Err(error) => {
                     warnings.push(format!("could not render maths: {error}"));
                     // Show the source rather than dropping the expression silently.
@@ -382,6 +382,113 @@ fn render_math<'a>(node: &'a comrak::nodes::AstNode<'a>, warnings: &mut Vec<Stri
     for child in node.children() {
         render_math(child, warnings);
     }
+}
+
+/// Make rendered task checkboxes clickable, and tell the client which line of the file on
+/// disk each one stands for.
+///
+/// comrak renders them `disabled`, which is right for a static page and wrong for a
+/// reading app where ticking something off is the most common edit there is.
+///
+/// `tasks` comes from scanning the **raw** file with the same scanner the write path uses,
+/// never from the parsed document: the parser only ever sees a prepared source, with
+/// frontmatter stripped and callouts expanded, so its line numbers do not address the file
+/// the toggle will write to.
+///
+/// That leaves the pairing to check — see `pairing_is_sound`. Where it does not hold,
+/// nothing is injected and every box stays read-only: a checkbox that does nothing is a
+/// small disappointment, whereas one wired to the wrong line edits the wrong task.
+pub(super) fn enable_task_checkboxes(html: &str, tasks: &[kbview_core::tasks::TaskLine]) -> String {
+    if tasks.is_empty() || !pairing_is_sound(&checkbox_tags(html), tasks) {
+        return html.to_string();
+    }
+
+    let mut out = String::with_capacity(html.len() + tasks.len() * ATTRIBUTES_PER_BOX);
+    let mut rest = html;
+    for task in tasks {
+        let Some((before, tag, remainder)) = split_at_checkbox(rest) else {
+            break;
+        };
+        out.push_str(before);
+        out.push_str(&rewritten_tag(tag, task.line));
+        rest = remainder;
+    }
+    out.push_str(rest);
+    out
+}
+
+/// Roughly the bytes the injected `data-task-line` and `class` attributes add per box.
+const ATTRIBUTES_PER_BOX: usize = 32;
+
+const CHECKBOX_MARKER: &str = "<input type=\"checkbox\"";
+
+/// Whether the scanned tasks and the rendered checkboxes are describing the same things.
+///
+/// Matched in document order, so both the count and every box's ticked state must agree.
+/// A transcluded document brings checkboxes the host file has no line for, and a literal
+/// `<input type="checkbox">` in raw HTML shifts the pairing by one.
+fn pairing_is_sound(rendered: &[&str], tasks: &[kbview_core::tasks::TaskLine]) -> bool {
+    use kbview_core::tasks::TaskState;
+
+    rendered.len() == tasks.len()
+        && rendered.iter().zip(tasks).all(|(tag, task)| {
+            let drawn_ticked = tag.contains(" checked");
+            drawn_ticked == (task.state == TaskState::Done)
+        })
+}
+
+fn rewritten_tag(tag: &str, line: usize) -> String {
+    tag.replace(" disabled=\"\"", "").replace(
+        "<input",
+        &format!("<input data-task-line=\"{line}\" class=\"task-checkbox\""),
+    )
+}
+
+/// Split `html` around its first checkbox tag: what precedes it, the tag, and the rest.
+fn split_at_checkbox(html: &str) -> Option<(&str, &str, &str)> {
+    let at = html.find(CHECKBOX_MARKER)?;
+    let (before, tail) = html.split_at(at);
+    let end = tail.find('>')?;
+    let (tag, remainder) = tail.split_at(end + 1);
+    Some((before, tag, remainder))
+}
+
+/// Every rendered checkbox tag, in document order, so the pairing can be checked before a
+/// single one is rewritten.
+fn checkbox_tags(html: &str) -> Vec<&str> {
+    let mut tags = Vec::new();
+    let mut rest = html;
+    while let Some((_, tag, remainder)) = split_at_checkbox(rest) {
+        tags.push(tag);
+        rest = remainder;
+    }
+    tags
+}
+
+/// Wrap a `<math>` element's children in a single `<mrow>`.
+///
+/// `latex2mathml` emits its terms as direct children of `<math>`. A display-mode `<math>`
+/// is a block box, and each direct child then becomes a block box too, so the equation
+/// renders as a vertical stack of fragments — one term per line — instead of a line of
+/// maths. One `<mrow>` gives the terms a single inline row to sit in.
+fn wrap_math_row(mathml: &str) -> String {
+    let Some(open_end) = mathml.find('>') else {
+        return mathml.to_string();
+    };
+    let Some(close_start) = mathml.rfind("</math>") else {
+        return mathml.to_string();
+    };
+    if close_start <= open_end {
+        return mathml.to_string();
+    }
+
+    let (open, rest) = mathml.split_at(open_end + 1);
+    let inner = &rest[..close_start - open_end - 1];
+    // Already a single row: nothing to gain, and re-wrapping would nest pointlessly.
+    if inner.trim_start().starts_with("<mrow") && inner.trim_end().ends_with("</mrow>") {
+        return mathml.to_string();
+    }
+    format!("{open}<mrow>{inner}</mrow></math>")
 }
 
 /// Mermaid fences become `<pre class="mermaid">`; the client imports mermaid lazily and
@@ -474,4 +581,119 @@ fn node_text<'a>(node: &'a comrak::nodes::AstNode<'a>) -> String {
         out.push_str(&node_text(child));
     }
     out
+}
+
+#[cfg(test)]
+mod math_tests {
+    use super::wrap_math_row;
+
+    /// The regression: bare terms under a display `<math>` each become a block box, so an
+    /// equation renders as a vertical stack of fragments rather than a line of maths.
+    #[test]
+    fn terms_are_gathered_into_one_row() {
+        let bare = "<math display=\"block\"><mi>a</mi><mo>+</mo><mi>b</mi></math>";
+        assert_eq!(
+            wrap_math_row(bare),
+            "<math display=\"block\"><mrow><mi>a</mi><mo>+</mo><mi>b</mi></mrow></math>"
+        );
+    }
+
+    #[test]
+    fn an_already_wrapped_expression_is_left_alone() {
+        let wrapped = "<math><mrow><mi>a</mi></mrow></math>";
+        assert_eq!(wrap_math_row(wrapped), wrapped);
+    }
+
+    #[test]
+    fn malformed_input_is_passed_through_rather_than_mangled() {
+        for input in ["", "<math>", "not math at all", "</math>"] {
+            assert_eq!(wrap_math_row(input), input);
+        }
+    }
+
+    #[test]
+    fn attributes_on_the_math_element_survive() {
+        let out = wrap_math_row("<math xmlns=\"x\" display=\"block\"><mi>a</mi></math>");
+        assert!(
+            out.starts_with("<math xmlns=\"x\" display=\"block\"><mrow>"),
+            "got {out}"
+        );
+    }
+}
+
+#[cfg(test)]
+mod task_tests {
+    use super::enable_task_checkboxes;
+    use kbview_core::tasks::{TaskLine, TaskState};
+
+    const BOX: &str = "<input type=\"checkbox\" disabled=\"\" />";
+    const CHECKED: &str = "<input type=\"checkbox\" checked=\"\" disabled=\"\" />";
+
+    /// Which line of the fixture file each checkbox in these tests stands for. The values
+    /// only have to be distinct and plausible; nothing here parses a real document.
+    const FIRST_TASK_LINE: usize = 3;
+    const SECOND_TASK_LINE: usize = 4;
+
+    fn todo(line: usize) -> TaskLine {
+        TaskLine {
+            line,
+            state: TaskState::Todo,
+        }
+    }
+
+    fn done(line: usize) -> TaskLine {
+        TaskLine {
+            line,
+            state: TaskState::Done,
+        }
+    }
+
+    #[test]
+    fn each_checkbox_is_enabled_and_carries_its_line() {
+        let html = format!("<ul><li>{BOX}a</li><li>{CHECKED}b</li></ul>");
+        let out = enable_task_checkboxes(&html, &[todo(FIRST_TASK_LINE), done(SECOND_TASK_LINE)]);
+        assert!(
+            out.contains(&format!("data-task-line=\"{FIRST_TASK_LINE}\"")),
+            "got {out}"
+        );
+        assert!(
+            out.contains(&format!("data-task-line=\"{SECOND_TASK_LINE}\"")),
+            "got {out}"
+        );
+        assert!(
+            !out.contains("disabled"),
+            "checkboxes must be clickable: {out}"
+        );
+        assert!(
+            out.contains("checked=\"\""),
+            "the checked state must survive"
+        );
+    }
+
+    /// A literal checkbox in the document's own raw HTML would shift the pairing, so the
+    /// injection is skipped rather than wiring a box to the wrong task.
+    #[test]
+    fn a_count_mismatch_leaves_every_checkbox_alone() {
+        let html = format!("<p>{BOX}</p><ul><li>{BOX}a</li></ul>");
+        let out = enable_task_checkboxes(&html, &[todo(FIRST_TASK_LINE)]);
+        assert_eq!(out, html);
+        assert!(out.contains("disabled"));
+    }
+
+    /// The counts can agree while the pairing is still wrong. Ticked state is the cheap
+    /// second opinion, and disagreement means the two lists are not describing the same
+    /// tasks — so none of them is wired up.
+    #[test]
+    fn a_state_mismatch_leaves_every_checkbox_alone() {
+        let html = format!("<ul><li>{BOX}a</li><li>{CHECKED}b</li></ul>");
+        let out = enable_task_checkboxes(&html, &[done(FIRST_TASK_LINE), todo(SECOND_TASK_LINE)]);
+        assert_eq!(out, html);
+        assert!(out.contains("disabled"));
+    }
+
+    #[test]
+    fn a_document_with_no_tasks_is_untouched() {
+        let html = "<p>nothing here</p>";
+        assert_eq!(enable_task_checkboxes(html, &[]), html);
+    }
 }

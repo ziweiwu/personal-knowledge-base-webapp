@@ -1,4 +1,4 @@
-import { useCallback, useMemo, type ReactNode } from 'react';
+import { useCallback, useMemo, useState, type ReactNode } from 'react';
 import { fetchTree } from '../api/client';
 import { eventTouches } from '../api/events';
 import type { ChangeEvent } from '../api/types';
@@ -29,6 +29,9 @@ export function VaultProvider({ rootId, children }: VaultProviderProps) {
   );
   useChangeEvents(onChange);
 
+  const [localChangeToken, setLocalChangeToken] = useState(0);
+  const notifyLocalChange = useCallback(() => setLocalChangeToken((current) => current + 1), []);
+
   const value = useMemo(
     () => ({
       rootId,
@@ -38,8 +41,10 @@ export function VaultProvider({ rootId, children }: VaultProviderProps) {
       treeLoading: tree.loading,
       treeError: tree.error,
       reloadTree,
+      localChangeToken,
+      notifyLocalChange,
     }),
-    [rootId, root, tree.data, tree.loading, tree.error, reloadTree],
+    [rootId, root, tree.data, tree.loading, tree.error, reloadTree, localChangeToken, notifyLocalChange],
   );
 
   return <VaultContext value={value}>{children}</VaultContext>;

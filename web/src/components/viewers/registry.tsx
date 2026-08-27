@@ -22,6 +22,6 @@ const VIEWERS: Record<DocumentKind, ComponentType<ViewerProps>> = {
   binary: BinaryViewer,
 };
 
-export function DocumentBody({ payload, rootId }: ViewerProps) {
-  return createElement(VIEWERS[payload.meta.kind] ?? BinaryViewer, { payload, rootId });
+export function DocumentBody({ payload, rootId, onToggleTask }: ViewerProps) {
+  return createElement(VIEWERS[payload.meta.kind] ?? BinaryViewer, { payload, rootId, onToggleTask });
 }

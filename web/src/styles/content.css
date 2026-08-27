@@ -72,13 +72,60 @@
   margin-top: 0.25em;
 }
 
-.prose li.task-list-item {
+.prose li:has(> input[type='checkbox']) {
   list-style: none;
   margin-left: -1.35em;
 }
 
-.prose li.task-list-item input[type='checkbox'] {
-  margin-right: 0.5em;
+/*
+ * A task checkbox is a control, and the native one measures 13x13 — a little over half
+ * the 24px WCAG 2.5.8 asks of a pointer target, and a reliable miss on a phone. Taking
+ * `appearance: none` buys the hit area (the element is 24px, the box it paints is 16px)
+ * and, with it, the checked and read-only states in both themes: the native control
+ * paints those from the platform palette and ignores ours.
+ *
+ * The task's text is deliberately NOT part of the target. Wrapping the line in a <label>
+ * would enlarge it further, but task text routinely contains wikilinks, and a link inside
+ * a label both follows itself and ticks the box.
+ */
+.prose li input[type='checkbox'] {
+  appearance: none;
+  display: inline-grid;
+  place-content: center;
+  inline-size: 24px;
+  block-size: 24px;
+  margin: 0 0.15em 0 -0.4em;
+  vertical-align: -0.42em;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+
+.prose li input[type='checkbox']::before {
+  content: '';
+  inline-size: 16px;
+  block-size: 16px;
+  border: 1.5px solid var(--border-strong);
+  border-radius: 4px;
+  background: var(--bg-elevated);
+}
+
+.prose li input[type='checkbox']:checked::before {
+  border-color: var(--accent);
+  background-color: var(--accent);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath fill='none' stroke='%23fff' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round' d='m3.5 8.4 3 3 6-6.5'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 13px;
+}
+
+/* Read-only documents still show their tasks; they just cannot be ticked here. */
+.prose li input[type='checkbox']:disabled {
+  cursor: default;
+}
+
+.prose li input[type='checkbox']:disabled::before {
+  opacity: 0.5;
 }
 
 .prose blockquote {
@@ -108,11 +155,13 @@
   border-radius: var(--radius-sm);
 }
 
+/* background-color, not the shorthand: the shorthand would wipe out the
+   scroll-shadow layers that app.css paints on every sideways-scrolling box. */
 .prose pre {
   padding: 12px 14px;
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
-  background: var(--code-bg);
+  background-color: var(--code-bg);
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
   font-size: 0.85rem;
@@ -225,7 +274,7 @@
    raw diagram definition never flashes on screen. */
 .prose pre.mermaid {
   border: 1px solid var(--border);
-  background: var(--bg-subtle);
+  background-color: var(--bg-subtle);
   text-align: center;
   overflow-x: auto;
   white-space: normal;

@@ -15,7 +15,9 @@ use axum::http::HeaderMap;
 use axum::http::StatusCode;
 use axum::Json;
 use kbview_core::links::{rewrite_wikilinks, RenameContext};
-use kbview_core::model::{DocumentMeta, RenameRequest, RenameResult, SaveConflict, SaveRequest};
+use kbview_core::model::{
+    DocumentMeta, RenameRequest, RenameResult, SaveConflict, SaveRequest, TaskToggleRequest,
+};
 use kbview_core::paths::resolve_in_root;
 use std::path::{Path as FsPath, PathBuf};
 use std::sync::Arc;
@@ -162,6 +164,76 @@ fn indexed_meta(state: &AppState, root_id: &str, path: &str) -> AppResult<Json<D
     Ok(Json(document.meta()))
 }
 
+/// Tick or untick one task-list checkbox.
+///
+/// Separate from `save` on purpose. A reader ticking something off should not have to
+/// open an editor, and this route cannot write content even if it wanted to: it flips a
+/// single character on a line it has verified still holds a task marker. If the document
+/// moved underneath the click it refuses rather than guessing, and the client reloads.
+pub async fn toggle_task(
+    State(state): State<Arc<AppState>>,
+    Path((root_id, path)): Path<(String, String)>,
+    headers: HeaderMap,
+    Json(body): Json<TaskToggleRequest>,
+) -> AppResult<Json<DocumentMeta>> {
+    let root = writable_root(&state, &root_id)?;
+    reject_unless_markdown(&state, &root_id, &path)?;
+
+    let absolute = resolve_in_root(&root.path, &path)?;
+    // The same precondition a full save carries: a checkbox is a smaller edit, not a
+    // licence to overwrite someone else's.
+    if mtime_ms(&absolute) != body.base_mtime_ms {
+        return Err(AppError::Stale(
+            "this document changed on disk; reload and try again".into(),
+        ));
+    }
+
+    if let Some(updated) = toggled_source(&absolute, &body)? {
+        write_atomic(&absolute, &updated)?;
+        state.reindex(&root_id, vec![path.clone()], origin_of(&headers));
+    }
+
+    indexed_meta(&state, &root_id, &path)
+}
+
+/// The document with that one checkbox flipped, or `None` when it already holds the state
+/// asked for — two clicks racing, or a repeated request. The caller wanted this state and
+/// it holds, so that is success with nothing to write, not an error.
+fn toggled_source(
+    absolute: &std::path::Path,
+    body: &TaskToggleRequest,
+) -> AppResult<Option<String>> {
+    use kbview_core::tasks::{set_task_state, TaskError, TaskState};
+
+    let wanted = if body.checked {
+        TaskState::Done
+    } else {
+        TaskState::Todo
+    };
+    let source = std::fs::read_to_string(absolute)?;
+    match set_task_state(&source, body.line, wanted) {
+        Ok(updated) => Ok(Some(updated)),
+        Err(TaskError::AlreadySet) => Ok(None),
+        Err(_) => Err(AppError::BadRequest(
+            "that line is no longer a task; reload and try again".into(),
+        )),
+    }
+}
+
+/// Only markdown has task lists, and only an indexed document can be addressed at all.
+fn reject_unless_markdown(state: &AppState, root_id: &str, path: &str) -> AppResult<()> {
+    let index = state
+        .index(root_id)
+        .ok_or(AppError::NotFound("folder".into()))?;
+    let document = index
+        .get(path)
+        .ok_or(AppError::NotFound("document".into()))?;
+    if document.kind != kbview_core::kinds::DocumentKind::Markdown {
+        return Err(AppError::BadRequest("only markdown has task lists".into()));
+    }
+    Ok(())
+}
+
 pub async fn create(
     State(state): State<Arc<AppState>>,
     Path((root_id, path)): Path<(String, String)>,
@@ -297,6 +369,10 @@ pub async fn rename(
 ) -> AppResult<Json<RenameResult>> {
     let root_id = query.root;
     let root = writable_root(&state, &root_id)?;
+    // The other three write routes check this; rename did not. Renaming into a dotted or
+    // otherwise excluded path succeeded, took the file out of the index, and rewrote every
+    // inbound link to point at something no longer served — all reported as success.
+    reject_excluded(&body.to)?;
     let from_absolute = resolve_in_root(&root.path, &body.from)?;
     let to_absolute = resolve_in_root(&root.path, &body.to)?;
 
@@ -316,7 +392,7 @@ pub async fn rename(
     };
 
     move_file(&from_absolute, &to_absolute)?;
-    let updated = apply_link_rewrites(root, pending)?;
+    let updated = apply_link_rewrites(root, pending, &body)?;
 
     let mut touched = vec![body.from.clone(), body.to.clone()];
     touched.extend(updated.iter().cloned());
@@ -364,9 +440,13 @@ fn move_file(source: &FsPath, destination: &FsPath) -> AppResult<()> {
 fn apply_link_rewrites(
     root: &kbview_core::config::RootConfig,
     pending: Vec<(String, String)>,
+    request: &RenameRequest,
 ) -> AppResult<Vec<String>> {
     let mut updated = Vec::new();
     for (source_path, rewritten) in pending {
+        // A source that lived inside the renamed folder moved with it a moment ago, so
+        // its old path no longer exists; write it where it actually is now.
+        let source_path = relocate(&source_path, request);
         let absolute = resolve_in_root(&root.path, &source_path)?;
         // The move already succeeded; a link that fails to rewrite is a visible broken
         // link, which is recoverable, so report it rather than failing the whole rename.
@@ -378,7 +458,36 @@ fn apply_link_rewrites(
     Ok(updated)
 }
 
+/// A path as it stands after the rename: unchanged, unless it sat inside the moved folder.
+fn relocate(path: &str, request: &RenameRequest) -> String {
+    if path == request.from {
+        return request.to.clone();
+    }
+    match path.strip_prefix(&format!("{}/", request.from)) {
+        Some(tail) => format!("{}/{}", request.to, tail),
+        None => path.to_string(),
+    }
+}
+
 /// Compute, without writing, the new contents of every document linking to the old path.
+/// The text a rewrite should be planned against: whatever an earlier move in this rename
+/// already produced, or else the file as it stands on disk.
+///
+/// Deliberately not the index's cached copy. The rewrite writes the whole file back, so
+/// planning against a stale body would silently revert any edit made in the window between
+/// the last reindex and this rename.
+fn pending_or_on_disk(
+    rewritten: &std::collections::BTreeMap<String, String>,
+    root: &kbview_core::config::RootConfig,
+    source_path: &str,
+) -> Option<String> {
+    if let Some(text) = rewritten.get(source_path) {
+        return Some(text.clone());
+    }
+    let absolute = resolve_in_root(&root.path, source_path).ok()?;
+    std::fs::read_to_string(&absolute).ok()
+}
+
 fn planned_link_rewrites(
     state: &AppState,
     root_id: &str,
@@ -392,32 +501,86 @@ fn planned_link_rewrites(
         .index(root_id)
         .ok_or(AppError::NotFound("folder".into()))?;
 
-    let mut planned = Vec::new();
-    for source_path in index
-        .backlinks(&request.from)
-        .into_iter()
-        .map(|link| link.path)
-    {
-        let Some(document) = index.get(&source_path) else {
-            continue;
-        };
-        let Some(content) = &document.content else {
-            continue;
-        };
-        let Some(rewritten) = rewrite_wikilinks(
-            content,
-            RenameContext {
-                from_path: &source_path,
-                old_path: &request.from,
-                new_path: &request.to,
-                resolver: &index.resolver,
-            },
-        ) else {
-            continue;
-        };
-        planned.push((source_path, rewritten));
+    let moves = moved_documents(&index, request);
+    if moves.is_empty() {
+        return Ok(Vec::new());
     }
-    Ok(planned)
+
+    // What the corpus will look like once the move lands. A replacement is only safe if it
+    // still resolves to the renamed document *there* — checking against the current corpus
+    // would happily produce a name that means something else afterwards.
+    let relocated: std::collections::HashMap<&str, &str> = moves
+        .iter()
+        .map(|(old, new)| (old.as_str(), new.as_str()))
+        .collect();
+    let after = kbview_core::links::Resolver::new(
+        index
+            .documents
+            .keys()
+            .map(|path| {
+                relocated
+                    .get(path.as_str())
+                    .map(|p| p.to_string())
+                    .unwrap_or_else(|| path.clone())
+            })
+            .collect::<Vec<_>>(),
+    );
+
+    // One document can link to several of the documents this rename moves, so the
+    // rewrites have to compose: each move is applied to the result of the last, not to
+    // the original text. Keyed by source path so a second move sees the first's output.
+    let mut rewritten: std::collections::BTreeMap<String, String> = Default::default();
+    for (old_path, new_path) in &moves {
+        for source_path in index.backlinks(old_path).into_iter().map(|link| link.path) {
+            let Some(current) = pending_or_on_disk(&rewritten, root, &source_path) else {
+                continue;
+            };
+            let source_after = relocate(&source_path, request);
+            let Some(next) = rewrite_wikilinks(
+                &current,
+                RenameContext {
+                    source_before: &source_path,
+                    source_after: &source_after,
+                    old_path,
+                    new_path,
+                    before: &index.resolver,
+                    after: &after,
+                },
+            ) else {
+                continue;
+            };
+            rewritten.insert(source_path, next);
+        }
+    }
+
+    Ok(rewritten.into_iter().collect())
+}
+
+/// Every document this rename relocates, as `(old path, new path)`.
+///
+/// Renaming a *folder* moves every document beneath it, and each of those is a separate
+/// link target. Planning against the folder's own path alone finds nothing — the backlink
+/// map is keyed by document paths, and a folder is never one — so a folder rename used to
+/// leave every path-qualified link inside it pointing at a path that no longer existed.
+/// Bare-name links only appeared to survive because the resolver re-resolves them by
+/// basename when the page is rendered.
+fn moved_documents(
+    index: &kbview_core::index::Index,
+    request: &RenameRequest,
+) -> Vec<(String, String)> {
+    if index.get(&request.from).is_some() {
+        return vec![(request.from.clone(), request.to.clone())];
+    }
+
+    let prefix = format!("{}/", request.from);
+    index
+        .documents
+        .keys()
+        .filter_map(|path| {
+            let tail = path.strip_prefix(&prefix)?;
+            Some((path.clone(), format!("{}/{}", request.to, tail)))
+        })
+        .collect()
 }
 
 #[cfg(test)]

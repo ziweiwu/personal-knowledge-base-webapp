@@ -4,6 +4,7 @@ import { baseName, parentPath } from '../../api/paths';
 import { useIsDesktop } from '../../hooks/useMediaQuery';
 import { useEscapeKey } from '../../hooks/useEscapeKey';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
+import { useScrollRestoration } from '../../hooks/useScrollRestoration';
 import { FileActionsProvider } from '../files/FileActionsProvider';
 import { useRoots } from '../../state/roots-context';
 import { VaultProvider } from '../../state/VaultProvider';
@@ -57,6 +58,9 @@ function VaultShell({ mode, path }: { mode: VaultMode; path: string }) {
   const [searchOpen, setSearchOpen] = useState(false);
   const [pageTitle, setPageTitle] = useState<string>('');
   const menuButtonRef = useRef<HTMLButtonElement>(null);
+  const mainRef = useRef<HTMLElement>(null);
+
+  useScrollRestoration(mainRef);
 
   const closeDrawer = useCallback(() => setDrawerOpen(false), []);
   useEscapeKey(drawerOpen && !isDesktop ? closeDrawer : null);
@@ -101,6 +105,10 @@ function VaultShell({ mode, path }: { mode: VaultMode; path: string }) {
   }, [title]);
 
   const drawerHidden = !isDesktop && !drawerOpen;
+  // While the drawer overlays the page, everything behind the scrim must leave
+  // the tab order and the accessibility tree — otherwise Tab walks straight
+  // through to the breadcrumb and search button the scrim is covering.
+  const behindDrawer = !isDesktop && drawerOpen;
 
   return (
     <div className="app-shell">
@@ -121,12 +129,20 @@ function VaultShell({ mode, path }: { mode: VaultMode; path: string }) {
           <span aria-hidden="true">☰</span>
         </button>
 
-        <div className="topbar__title">
+        {/* The toolbar outranks the scrim so its toggle can close the drawer again;
+            everything else in it is page chrome and is neutralised alongside <main>. */}
+        <div className="topbar__title" inert={behindDrawer}>
           {title}
-          <Breadcrumbs rootId={rootId} rootName={rootName} path={path} lastIsDocument={mode === 'doc'} />
+          <Breadcrumbs rootId={rootId} rootName={rootName} path={path} mode={mode} />
         </div>
 
-        <button type="button" className="search-trigger" onClick={() => setSearchOpen(true)} aria-keyshortcuts="Meta+K Control+K">
+        <button
+          type="button"
+          className="search-trigger"
+          onClick={() => setSearchOpen(true)}
+          aria-keyshortcuts="Meta+K Control+K"
+          inert={behindDrawer}
+        >
           <span aria-hidden="true">🔎</span>
           <span className="search-trigger__label only-desktop">Search</span>
           <kbd className="only-desktop" aria-hidden="true">
@@ -135,7 +151,7 @@ function VaultShell({ mode, path }: { mode: VaultMode; path: string }) {
           <span className="sr-only">Search this collection</span>
         </button>
 
-        <span className="only-mobile">
+        <span className="only-mobile" inert={behindDrawer}>
           <ThemeToggle />
         </span>
       </header>
@@ -158,7 +174,7 @@ function VaultShell({ mode, path }: { mode: VaultMode; path: string }) {
           <Sidebar activePath={path} currentDirectory={currentDirectory} onNavigate={closeDrawer} />
         </nav>
 
-        <main className="main-pane" id="main-content" tabIndex={-1}>
+        <main className="main-pane" id="main-content" tabIndex={-1} ref={mainRef} inert={behindDrawer}>
           {mode === 'tag' ? (
             <TagPage rootId={rootId} tag={path} onTitleChange={setPageTitle} />
           ) : mode === 'doc' ? (

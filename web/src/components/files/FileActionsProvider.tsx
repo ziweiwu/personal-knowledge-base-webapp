@@ -23,12 +23,23 @@ function errorMessage(cause: unknown): string {
   return String(cause);
 }
 
+function fileCount(count: number): string {
+  return `${count} ${count === 1 ? 'file' : 'files'}`;
+}
+
+/** States what actually landed, so a partial failure is never read as a success. */
+function uploadSummary(uploaded: number, attempted: number, destination: string, failures: string[]): string {
+  if (failures.length === 0) return `Uploaded ${fileCount(uploaded)} to ${destination}.`;
+  if (uploaded === 0) return `Nothing was uploaded — ${failures.join('; ')}`;
+  return `Uploaded ${uploaded} of ${fileCount(attempted)} to ${destination}. Failed — ${failures.join('; ')}`;
+}
+
 /**
  * Owns every mutating file operation and the dialogs that drive them, so the
  * tree, the folder listing and the toolbar all share one implementation.
  */
 export function FileActionsProvider({ children }: { children: ReactNode }) {
-  const { rootId, reloadTree } = useVault();
+  const { rootId, reloadTree, notifyLocalChange } = useVault();
   const navigate = useNavigate();
 
   const [pending, setPending] = useState<Pending | null>(null);
@@ -64,8 +75,9 @@ export function FileActionsProvider({ children }: { children: ReactNode }) {
       setBusy(false);
       setNotice(message);
       reloadTree();
+      notifyLocalChange();
     },
-    [reloadTree],
+    [reloadTree, notifyLocalChange],
   );
 
   const runCreateNote = async (name: string) => {
@@ -134,22 +146,25 @@ export function FileActionsProvider({ children }: { children: ReactNode }) {
   };
 
   const runUpload = async (files: FileList) => {
+    // The picker is reset as soon as this returns, which empties the live
+    // FileList: the count has to be taken from a snapshot, not read back later.
+    const queued = Array.from(files);
+    const destination = uploadDirectory || 'the root folder';
     setBusy(true);
     const failures: string[] = [];
-    for (const file of Array.from(files)) {
+    let uploaded = 0;
+    for (const file of queued) {
       try {
         await uploadFile(rootId, joinPath(uploadDirectory, file.name), file);
+        uploaded += 1;
       } catch (cause) {
         failures.push(`${file.name}: ${errorMessage(cause)}`);
       }
     }
     setBusy(false);
     reloadTree();
-    setNotice(
-      failures.length === 0
-        ? `Uploaded ${files.length} ${files.length === 1 ? 'file' : 'files'} to ${uploadDirectory || 'the root folder'}.`
-        : `Some uploads failed — ${failures.join('; ')}`,
-    );
+    notifyLocalChange();
+    setNotice(uploadSummary(uploaded, queued.length, destination, failures));
   };
 
   return (
@@ -209,6 +224,7 @@ export function FileActionsProvider({ children }: { children: ReactNode }) {
           initialValue={baseName(pending.path)}
           hint="Links pointing at this file will be rewritten."
           submitLabel="Rename"
+          preselect={pending.isDir ? 'all' : 'stem'}
           busy={busy}
           error={error}
           onSubmit={(value) => void runRename(value)}

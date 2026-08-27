@@ -123,8 +123,11 @@ fn render_markdown(root_id: &str, index: &Index, document: &Document) -> CachedR
         index,
     };
     let rendered = markdown::render(body, &context);
+    // Against `source`, not `body`: the checkbox has to name a line of the file the toggle
+    // will write to, and the frontmatter this stripped is part of that file.
+    let tasks = kbview_core::tasks::task_lines(source);
     CachedRender {
-        html: rendered.html,
+        html: markdown::enable_task_checkboxes(&rendered.html, &tasks),
         headings: rendered.headings,
         warning: rendered.warning,
     }

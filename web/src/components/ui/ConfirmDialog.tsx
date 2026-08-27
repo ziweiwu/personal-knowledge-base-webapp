@@ -30,7 +30,10 @@ export function ConfirmDialog({
       dismissOnBackdrop={false}
       footer={
         <>
-          <button type="button" className="btn" onClick={onCancel} disabled={busy}>
+          {/* A destructive dialog opens with Cancel focused. Enter carried over from a
+              previous dialog then dismisses this one instead of deleting a file; the
+              user has to move to the confirm button deliberately. */}
+          <button type="button" className="btn" onClick={onCancel} disabled={busy} data-autofocus={danger || undefined}>
             Cancel
           </button>
           <button
@@ -38,7 +41,7 @@ export function ConfirmDialog({
             className={`btn ${danger ? 'btn--danger' : 'btn--primary'}`}
             onClick={onConfirm}
             disabled={busy}
-            data-autofocus
+            data-autofocus={danger ? undefined : true}
           >
             {busy ? 'Working…' : confirmLabel}
           </button>

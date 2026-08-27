@@ -5,7 +5,7 @@ import { EmptyState } from '../ui/States';
 import type { ViewerProps } from './viewer-types';
 
 /** Markdown and Word documents: both arrive as server-rendered HTML. */
-export function RichTextViewer({ payload, rootId }: ViewerProps) {
+export function RichTextViewer({ payload, rootId, onToggleTask }: ViewerProps) {
   const { meta, html, headings, backlinks } = payload;
 
   if (html === null) {
@@ -16,7 +16,7 @@ export function RichTextViewer({ payload, rootId }: ViewerProps) {
     <div className="doc__layout">
       <div className="doc__inner">
         <TableOfContents headings={headings} variant="inline" />
-        <HtmlContent html={html} rootId={rootId} docPath={meta.path} />
+        <HtmlContent html={html} rootId={rootId} docPath={meta.path} onToggleTask={onToggleTask} />
         <LinkRefs
           title="Backlinks"
           refs={backlinks}

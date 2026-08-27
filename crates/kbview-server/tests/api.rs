@@ -111,6 +111,30 @@ impl Harness {
     }
 }
 
+/// Create a document through the API so the in-memory index and the file on disk agree.
+/// Writing straight to disk leaves the index stale, and every write route checks the
+/// mtime it handed out.
+async fn create_document(harness: &Harness, cookie: &str, path: &str, content: &str) -> i64 {
+    let (status, _) = harness
+        .send(
+            Request::post(format!("/api/doc/kb/{path}"))
+                .header(header::COOKIE, cookie)
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(
+                    serde_json::json!({ "content": content, "baseMtimeMs": 0 }).to_string(),
+                ))
+                .unwrap(),
+        )
+        .await;
+    assert_eq!(status, StatusCode::CREATED, "setup: creating {path}");
+
+    let (_, body) = harness
+        .get_authed(cookie, &format!("/api/doc/kb/{path}"))
+        .await;
+    let payload: serde_json::Value = serde_json::from_str(&body).unwrap();
+    payload["meta"]["mtimeMs"].as_i64().unwrap()
+}
+
 /// Every route under `/api` except login must refuse an anonymous caller. This is the
 /// test that would catch a new route being mounted outside the gate.
 #[tokio::test]
@@ -434,4 +458,367 @@ async fn an_unknown_api_path_returns_json_not_the_html_shell() {
         body.contains("\"error\""),
         "expected a JSON error body: {body}"
     );
+}
+
+/// A folder rename moves every document beneath it, and each is a separate link target.
+/// Planning against the folder's own path finds nothing — the backlink map is keyed by
+/// documents — so this used to leave every path-qualified link dangling while bare-name
+/// links only appeared to survive, because the resolver re-resolves those at render time.
+#[tokio::test]
+async fn renaming_a_folder_rewrites_path_qualified_inbound_links() {
+    let harness = harness("renamefolder");
+    let cookie = harness.login().await;
+
+    std::fs::write(
+        harness.root.join("index.md"),
+        "# Index\nBare [[Target]] and qualified [[notes/Target|aliased]].\n",
+    )
+    .unwrap();
+
+    let (status, body) = harness
+        .send(
+            Request::post("/api/rename?root=kb")
+                .header(header::COOKIE, &cookie)
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(
+                    serde_json::json!({ "from": "notes", "to": "renamed-notes", "updateLinks": true })
+                        .to_string(),
+                ))
+                .unwrap(),
+        )
+        .await;
+
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert!(harness.root.join("renamed-notes/Target.md").exists());
+
+    let index = std::fs::read_to_string(harness.root.join("index.md")).unwrap();
+    assert!(
+        index.contains("[[renamed-notes/Target|aliased]]"),
+        "path-qualified link not rewritten after a folder rename: {index}"
+    );
+    assert!(
+        !index.contains("[[notes/Target|aliased]]"),
+        "stale folder-prefixed link left dangling: {index}"
+    );
+}
+
+/// A document inside the renamed folder has itself moved by the time the rewrites are
+/// applied, so writing it back at its old path would either fail or resurrect the folder.
+#[tokio::test]
+async fn a_document_inside_a_renamed_folder_is_rewritten_at_its_new_path() {
+    let harness = harness("renameinside");
+    let cookie = harness.login().await;
+
+    // Created through the API so the index knows about it — a file written straight to
+    // disk would not be in the link graph until the watcher noticed it.
+    let (status, _) = harness
+        .send(
+            Request::post("/api/doc/kb/notes/sibling.md")
+                .header(header::COOKIE, &cookie)
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(
+                    serde_json::json!({
+                        "content": "# Sibling\nPoints at [[notes/Target|the target]].\n",
+                        "baseMtimeMs": 0
+                    })
+                    .to_string(),
+                ))
+                .unwrap(),
+        )
+        .await;
+    assert_eq!(status, StatusCode::CREATED);
+
+    let (status, body) = harness
+        .send(
+            Request::post("/api/rename?root=kb")
+                .header(header::COOKIE, &cookie)
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(
+                    serde_json::json!({ "from": "notes", "to": "moved", "updateLinks": true })
+                        .to_string(),
+                ))
+                .unwrap(),
+        )
+        .await;
+
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert!(
+        !harness.root.join("notes").exists(),
+        "the old folder must be gone"
+    );
+
+    let sibling = std::fs::read_to_string(harness.root.join("moved/sibling.md")).unwrap();
+    assert!(
+        sibling.contains("[[moved/Target|the target]]"),
+        "a link between two documents that moved together was not retargeted: {sibling}"
+    );
+}
+
+/// The other write routes refuse a dotted destination; rename did not. It hid the file
+/// from the index and rewrote every inbound link to point at a path no longer served,
+/// reporting both as success.
+#[tokio::test]
+async fn renaming_into_an_excluded_path_is_refused() {
+    let harness = harness("renameexcluded");
+    let cookie = harness.login().await;
+
+    for destination in ["notes/.hidden.md", ".trash/gone.md", ".obsidian/sneaky.md"] {
+        let (status, _) = harness
+            .send(
+                Request::post("/api/rename?root=kb")
+                    .header(header::COOKIE, &cookie)
+                    .header(header::CONTENT_TYPE, "application/json")
+                    .body(Body::from(
+                        serde_json::json!({ "from": "notes/Target.md", "to": destination })
+                            .to_string(),
+                    ))
+                    .unwrap(),
+            )
+            .await;
+        assert_eq!(
+            status,
+            StatusCode::BAD_REQUEST,
+            "{destination} should be refused"
+        );
+    }
+    assert!(
+        harness.root.join("notes/Target.md").exists(),
+        "a refused rename must leave the file where it was"
+    );
+}
+
+/// A bare wikilink must not be rewritten into a name that resolves to a different
+/// document. This is the failure the module is explicitly designed to avoid: not a broken
+/// link the reader can see, but a plausible link to the wrong note.
+#[tokio::test]
+async fn a_rename_never_repoints_a_link_at_a_different_document() {
+    let harness = harness("renameambiguous");
+    let cookie = harness.login().await;
+
+    std::fs::create_dir_all(harness.root.join("other")).unwrap();
+    std::fs::write(harness.root.join("other/Renamed.md"), "# Decoy\n").unwrap();
+    std::fs::write(
+        harness.root.join("other/linker.md"),
+        "# Linker\nPoints at [[Target]].\n",
+    )
+    .unwrap();
+
+    // Reindex through the API so the new files are in the link graph.
+    let (status, _) = harness
+        .send(
+            Request::post("/api/doc/kb/other/touch.md")
+                .header(header::COOKIE, &cookie)
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(
+                    serde_json::json!({ "content": "# Touch\n", "baseMtimeMs": 0 }).to_string(),
+                ))
+                .unwrap(),
+        )
+        .await;
+    assert_eq!(status, StatusCode::CREATED);
+
+    let (status, body) = harness
+        .send(
+            Request::post("/api/rename?root=kb")
+                .header(header::COOKIE, &cookie)
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(
+                    serde_json::json!({
+                        "from": "notes/Target.md",
+                        "to": "notes/Renamed.md",
+                        "updateLinks": true
+                    })
+                    .to_string(),
+                ))
+                .unwrap(),
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+
+    let linker = std::fs::read_to_string(harness.root.join("other/linker.md")).unwrap();
+    assert!(
+        !linker.contains("[[Renamed]]"),
+        "a bare [[Renamed]] resolves to other/Renamed.md, a different document: {linker}"
+    );
+    assert!(
+        linker.contains("[[notes/Renamed]]"),
+        "the link should have been qualified to stay unambiguous: {linker}"
+    );
+}
+
+/// Ticking a checkbox is a write, so it carries the same precondition a save does and
+/// changes exactly one character.
+#[tokio::test]
+async fn toggling_a_task_edits_only_the_checkbox() {
+    let harness = harness("tasktoggle");
+    let cookie = harness.login().await;
+
+    let original = "# Tasks\n\n- [ ] first\n- [x] second\n";
+    let mtime = create_document(&harness, &cookie, "tasks.md", original).await;
+
+    let (status, body) = harness
+        .send(
+            Request::post("/api/task/kb/tasks.md")
+                .header(header::COOKIE, &cookie)
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(
+                    serde_json::json!({ "line": 3, "checked": true, "baseMtimeMs": mtime })
+                        .to_string(),
+                ))
+                .unwrap(),
+        )
+        .await;
+
+    assert_eq!(status, StatusCode::OK, "{body}");
+    let after = std::fs::read_to_string(harness.root.join("tasks.md")).unwrap();
+    assert_eq!(after, "# Tasks\n\n- [x] first\n- [x] second\n");
+    assert_eq!(after.len(), original.len(), "only one character may change");
+}
+
+/// The line number a checkbox carries has to address the file on disk, not the prepared
+/// source the renderer parsed. Frontmatter is stripped and a callout expands into HTML
+/// before parsing, so a document with both used to hand the client a line number several
+/// off, and the click silently ticked an unrelated task further down.
+#[tokio::test]
+async fn a_checkbox_after_frontmatter_and_a_callout_toggles_the_task_it_belongs_to() {
+    let harness = harness("taskoffset");
+    let cookie = harness.login().await;
+
+    let original = concat!(
+        "---\n",
+        "title: Shifted\n",
+        "---\n",
+        "\n",
+        "> [!note] A callout\n",
+        "> body one\n",
+        "> body two\n",
+        "\n",
+        "- [ ] the one that was clicked\n",
+        "- [ ] filler\n",
+        "- [ ] filler\n",
+        "- [ ] filler\n",
+        "- [ ] must stay unchecked\n",
+    );
+    let mtime = create_document(&harness, &cookie, "shifted.md", original).await;
+
+    let (status, body) = harness
+        .send(
+            Request::get("/api/doc/kb/shifted.md")
+                .header(header::COOKIE, &cookie)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+
+    let html = serde_json::from_str::<serde_json::Value>(&body).unwrap()["html"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let marker = "data-task-line=\"";
+    let at = html
+        .find(marker)
+        .expect("the first task should be clickable");
+    let rest = &html[at + marker.len()..];
+    let line: usize = rest[..rest.find('"').unwrap()].parse().unwrap();
+    assert_eq!(line, 9, "the first checkbox stands for line 9 of the file");
+
+    let (status, body) = harness
+        .send(
+            Request::post("/api/task/kb/shifted.md")
+                .header(header::COOKIE, &cookie)
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(
+                    serde_json::json!({ "line": line, "checked": true, "baseMtimeMs": mtime })
+                        .to_string(),
+                ))
+                .unwrap(),
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+
+    let after = std::fs::read_to_string(harness.root.join("shifted.md")).unwrap();
+    assert!(
+        after.contains("- [x] the one that was clicked"),
+        "the clicked task should be ticked: {after}"
+    );
+    assert!(
+        after.contains("- [ ] must stay unchecked"),
+        "no other task may be touched: {after}"
+    );
+}
+
+#[tokio::test]
+async fn toggling_a_task_with_a_stale_mtime_is_refused() {
+    let harness = harness("taskstale");
+    let cookie = harness.login().await;
+
+    let original = "# Tasks\n\n- [ ] first\n";
+    std::fs::write(harness.root.join("notes/Target.md"), original).unwrap();
+
+    let (status, _) = harness
+        .send(
+            Request::post("/api/task/kb/notes/Target.md")
+                .header(header::COOKIE, &cookie)
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(
+                    serde_json::json!({ "line": 3, "checked": true, "baseMtimeMs": 1 }).to_string(),
+                ))
+                .unwrap(),
+        )
+        .await;
+
+    // The same 409 a save gets: the precondition that failed is the same one.
+    assert_eq!(status, StatusCode::CONFLICT);
+    assert_eq!(
+        std::fs::read_to_string(harness.root.join("notes/Target.md")).unwrap(),
+        original,
+        "a refused toggle must not have written anything"
+    );
+}
+
+/// The route may only ever flip a checkbox: pointed at a line that is not a task, it
+/// refuses rather than editing whatever happens to be there.
+#[tokio::test]
+async fn toggling_a_line_that_is_not_a_task_is_refused() {
+    let harness = harness("tasknotatask");
+    let cookie = harness.login().await;
+
+    let original = "# Tasks\n\nJust prose.\n";
+    let mtime = create_document(&harness, &cookie, "prose.md", original).await;
+
+    let (status, _) = harness
+        .send(
+            Request::post("/api/task/kb/prose.md")
+                .header(header::COOKIE, &cookie)
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(
+                    serde_json::json!({ "line": 3, "checked": true, "baseMtimeMs": mtime })
+                        .to_string(),
+                ))
+                .unwrap(),
+        )
+        .await;
+
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    assert_eq!(
+        std::fs::read_to_string(harness.root.join("prose.md")).unwrap(),
+        original
+    );
+}
+
+#[tokio::test]
+async fn task_toggling_requires_a_session() {
+    let harness = harness("taskauth");
+    let (status, _) = harness
+        .send(
+            Request::post("/api/task/kb/notes/Target.md")
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(
+                    serde_json::json!({ "line": 1, "checked": true, "baseMtimeMs": 0 }).to_string(),
+                ))
+                .unwrap(),
+        )
+        .await;
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
 }
