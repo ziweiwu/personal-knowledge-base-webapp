@@ -1,0 +1,63 @@
+%PDF-1.4
+%‚„œ”
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [3 0 R] /Count 1 >>
+endobj
+3 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>
+endobj
+4 0 obj
+<< /Length 673 >>
+stream
+BT
+/F1 18 Tf
+72 720 Td
+(kbview Mixed Media Report) Tj
+/F1 11 Tf
+0 -28 Td
+(A minimal but genuinely valid PDF, written byte by byte.) Tj
+0 -16 Td
+(It has one page, a Helvetica font resource, a content stream,) Tj
+0 -16 Td
+(and a cross-reference table whose offsets are computed, not guessed.) Tj
+0 -16 Td
+() Tj
+0 -16 Td
+(kbview should render this in its PDF viewer.) Tj
+0 -16 Td
+() Tj
+0 -16 Td
+(Section 1 - Scope) Tj
+0 -16 Td
+(Every file in mixed-media/ is here to prove one handler works.) Tj
+0 -16 Td
+() Tj
+0 -16 Td
+(Section 2 - Fallback) Tj
+0 -16 Td
+(opaque.bin and the extensionless LICENSE next to this file must) Tj
+0 -16 Td
+(fall back to download-only.) Tj
+0 -16 Td
+ET
+endstream
+endobj
+5 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>
+endobj
+xref
+0 6
+0000000000 65535 f 
+0000000015 00000 n 
+0000000064 00000 n 
+0000000121 00000 n 
+0000000247 00000 n 
+0000000971 00000 n 
+trailer
+<< /Size 6 /Root 1 0 R >>
+startxref
+1068
+%%EOF

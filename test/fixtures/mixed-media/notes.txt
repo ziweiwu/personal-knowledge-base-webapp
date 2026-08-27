@@ -1,0 +1,17 @@
+kbview mixed-media fixture — scratch notes
+==========================================
+
+This is a plain text file. It has no markup, so the app must render it inside a
+<pre> block (or an equivalent) rather than running it through the Markdown
+parser. If you see this heading underlined by "=" characters turned into an
+<h1>, the text handler is wrongly reaching for the Markdown renderer.
+
+Things that must survive verbatim:
+
+  * leading whitespace, like this indented bullet
+  * tab-separated	columns	stay	aligned
+  * angle brackets <not html> and ampersands & entities
+  * a line that is deliberately very long, so that the viewer has to decide between wrapping it and letting it scroll horizontally, and either choice is fine as long as the text is not truncated
+  * non-ASCII: 知识管理, ナレッジ, naïve café, ✓ ✗ →
+
+End of file.

@@ -1,0 +1,334 @@
+/*
+ * Styling for server-rendered document HTML. Everything here is scoped under
+ * .prose so it can never leak into the app chrome.
+ */
+
+.prose {
+  min-width: 0;
+  font-size: 1rem;
+  line-height: 1.65;
+}
+
+.prose > * + * {
+  margin-top: 1em;
+}
+
+.prose h1,
+.prose h2,
+.prose h3,
+.prose h4,
+.prose h5,
+.prose h6 {
+  line-height: 1.3;
+  font-weight: 680;
+  letter-spacing: -0.01em;
+  scroll-margin-top: calc(var(--topbar-h) + 16px);
+}
+
+.prose > h1 + *,
+.prose > h2 + *,
+.prose > h3 + * {
+  margin-top: 0.5em;
+}
+
+.prose h1 {
+  font-size: 1.7em;
+  margin-top: 1.6em;
+}
+
+.prose h2 {
+  font-size: 1.35em;
+  margin-top: 1.7em;
+  padding-bottom: 0.24em;
+  border-bottom: 1px solid var(--border);
+}
+
+.prose h3 {
+  font-size: 1.15em;
+  margin-top: 1.6em;
+}
+
+.prose h4 {
+  font-size: 1em;
+  margin-top: 1.5em;
+}
+
+.prose a {
+  color: var(--accent-fg);
+  text-underline-offset: 2px;
+}
+
+.prose ul,
+.prose ol {
+  padding-left: 1.5em;
+}
+
+.prose li + li {
+  margin-top: 0.25em;
+}
+
+.prose li > ul,
+.prose li > ol {
+  margin-top: 0.25em;
+}
+
+.prose li.task-list-item {
+  list-style: none;
+  margin-left: -1.35em;
+}
+
+.prose li.task-list-item input[type='checkbox'] {
+  margin-right: 0.5em;
+}
+
+.prose blockquote {
+  padding: 0.1em 1em;
+  border-left: 3px solid var(--border-strong);
+  color: var(--fg-muted);
+}
+
+.prose hr {
+  border: 0;
+  border-top: 1px solid var(--border);
+  margin: 2em 0;
+}
+
+.prose img,
+.prose video {
+  max-width: 100%;
+  height: auto;
+  border-radius: var(--radius-md);
+}
+
+.prose code {
+  font-family: var(--font-mono);
+  font-size: 0.87em;
+  background: var(--code-bg);
+  padding: 0.15em 0.35em;
+  border-radius: var(--radius-sm);
+}
+
+.prose pre {
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--code-bg);
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  font-size: 0.85rem;
+  line-height: 1.55;
+}
+
+.prose pre code {
+  background: none;
+  padding: 0;
+  font-size: inherit;
+}
+
+/* Wide content gets its own scroll container so the page never scrolls sideways. */
+.scroll-x {
+  max-width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.prose table {
+  border-collapse: collapse;
+  width: max-content;
+  min-width: 100%;
+  font-size: 0.9em;
+}
+
+.prose th,
+.prose td {
+  border: 1px solid var(--border);
+  padding: 6px 10px;
+  text-align: left;
+}
+
+.prose thead th {
+  background: var(--bg-subtle);
+  font-weight: 650;
+}
+
+.prose mark {
+  background: var(--mark-bg);
+  color: var(--mark-fg);
+}
+
+.prose kbd {
+  font-size: 0.8em;
+}
+
+/* Obsidian callouts */
+.prose .callout {
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--accent);
+  border-radius: var(--radius-md);
+  background: var(--bg-subtle);
+}
+
+.prose .callout-title {
+  font-weight: 650;
+  margin-bottom: 4px;
+}
+
+.prose .callout[data-callout='warning'],
+.prose .callout[data-callout='caution'] {
+  border-left-color: var(--warning);
+  background: var(--warning-subtle);
+}
+
+.prose .callout[data-callout='danger'],
+.prose .callout[data-callout='error'] {
+  border-left-color: var(--danger);
+  background: var(--danger-subtle);
+}
+
+.prose .callout[data-callout='tip'],
+.prose .callout[data-callout='success'] {
+  border-left-color: var(--success);
+  background: var(--success-subtle);
+}
+
+/* Footnotes */
+.prose .footnotes {
+  margin-top: 2.5em;
+  padding-top: 1em;
+  border-top: 1px solid var(--border);
+  font-size: 0.9em;
+  color: var(--fg-muted);
+}
+
+/* Broken wikilinks render as a non-link span in Obsidian mode. */
+.prose a.internal-link.is-unresolved,
+.prose .unresolved-link {
+  color: var(--fg-faint);
+  text-decoration: underline dotted;
+}
+
+/* MathML: the browser lays it out, we only keep it from overflowing. */
+.prose math {
+  font-size: 1.05em;
+}
+
+.prose math[display='block'] {
+  display: block;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 0.4em 0;
+  text-align: center;
+}
+
+/* Mermaid: hidden until the lazy renderer has replaced the source text, so the
+   raw diagram definition never flashes on screen. */
+.prose pre.mermaid {
+  border: 1px solid var(--border);
+  background: var(--bg-subtle);
+  text-align: center;
+  overflow-x: auto;
+  white-space: normal;
+}
+
+.prose pre.mermaid:not([data-mermaid-state]) {
+  color: transparent;
+  min-height: 3em;
+}
+
+.prose pre.mermaid[data-mermaid-state='error'] {
+  white-space: pre-wrap;
+  text-align: left;
+  color: var(--danger);
+  border-color: var(--danger);
+  background: var(--danger-subtle);
+}
+
+.prose pre.mermaid svg {
+  max-width: 100%;
+  height: auto;
+}
+
+/* Generic highlight classes, in case the server's highlighter emits them. */
+.prose .hljs-comment,
+.prose .hljs-quote {
+  color: var(--fg-faint);
+  font-style: italic;
+}
+
+.prose .hljs-keyword,
+.prose .hljs-selector-tag,
+.prose .hljs-literal {
+  color: var(--accent-fg);
+}
+
+.prose .hljs-string,
+.prose .hljs-attr {
+  color: var(--success);
+}
+
+.prose .hljs-number,
+.prose .hljs-built_in {
+  color: var(--warning);
+}
+
+.prose .hljs-title,
+.prose .hljs-name {
+  color: var(--danger);
+}
+
+.prose .frontmatter-table {
+  font-size: 0.85em;
+}
+
+/*
+ * A line of ~100 characters is well past the 45–75 that reading research supports, and
+ * this app exists to be read. The cap applies to the prose only, so tables, code blocks
+ * and diagrams can still use the full width.
+ */
+.prose {
+  max-width: 70ch;
+}
+
+.prose table,
+.prose pre,
+.prose .table-scroll,
+.prose .mermaid,
+.prose img,
+.prose .embed {
+  max-width: none;
+}
+
+/*
+ * An unresolved link must not read as ordinary prose. Obsidian marks these; without a
+ * mark the reader cannot tell a broken reference from plain text, and a tooltip is
+ * invisible on the phone this app is mostly used from. Shape carries the signal, not
+ * colour alone.
+ */
+.wikilink-unresolved {
+  color: var(--fg-muted);
+  text-decoration: underline dashed 1px;
+  text-underline-offset: 0.2em;
+  cursor: help;
+}
+
+/* Foldable callouts are real disclosures; keep the summary looking like a title. */
+.callout--foldable > .callout-title {
+  cursor: pointer;
+  list-style: none;
+}
+
+.callout--foldable > .callout-title::-webkit-details-marker {
+  display: none;
+}
+
+.callout--foldable > .callout-title::before {
+  content: '▸';
+  display: inline-block;
+  margin-right: 0.4em;
+  transition: transform 120ms ease;
+}
+
+.callout--foldable[open] > .callout-title::before {
+  transform: rotate(90deg);
+}

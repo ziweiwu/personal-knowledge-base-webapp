@@ -1,0 +1,14 @@
+/target
+/data
+node_modules
+web/dist
+kbview.config.json
+
+# Local deployment artefacts
+/deploy/*.local.*
+*.tar.gz
+.DS_Store
+
+# Vite dotenv files: the mock flag lives in the npm script instead.
+.env*
+!.env.example

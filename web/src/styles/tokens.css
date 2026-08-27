@@ -1,0 +1,159 @@
+/*
+ * The single source of colour for the app. Nothing outside this file may
+ * contain a literal colour; everything else references var(--…).
+ *
+ * Three-state theming: `:root` carries light, the prefers-color-scheme block
+ * carries dark for the "system" setting, and [data-theme] overrides both when
+ * the user has made an explicit choice.
+ */
+:root {
+  color-scheme: light;
+
+  --bg: #ffffff;
+  --bg-subtle: #f6f7f9;
+  --bg-inset: #eceef1;
+  --bg-elevated: #ffffff;
+  --bg-overlay: rgb(15 18 22 / 45%);
+  --bg-hover: rgb(15 18 22 / 5%);
+  --bg-active: rgb(15 18 22 / 9%);
+  --bg-selected: #e4edff;
+
+  --fg: #14181d;
+  --fg-muted: #5b6572;
+  --fg-faint: #8a93a0;
+  --fg-on-accent: #ffffff;
+
+  --border: #dfe3e8;
+  --border-strong: #c3c9d2;
+
+  --accent: #2f6feb;
+  --accent-hover: #2158c9;
+  --accent-subtle: #e8f0fe;
+  --accent-fg: #1d4ed8;
+
+  --danger: #c0392f;
+  --danger-hover: #9d2b23;
+  --danger-subtle: #fdecea;
+
+  --warning: #9a6408;
+  --warning-subtle: #fdf3d7;
+  --warning-border: #e7cf95;
+
+  --success: #1a7f47;
+  --success-subtle: #e6f5ec;
+
+  --code-bg: #f4f5f7;
+  --mark-bg: #fff2a8;
+  --mark-fg: #4a3c00;
+
+  --shadow-sm: 0 1px 2px rgb(15 18 22 / 8%);
+  --shadow-md: 0 4px 14px rgb(15 18 22 / 12%);
+  --shadow-lg: 0 18px 48px rgb(15 18 22 / 22%);
+
+  --focus-ring: 0 0 0 2px var(--bg), 0 0 0 4px var(--accent);
+
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 14px;
+
+  --sidebar-w: 288px;
+  --topbar-h: 52px;
+
+  --font-ui: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', sans-serif,
+    'Apple Color Emoji', 'Segoe UI Emoji';
+  --font-mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace;
+
+  --tap: 44px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    color-scheme: dark;
+
+    --bg: #14171b;
+    --bg-subtle: #1a1e23;
+    --bg-inset: #22272e;
+    --bg-elevated: #1e2329;
+    --bg-overlay: rgb(0 0 0 / 62%);
+    --bg-hover: rgb(255 255 255 / 6%);
+    --bg-active: rgb(255 255 255 / 11%);
+    --bg-selected: #1e3763;
+
+    --fg: #e7ebf0;
+    --fg-muted: #9aa4b1;
+    --fg-faint: #6d7885;
+    --fg-on-accent: #ffffff;
+
+    --border: #2c333b;
+    --border-strong: #3d4652;
+
+    --accent: #4c8bf5;
+    --accent-hover: #6ba0f8;
+    --accent-subtle: #17243c;
+    --accent-fg: #86b2fb;
+
+    --danger: #f0776a;
+    --danger-hover: #f5958a;
+    --danger-subtle: #3a1d1a;
+
+    --warning: #e0b449;
+    --warning-subtle: #33280f;
+    --warning-border: #5b4818;
+
+    --success: #56c98a;
+    --success-subtle: #13301f;
+
+    --code-bg: #1b2026;
+    --mark-bg: #6a5a12;
+    --mark-fg: #ffe98a;
+
+    --shadow-sm: 0 1px 2px rgb(0 0 0 / 40%);
+    --shadow-md: 0 4px 14px rgb(0 0 0 / 46%);
+    --shadow-lg: 0 18px 48px rgb(0 0 0 / 60%);
+  }
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+
+  --bg: #14171b;
+  --bg-subtle: #1a1e23;
+  --bg-inset: #22272e;
+  --bg-elevated: #1e2329;
+  --bg-overlay: rgb(0 0 0 / 62%);
+  --bg-hover: rgb(255 255 255 / 6%);
+  --bg-active: rgb(255 255 255 / 11%);
+  --bg-selected: #1e3763;
+
+  --fg: #e7ebf0;
+  --fg-muted: #9aa4b1;
+  --fg-faint: #6d7885;
+  --fg-on-accent: #ffffff;
+
+  --border: #2c333b;
+  --border-strong: #3d4652;
+
+  --accent: #4c8bf5;
+  --accent-hover: #6ba0f8;
+  --accent-subtle: #17243c;
+  --accent-fg: #86b2fb;
+
+  --danger: #f0776a;
+  --danger-hover: #f5958a;
+  --danger-subtle: #3a1d1a;
+
+  --warning: #e0b449;
+  --warning-subtle: #33280f;
+  --warning-border: #5b4818;
+
+  --success: #56c98a;
+  --success-subtle: #13301f;
+
+  --code-bg: #1b2026;
+  --mark-bg: #6a5a12;
+  --mark-fg: #ffe98a;
+
+  --shadow-sm: 0 1px 2px rgb(0 0 0 / 40%);
+  --shadow-md: 0 4px 14px rgb(0 0 0 / 46%);
+  --shadow-lg: 0 18px 48px rgb(0 0 0 / 60%);
+}

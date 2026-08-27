@@ -1,0 +1,12 @@
+{
+  "host": "127.0.0.1",
+  "port": 4321,
+  "dataDir": "./data",
+  "roots": [
+    {
+      "id": "kb",
+      "name": "Knowledge Base",
+      "path": "/absolute/path/to/your/folder"
+    }
+  ]
+}

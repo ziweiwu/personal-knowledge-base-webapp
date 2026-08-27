@@ -1,0 +1,63 @@
+{
+  "name": "mixed-media fixture",
+  "version": "1.0.0",
+  "root": {
+    "id": "mixed-media",
+    "mode": "documents",
+    "landingPage": "index.md"
+  },
+  "handlers": [
+    {
+      "extensions": [
+        ".pdf"
+      ],
+      "viewer": "pdf",
+      "inline": true
+    },
+    {
+      "extensions": [
+        ".docx"
+      ],
+      "viewer": "html",
+      "inline": true,
+      "converter": "kbview-docx"
+    },
+    {
+      "extensions": [
+        ".png",
+        ".jpg",
+        ".jpeg",
+        ".svg"
+      ],
+      "viewer": "image",
+      "inline": true
+    },
+    {
+      "extensions": [
+        ".csv"
+      ],
+      "viewer": "table",
+      "inline": true
+    },
+    {
+      "extensions": [
+        ".txt",
+        ".json"
+      ],
+      "viewer": "text",
+      "inline": true
+    },
+    {
+      "extensions": [],
+      "viewer": "download",
+      "inline": false
+    }
+  ],
+  "unicode": "知识管理 / ナレッジ / naïve café",
+  "nested": {
+    "empty_object": {},
+    "empty_array": [],
+    "null_value": null,
+    "float": 3.14159
+  }
+}

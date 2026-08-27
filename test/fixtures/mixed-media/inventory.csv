@@ -1,0 +1,14 @@
+id,filename,kind,description,handler
+1,report.pdf,pdf,"Hand-written PDF, one page, Helvetica text",pdf viewer
+2,meeting-minutes.docx,docx,"Heading, styled runs, a list, and a table",docx converter
+3,logo.png,image,"Solid violet PNG, 32x32, truecolour",image viewer
+4,photo.jpg,image,"Baseline JPEG, 16x16, no chroma subsampling",image viewer
+5,chart.svg,image,"Inline SVG, parses as XML",image viewer
+6,notes.txt,text,"Plain text, no markup at all",text viewer
+7,config.json,data,"Pretty-printed JSON, nested objects and arrays",text viewer
+8,opaque.bin,unknown,"Unknown extension, download-only fallback",download
+9,LICENSE,unknown,"No extension at all, download-only fallback",download
+10,inventory.csv,data,"This file. Row 10 holds a quoted comma, right here",table viewer
+11,inventory.csv,data,"Row 11 holds a quoted newline:
+this second line belongs to the same field, and the
+same record, so a naive line-splitting parser reports 13 rows instead of 12",table viewer

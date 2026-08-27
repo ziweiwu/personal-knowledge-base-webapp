@@ -1,0 +1,4 @@
+# ts-rs writes the frontend's API types here, so `cargo test` keeps them in sync.
+# CI fails if the result differs from what is committed.
+[env]
+TS_RS_EXPORT_DIR = { value = "web/src/api", relative = true }

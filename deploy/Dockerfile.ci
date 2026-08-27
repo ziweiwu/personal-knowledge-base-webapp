@@ -1,0 +1,25 @@
+# Assembles an already-compiled binary. Compiles nothing.
+#
+# The binary is cross-compiled on the CI runner at native speed and copied in here, so
+# building for a second architecture costs seconds. Compiling Rust inside a multi-platform
+# build instead would run the non-native half under QEMU, where a release build with LTO
+# takes tens of minutes and can exhaust the runner's memory.
+#
+# For the build-from-source path, see deploy/Dockerfile.
+FROM alpine:3
+
+# Set automatically by buildx per target platform: "amd64" or "arm64".
+ARG TARGETARCH
+
+RUN apk add --no-cache ca-certificates tini
+
+# The binary is statically linked against musl, so it needs no runtime libraries.
+COPY --chmod=0755 dist/${TARGETARCH}/kbview /usr/local/bin/kbview
+
+# No USER here on purpose: the container's uid/gid belong to the deployment, not the
+# image. Compose sets `user:` (1033:65536 on the Synology), which keeps one image usable
+# on hosts with different id conventions.
+EXPOSE 4321
+
+# tini reaps zombies and forwards signals, so `docker stop` shuts the server down cleanly.
+ENTRYPOINT ["/sbin/tini", "--", "/usr/local/bin/kbview"]
