@@ -141,6 +141,23 @@ parsing**, reusing the code-aware scanners in `kbview-core`. Standard markdown i
 comrak. This is why the link graph and the rendered output cannot disagree — they come
 from the same scanner.
 
+Resizing uses the `image` crate with only `png`, `jpeg`, `gif` and `webp` enabled. It is
+pure Rust with no system libraries, which is what keeps the musl cross-compile in CI
+working — a C-linked imaging library would break `cargo-zigbuild` for one or both targets.
+
+**Images are served at the size they are shown.** `GET /api/file/…?w=` returns a resized,
+re-encoded copy, and the renderer emits a `srcset` so the browser picks one. Three rules
+make this safe to leave on: the width must be one of `variants::WIDTHS` (an open parameter
+lets one caller fill the cache), it must be narrower than the source (scaling up is more
+bytes for no more detail), and **the result is served only if it is smaller than the
+original** — a smooth image can compress better as the PNG it already is, and a variant
+that is not smaller is pure cost. Variants are cached in memory by `(root, path, mtime,
+width)` under a byte budget; the "not worth it" answer is cached too, because establishing
+it costs a full decode.
+
+Resizing runs on `spawn_blocking`. Decoding several megapixels on a runtime thread stalls
+every other request sharing it.
+
 `loading="lazy"` is emitted **in the server's HTML**, never set from the client. The client
 writes markup with `innerHTML`, which starts every image fetch immediately, so an attribute
 applied afterwards is a no-op that still reads back as `lazy` in the inspector. Measured on

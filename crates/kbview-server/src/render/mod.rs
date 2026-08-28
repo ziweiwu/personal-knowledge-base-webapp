@@ -5,3 +5,4 @@ pub mod highlight;
 pub mod html;
 pub mod markdown;
 pub mod text;
+pub mod variants;

@@ -7,6 +7,9 @@ phone over Tailscale, behind a password.
 - **Markdown** with the Obsidian dialect: wikilinks, embeds and transclusion, callouts,
   tags, backlinks, GFM tables, maths, mermaid diagrams. Task-list checkboxes are live —
   ticking one in the browser writes the single character back to the file.
+- **Sized for the device**: a phone screenshot is several megabytes of PNG shown in a
+  column a few hundred pixels wide. Images are re-encoded and resized on demand, cached,
+  and offered through `srcset` — measured at 21x fewer bytes on a real set of screenshots.
 - **Other formats**: `.docx` converted to HTML, PDFs shown inline, images, CSV as a
   sortable table, source files highlighted. Anything else is listed and downloadable.
 - **Any folder**, not just vaults. Obsidian features switch on when a `.obsidian/`

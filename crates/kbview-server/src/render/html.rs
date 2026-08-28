@@ -46,9 +46,53 @@ pub fn encode_path(path: &str) -> String {
     out
 }
 
+/// Reverse `encode_path`.
+///
+/// Returns `None` on anything that is not valid percent-encoded UTF-8, so a malformed URL
+/// cannot be coerced into naming a document.
+pub fn decode_path(encoded: &str) -> Option<String> {
+    /// `%` plus two hex digits.
+    const ESCAPE_LEN: usize = 3;
+    const HEX: u32 = 16;
+
+    let bytes = encoded.as_bytes();
+    let mut out = Vec::with_capacity(bytes.len());
+    let mut index = 0;
+    while index < bytes.len() {
+        if bytes[index] == b'%' {
+            let digits = encoded.get(index + 1..index + ESCAPE_LEN)?;
+            out.push(u8::from_str_radix(digits, HEX).ok()?);
+            index += ESCAPE_LEN;
+        } else {
+            out.push(bytes[index]);
+            index += 1;
+        }
+    }
+    String::from_utf8(out).ok()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_path_survives_a_round_trip_through_the_url() {
+        for path in [
+            "notes/a.png",
+            "Spaces And Caps.png",
+            "unicode-\u{6807}\u{9898}.png",
+            "a+b & c/d.png",
+        ] {
+            assert_eq!(decode_path(&encode_path(path)).as_deref(), Some(path));
+        }
+    }
+
+    #[test]
+    fn a_malformed_encoding_decodes_to_nothing_rather_than_guessing() {
+        assert_eq!(decode_path("%ZZ"), None);
+        assert_eq!(decode_path("%2"), None);
+        assert_eq!(decode_path("%FF"), None, "not valid UTF-8");
+    }
 
     #[test]
     fn escapes_markup_characters_in_text() {

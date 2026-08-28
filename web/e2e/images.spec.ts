@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { openDoc } from './helpers';
+import { awaitLoaded, openDoc } from './helpers';
 
 /**
  * A knowledge base is full of screenshots, and a screenshot is wider than a phone. These
@@ -25,8 +25,9 @@ test.describe('image responsiveness', () => {
 
   test('a 1600px-wide screenshot is scaled down to fit, with its aspect ratio intact', async ({ page }) => {
     await openDoc(page, 'shapes', 'images.md');
-    const image = page.locator('.prose img[src$="wide-screenshot.png"]').first();
-    await expect(image).toBeVisible();
+    const image = page.locator('.prose img[src*="wide-screenshot.png"]').first();
+    await image.scrollIntoViewIfNeeded();
+    await awaitLoaded(image);
 
     const measured = await image.evaluate((node) => {
       const element = node as HTMLImageElement;
@@ -39,7 +40,9 @@ test.describe('image responsiveness', () => {
       };
     });
 
-    expect(measured.naturalWidth).toBe(1600);
+    // The browser may legitimately have chosen a narrower variant; what must hold is that
+    // whatever it fetched fills the column without overflowing or distorting it.
+    expect(measured.naturalWidth).toBeGreaterThan(0);
     expect(measured.width).toBeLessThanOrEqual(measured.proseWidth + 1);
     // Squashing is the classic failure when only the width is capped.
     const ratio = measured.width / measured.height;
@@ -53,7 +56,9 @@ test.describe('image responsiveness', () => {
    */
   test('a tall image fits the column and keeps its proportions rather than being shrunk', async ({ page }) => {
     await openDoc(page, 'shapes', 'images.md');
-    const image = page.locator('.prose img[src$="tall-diagram.png"]').first();
+    const image = page.locator('.prose img[src*="tall-diagram.png"]').first();
+    await image.scrollIntoViewIfNeeded();
+    await awaitLoaded(image);
     const measured = await image.evaluate((node) => {
       const element = node as HTMLImageElement;
       const rect = element.getBoundingClientRect();
@@ -70,7 +75,8 @@ test.describe('image responsiveness', () => {
 
   test('a small image is not stretched up to fill the column', async ({ page }) => {
     await openDoc(page, 'shapes', 'images.md');
-    const image = page.locator('.prose img[src$="pixel.png"]').first();
+    const image = page.locator('.prose img[src*="pixel.png"]').first();
+    await image.scrollIntoViewIfNeeded();
     const width = (await image.boundingBox())?.width ?? 0;
     expect(width).toBeLessThan(50);
   });
@@ -83,7 +89,7 @@ test.describe('image responsiveness', () => {
   test('an image far below the fold is not fetched until it is scrolled towards', async ({ page }) => {
     const fetched = new Set<string>();
     page.on('response', (response) => {
-      const match = /\/api\/file\/[^?]*\/([^/?]+)$/.exec(response.url());
+      const match = /\/api\/file\/.*\/([^/?]+)(?:\?.*)?$/.exec(response.url());
       if (match) fetched.add(decodeURIComponent(match[1]));
     });
 
@@ -96,6 +102,52 @@ test.describe('image responsiveness', () => {
 
     await page.locator('.prose img').last().scrollIntoViewIfNeeded();
     await expect.poll(() => fetched.has('wide-screenshot.png'), { timeout: 10_000 }).toBe(true);
+  });
+
+  test('an indexed image reserves its space before the bytes arrive', async ({ page }) => {
+    await openDoc(page, 'shapes', 'images.md');
+    const image = page.locator('.prose img[src$="wide-screenshot.png"]').first();
+    const attrs = await image.evaluate((node) => ({
+      width: node.getAttribute('width'),
+      height: node.getAttribute('height'),
+    }));
+    // Without these the browser cannot size the box until the image lands, and a page of
+    // screenshots reflows under the reader as each one arrives.
+    expect(attrs.width).toBe('1600');
+    expect(attrs.height).toBe('400');
+  });
+
+  /**
+   * The browser chooses from `srcset`, so the assertion is about what it *needed*: where a
+   * candidate narrower than the original covers the column at this device pixel ratio, one
+   * must be chosen. On a dense landscape phone the column wants more pixels than the file
+   * has, and fetching the original is then the correct answer, not a failure.
+   */
+  test('a screenshot is fetched at no more than the size the column needs', async ({ page }) => {
+    const responses = new Map<string, number>();
+    page.on('response', (response) => {
+      if (/screenshot\.png/.test(response.url())) {
+        responses.set(response.url(), Number(response.headers()['content-length'] ?? 0));
+      }
+    });
+
+    await openDoc(page, 'shapes', 'images.md');
+    const image = page.locator('.prose img[src*="screenshot.png"]').first();
+    await image.scrollIntoViewIfNeeded();
+    await awaitLoaded(image);
+    await expect.poll(() => responses.size, { timeout: 15_000 }).toBeGreaterThan(0);
+
+    const needed = await image.evaluate(
+      (node) => node.getBoundingClientRect().width * window.devicePixelRatio,
+    );
+    const [url, bytes] = [...responses.entries()][0];
+
+    // 1600px of incompressible pixels; the source is ~4.6 MB.
+    expect(bytes, 'never more than the original').toBeLessThan(4_600_000);
+    if (needed < 1600) {
+      expect(url, `column needs ${Math.round(needed)}px, so a variant exists`).toContain('?w=');
+      expect(bytes).toBeLessThan(1_500_000);
+    }
   });
 
   test('the page still never scrolls sideways with images on it', async ({ page }) => {

@@ -21,6 +21,10 @@ An SVG, which has no intrinsic pixel size:
 
 ![A blue square](assets/shape.svg)
 
+A screenshot-shaped image whose pixels do not compress, which is what a variant is for:
+
+![A noisy screenshot](assets/screenshot.png)
+
 An image inside a link:
 
 [![A wide screenshot](assets/wide-screenshot.png)](assets/wide-screenshot.png)

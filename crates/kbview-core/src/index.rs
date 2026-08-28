@@ -30,6 +30,9 @@ pub struct Document {
     /// Paths this document links to, already resolved. Unresolved links are dropped
     /// here but still render as broken links, so the graph never contains dead paths.
     pub outlinks: Vec<String>,
+    /// Intrinsic pixel size, for images only. Lets the renderer reserve the right space
+    /// before the bytes arrive, and lets it offer no variant wider than the original.
+    pub dimensions: Option<crate::images::Dimensions>,
 }
 
 impl Document {
@@ -284,6 +287,10 @@ fn read_document(absolute: &Path, path: String) -> Option<Document> {
         tags,
         content,
         outlinks: Vec::new(),
+        // Header only, so this stays affordable across a whole-folder rebuild.
+        dimensions: (kind == DocumentKind::Image)
+            .then(|| crate::images::dimensions(absolute))
+            .flatten(),
     })
 }
 

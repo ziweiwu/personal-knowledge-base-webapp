@@ -1,5 +1,6 @@
 pub mod config;
 pub mod frontmatter;
+pub mod images;
 pub mod index;
 pub mod kinds;
 pub mod links;

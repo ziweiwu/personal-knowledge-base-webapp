@@ -43,6 +43,13 @@ fn harness(label: &str) -> Harness {
     std::fs::write(root.join("index.md"), "# Index\nLink to [[Target]].\n").unwrap();
     std::fs::write(root.join("notes/Target.md"), "# Target\nBody.\n").unwrap();
     std::fs::write(root.join("notes/secret.png"), b"not-really-a-png").unwrap();
+    // Genuinely decodable, so the resize path is exercised rather than skipped: one wide
+    // enough to have variants offered for it, one too small for any.
+    std::fs::write(root.join("notes/wide.png"), opaque_png(1000, 600)).unwrap();
+    std::fs::write(root.join("notes/small.png"), opaque_png(120, 90)).unwrap();
+    // Compresses well as PNG, so a JPEG variant of it can come out larger. The route must
+    // notice and serve the original instead.
+    std::fs::write(root.join("notes/gradient.png"), gradient_png(1000, 600)).unwrap();
 
     let data_dir = base.join("data");
     let config_path = base.join("kbview.config.json");
@@ -70,12 +77,58 @@ fn harness(label: &str) -> Harness {
     }
 }
 
+/// A valid, fully opaque PNG whose pixels do not compress — the shape of a screenshot or
+/// a photo, which is what a knowledge base actually holds.
+///
+/// Opaque matters: an image that merely *has* an alpha channel must still re-encode as
+/// JPEG, or the whole size saving is forfeited.
+fn opaque_png(width: u32, height: u32) -> Vec<u8> {
+    use std::io::Cursor;
+    let mut buffer = image::RgbaImage::new(width, height);
+    let mut noise: u32 = 0x1234_5678;
+    for (_, _, pixel) in buffer.enumerate_pixels_mut() {
+        noise = noise.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
+        let [r, g, b, _] = noise.to_le_bytes();
+        *pixel = image::Rgba([r, g, b, 255]);
+    }
+    let mut out = Vec::new();
+    image::DynamicImage::ImageRgba8(buffer)
+        .write_to(&mut Cursor::new(&mut out), image::ImageFormat::Png)
+        .unwrap();
+    out
+}
+
+/// A smooth gradient: the case PNG is genuinely good at, where re-encoding can come out
+/// *larger* than the original. Nothing guarantees a resize is a saving, which is why the
+/// route compares before it commits.
+fn gradient_png(width: u32, height: u32) -> Vec<u8> {
+    use std::io::Cursor;
+    let mut buffer = image::RgbaImage::new(width, height);
+    for (x, y, pixel) in buffer.enumerate_pixels_mut() {
+        *pixel = image::Rgba([(x % 256) as u8, (y % 256) as u8, 128, 255]);
+    }
+    let mut out = Vec::new();
+    image::DynamicImage::ImageRgba8(buffer)
+        .write_to(&mut Cursor::new(&mut out), image::ImageFormat::Png)
+        .unwrap();
+    out
+}
+
 impl Harness {
     async fn send(&self, request: Request<Body>) -> (StatusCode, String) {
         let response = self.app.clone().oneshot(request).await.unwrap();
         let status = response.status();
         let bytes = response.into_body().collect().await.unwrap().to_bytes();
         (status, String::from_utf8_lossy(&bytes).to_string())
+    }
+
+    /// Bytes and headers rather than a lossy string: an image response is not text.
+    async fn send_raw(&self, request: Request<Body>) -> (StatusCode, header::HeaderMap, Vec<u8>) {
+        let response = self.app.clone().oneshot(request).await.unwrap();
+        let status = response.status();
+        let headers = response.headers().clone();
+        let bytes = response.into_body().collect().await.unwrap().to_bytes();
+        (status, headers, bytes.to_vec())
     }
 
     async fn login(&self) -> String {
@@ -644,6 +697,159 @@ async fn a_rename_never_repoints_a_link_at_a_different_document() {
         linker.contains("[[notes/Renamed]]"),
         "the link should have been qualified to stay unambiguous: {linker}"
     );
+}
+
+/// A phone screenshot is several megabytes of PNG shown in a column a few hundred pixels
+/// wide. The variant is what closes that gap, so these pin its edges.
+#[tokio::test]
+async fn a_resized_variant_is_smaller_than_the_original_and_cached() {
+    let harness = harness("variant");
+    let cookie = harness.login().await;
+
+    let original = std::fs::read(harness.root.join("notes/wide.png")).unwrap();
+
+    let (status, headers, body) = harness
+        .send_raw(
+            Request::get("/api/file/kb/notes/wide.png?w=400")
+                .header(header::COOKIE, &cookie)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await;
+
+    assert_eq!(status, StatusCode::OK);
+    assert!(
+        body.len() < original.len(),
+        "a variant that is not smaller is pure cost: {} vs {}",
+        body.len(),
+        original.len()
+    );
+    assert_eq!(
+        headers.get(header::CONTENT_TYPE).unwrap(),
+        "image/jpeg",
+        "an opaque image should not stay a PNG"
+    );
+
+    // Served from the cache the second time, byte for byte.
+    let (_, _, again) = harness
+        .send_raw(
+            Request::get("/api/file/kb/notes/wide.png?w=400")
+                .header(header::COOKIE, &cookie)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await;
+    assert_eq!(again, body);
+}
+
+/// The invariant that makes the whole feature safe to turn on: whatever the content, a
+/// request for a variant never returns more bytes than simply asking for the file would.
+/// Re-encoding is not guaranteed to be a saving — a smooth image can compress better as
+/// the PNG it already is — so the route compares and keeps the smaller answer.
+#[tokio::test]
+async fn a_variant_is_never_larger_than_the_original() {
+    let harness = harness("variantnevergrows");
+    let cookie = harness.login().await;
+
+    for name in ["gradient.png", "wide.png", "small.png"] {
+        let original = std::fs::read(harness.root.join("notes").join(name)).unwrap();
+        for width in [400, 800, 1200, 1600] {
+            let (status, _, body) = harness
+                .send_raw(
+                    Request::get(format!("/api/file/kb/notes/{name}?w={width}"))
+                        .header(header::COOKIE, &cookie)
+                        .body(Body::empty())
+                        .unwrap(),
+                )
+                .await;
+            assert_eq!(status, StatusCode::OK, "{name} at {width}");
+            assert!(
+                body.len() <= original.len(),
+                "{name} at w={width} returned {} bytes against an original of {}",
+                body.len(),
+                original.len()
+            );
+        }
+    }
+}
+
+#[tokio::test]
+async fn a_width_that_is_not_offered_serves_the_original_untouched() {
+    let harness = harness("variantwidth");
+    let cookie = harness.login().await;
+    let original = std::fs::read(harness.root.join("notes/wide.png")).unwrap();
+
+    for query in ["?w=401", "?w=0", "?w=99999"] {
+        let (status, _, body) = harness
+            .send_raw(
+                Request::get(format!("/api/file/kb/notes/wide.png{query}"))
+                    .header(header::COOKIE, &cookie)
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await;
+        assert_eq!(status, StatusCode::OK, "{query}");
+        assert_eq!(body, original, "{query} must not be resized");
+    }
+}
+
+/// Scaling up is strictly more bytes for no more detail.
+#[tokio::test]
+async fn a_variant_wider_than_the_source_serves_the_original() {
+    let harness = harness("variantupscale");
+    let cookie = harness.login().await;
+    let original = std::fs::read(harness.root.join("notes/small.png")).unwrap();
+
+    let (status, _, body) = harness
+        .send_raw(
+            Request::get("/api/file/kb/notes/small.png?w=1600")
+                .header(header::COOKIE, &cookie)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body, original);
+}
+
+#[tokio::test]
+async fn a_rendered_image_carries_its_dimensions_and_a_srcset() {
+    let harness = harness("variantsrcset");
+    let cookie = harness.login().await;
+    create_document(
+        &harness,
+        &cookie,
+        "gallery.md",
+        "# Gallery\n\n![wide](notes/wide.png)\n",
+    )
+    .await;
+
+    let (status, body) = harness
+        .send(
+            Request::get("/api/doc/kb/gallery.md")
+                .header(header::COOKIE, &cookie)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+
+    let html = serde_json::from_str::<serde_json::Value>(&body).unwrap()["html"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert!(
+        html.contains("width=\"1000\""),
+        "space must be reserved: {html}"
+    );
+    assert!(html.contains("height=\"600\""), "{html}");
+    assert!(html.contains("?w=400 400w"), "{html}");
+    assert!(html.contains("?w=800 800w"), "{html}");
+    assert!(
+        !html.contains("?w=1200"),
+        "no candidate may be wider than the original: {html}"
+    );
+    assert!(html.contains("loading=\"lazy\""), "{html}");
 }
 
 /// Ticking a checkbox is a write, so it carries the same precondition a save does and

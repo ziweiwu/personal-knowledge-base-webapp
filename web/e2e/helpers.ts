@@ -1,4 +1,4 @@
-import { expect, type Page } from '@playwright/test';
+import { expect, type Locator, type Page } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -28,6 +28,18 @@ export async function openDoc(page: Page, rootId: string, path: string): Promise
   const segments = path.split('/').map(encodeURIComponent).join('/');
   await page.goto(`/n/${rootId}/${segments}`);
   await expect(page.locator('.doc')).toBeVisible();
+}
+
+/**
+ * Wait for an image's bytes to have arrived, not merely for its box to exist.
+ *
+ * Since images carry `width`/`height`, the element is laid out and "visible" long before it
+ * has loaded — so `toBeVisible` no longer implies `naturalWidth` is meaningful.
+ */
+export async function awaitLoaded(image: Locator): Promise<void> {
+  await expect
+    .poll(async () => image.evaluate((node: HTMLImageElement) => node.naturalWidth), { timeout: 15_000 })
+    .toBeGreaterThan(0);
 }
 
 /**

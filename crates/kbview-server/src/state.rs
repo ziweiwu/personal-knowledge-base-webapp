@@ -11,6 +11,7 @@ use std::time::{Duration, Instant};
 
 use crate::auth::store::AuthStore;
 use crate::render::cache::RenderCache;
+use crate::render::variants::VariantCache;
 
 pub struct AppState {
     pub config: Config,
@@ -18,6 +19,8 @@ pub struct AppState {
     /// a consistent snapshot without locking, so a rebuild never blocks a request.
     indexes: HashMap<String, ArcSwap<Index>>,
     pub renders: RenderCache,
+    /// Resized images, keyed by path, mtime and width.
+    pub variants: VariantCache,
     pub auth: AuthStore,
     pub changes: tokio::sync::broadcast::Sender<ChangeEvent>,
 
@@ -81,6 +84,7 @@ impl AppState {
             config,
             indexes,
             renders: RenderCache::new(),
+            variants: VariantCache::new(),
             auth,
             changes,
             recent_writes: DashMap::new(),
@@ -110,6 +114,7 @@ impl AppState {
         let rebuilt = Arc::new(Index::build(root));
         slot.store(rebuilt.clone());
         self.renders.invalidate_root(root_id);
+        self.variants.invalidate_root(root_id);
 
         let origin = match origin {
             Some(origin) => {

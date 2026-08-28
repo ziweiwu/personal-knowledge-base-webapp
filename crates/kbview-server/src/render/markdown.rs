@@ -384,27 +384,31 @@ fn render_math<'a>(node: &'a comrak::nodes::AstNode<'a>, warnings: &mut Vec<Stri
     }
 }
 
-/// Give every rendered image `loading="lazy"` and `decoding="async"`.
+/// Prepare every rendered image for a phone: lazy, async-decoded, space reserved, and
+/// offered at a set of widths the browser can choose between.
 ///
-/// This has to be in the HTML the browser first parses. The client used to set it after
-/// writing the markup with `innerHTML`, by which point the fetches had already started —
-/// so the attribute was present on inspection and had no effect whatever. Measured on two
-/// documents whose second image sat 5000px down: the client-set version fetched both, the
-/// server-set version fetched one.
+/// `loading` has to be in the HTML the browser first parses. The client used to set it
+/// after writing the markup with `innerHTML`, by which point the fetches had already
+/// started — so the attribute was present on inspection and had no effect whatever.
+/// Measured on two documents whose second image sat 5000px down: the client-set version
+/// fetched both, the server-set version fetched one.
+///
+/// `width`/`height` come from the index and are what let the browser reserve the right box
+/// before the bytes arrive, so a page of screenshots stops reflowing as it loads.
+///
+/// `srcset` is where the bytes are actually saved. A knowledge base collects phone
+/// screenshots — several megabytes of PNG for something read in a column a few hundred
+/// pixels wide — and the browser picks the smallest candidate that still covers its
+/// device pixel ratio.
 ///
 /// comrak renders an image as `<img ... />` with no way to add attributes from the AST, so
 /// this is a pass over the generated markup. It is comrak's own output plus whatever raw
 /// HTML the document carried; an `<img` inside a code block is already escaped to `&lt;img`
 /// by the time this runs and cannot match.
-pub(super) fn lazy_load_images(html: &str) -> String {
+pub(super) fn enhance_images(html: &str, ctx: Option<&RenderContext>) -> String {
     const TAG: &str = "<img";
-    const ATTRIBUTES: &str = " loading=\"lazy\" decoding=\"async\"";
 
-    /// Most documents carry a handful of images; this only sizes the initial allocation.
-    const TYPICAL_IMAGES_PER_DOCUMENT: usize = 4;
-
-    let mut out =
-        String::with_capacity(html.len() + ATTRIBUTES.len() * TYPICAL_IMAGES_PER_DOCUMENT);
+    let mut out = String::with_capacity(html.len() + html.matches(TAG).count() * 160);
     let mut rest = html;
     while let Some(at) = rest.find(TAG) {
         let (before, tail) = rest.split_at(at);
@@ -416,15 +420,77 @@ pub(super) fn lazy_load_images(html: &str) -> String {
         let (tag, remainder) = tail.split_at(end + 1);
 
         out.push_str(TAG);
-        // An embed already carries the attribute; a second copy would be invalid markup.
-        if !tag.contains("loading=") {
-            out.push_str(ATTRIBUTES);
-        }
+        out.push_str(&added_attributes(tag, ctx));
         out.push_str(&tag[TAG.len()..]);
         rest = remainder;
     }
     out.push_str(rest);
     out
+}
+
+/// The attributes this tag is missing, ready to splice in after `<img`.
+fn added_attributes(tag: &str, ctx: Option<&RenderContext>) -> String {
+    let mut attributes = String::new();
+    // An embed already declares it; a second copy would be invalid markup.
+    if !tag.contains("loading=") {
+        attributes.push_str(" loading=\"lazy\" decoding=\"async\"");
+    }
+    let Some(ctx) = ctx else { return attributes };
+    let Some(document) = tag_document(tag, ctx) else {
+        return attributes;
+    };
+    let Some(size) = document.dimensions else {
+        return attributes;
+    };
+
+    if !tag.contains("width=") {
+        attributes.push_str(&format!(
+            " width=\"{}\" height=\"{}\"",
+            size.width, size.height
+        ));
+    }
+    if !tag.contains("srcset=") {
+        if let Some(srcset) = srcset_for(&document.path, ctx.root_id, size.width) {
+            attributes.push_str(&format!(
+                " srcset=\"{srcset}\" sizes=\"(max-width: 899px) 100vw, 700px\""
+            ));
+        }
+    }
+    attributes
+}
+
+/// The indexed document an `<img>` points at, when its `src` is one this server serves.
+fn tag_document<'a>(tag: &str, ctx: &'a RenderContext) -> Option<&'a kbview_core::index::Document> {
+    let src = attribute_value(tag, "src")?;
+    let prefix = format!("/api/file/{}/", ctx.root_id);
+    let encoded = src.strip_prefix(&prefix)?;
+    let path = super::html::decode_path(encoded)?;
+    ctx.index.get(&path)
+}
+
+fn attribute_value<'a>(tag: &'a str, name: &str) -> Option<&'a str> {
+    let needle = format!(" {name}=\"");
+    let start = tag.find(&needle)? + needle.len();
+    let rest = &tag[start..];
+    Some(&rest[..rest.find('"')?])
+}
+
+/// Candidate widths for this image, smallest first, never wider than the original.
+///
+/// The original is offered last so a browser on a wide, dense screen can still reach full
+/// detail; everything below it is a fraction of the bytes.
+fn srcset_for(path: &str, root_id: &str, natural_width: u32) -> Option<String> {
+    let base = format!("/api/file/{}/{}", root_id, super::html::encode_path(path));
+    let mut candidates: Vec<String> = super::variants::WIDTHS
+        .iter()
+        .filter(|width| **width < natural_width)
+        .map(|width| format!("{base}?w={width} {width}w"))
+        .collect();
+    if candidates.is_empty() {
+        return None;
+    }
+    candidates.push(format!("{base} {natural_width}w"));
+    Some(candidates.join(", "))
 }
 
 /// Make rendered task checkboxes clickable, and tell the client which line of the file on
@@ -665,12 +731,15 @@ mod math_tests {
 }
 
 #[cfg(test)]
-mod lazy_image_tests {
-    use super::lazy_load_images;
+mod image_tests {
+    use super::enhance_images;
 
     #[test]
     fn every_image_gains_the_attributes() {
-        let out = lazy_load_images("<p><img src=\"a.png\" alt=\"a\" /><img src=\"b.png\" /></p>");
+        let out = enhance_images(
+            "<p><img src=\"a.png\" alt=\"a\" /><img src=\"b.png\" /></p>",
+            None,
+        );
         assert_eq!(out.matches("loading=\"lazy\"").count(), 2, "got {out}");
         assert_eq!(out.matches("decoding=\"async\"").count(), 2, "got {out}");
         assert!(
@@ -683,7 +752,7 @@ mod lazy_image_tests {
     #[test]
     fn an_image_that_already_declares_loading_is_left_alone() {
         let html = "<img class=\"embed\" src=\"a.png\" loading=\"lazy\">";
-        assert_eq!(lazy_load_images(html), html);
+        assert_eq!(enhance_images(html, None), html);
     }
 
     /// An image written as a code sample is escaped before this runs, so it cannot match
@@ -691,20 +760,20 @@ mod lazy_image_tests {
     #[test]
     fn an_escaped_image_inside_a_code_block_is_untouched() {
         let html = "<pre><code>&lt;img src=\"a.png\"&gt;</code></pre>";
-        assert_eq!(lazy_load_images(html), html);
+        assert_eq!(enhance_images(html, None), html);
     }
 
     #[test]
     fn a_document_with_no_images_is_returned_unchanged() {
         let html = "<p>nothing here</p>";
-        assert_eq!(lazy_load_images(html), html);
+        assert_eq!(enhance_images(html, None), html);
     }
 
     #[test]
     fn a_truncated_tag_does_not_lose_the_tail() {
         let html = "<p>text</p><img src=\"a.png\"";
         assert!(
-            lazy_load_images(html).ends_with("<img src=\"a.png\""),
+            enhance_images(html, None).ends_with("<img src=\"a.png\""),
             "content must not be dropped"
         );
     }

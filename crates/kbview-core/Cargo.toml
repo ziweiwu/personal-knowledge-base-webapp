@@ -6,6 +6,7 @@ license.workspace = true
 
 [dependencies]
 comrak = "0.54.0"
+image = { version = "0.25.10", default-features = false, features = ["png", "jpeg", "gif", "webp"] }
 kbview-docx = { version = "0.1.0", path = "../kbview-docx" }
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.151"
