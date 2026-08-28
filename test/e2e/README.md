@@ -3,6 +3,13 @@
 Playwright drives the **real binary** serving the **real embedded frontend**. There is no
 mock server and no mocked API: what the suite exercises is what ships.
 
+The phone projects emulate an iPhone, so Playwright drives them with **WebKit**; the
+desktop project uses chromium. Both engines have to be installed:
+
+```sh
+cd web && npx playwright install chromium webkit
+```
+
 ```sh
 cd web && npm run e2e          # everything, headless
 cd web && npm run e2e:ui       # pick and watch individual tests

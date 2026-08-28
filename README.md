@@ -20,11 +20,14 @@ phone over Tailscale, behind a password.
 
 Rust stable and Node 22 (what CI uses). Nothing else — no database, no external services.
 
-Running the end-to-end suite additionally needs its browser, once:
+Running the end-to-end suite additionally needs its browsers, once:
 
 ```sh
-cd web && npx playwright install chromium
+cd web && npx playwright install chromium webkit
 ```
+
+Both, not just chromium: the desktop project runs on chromium, and the two phone projects
+emulate an iPhone, which Playwright drives with WebKit.
 
 ## Quick start
 

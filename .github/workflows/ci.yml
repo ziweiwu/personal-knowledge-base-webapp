@@ -72,11 +72,14 @@ jobs:
       - name: Verify test fixtures
         run: python3 test/fixtures/verify_fixtures.py
 
-      # Only chromium: the suite asserts behaviour and layout, not cross-engine rendering,
-      # and three browser downloads is most of the job's wall clock for no added signal.
-      - name: Install Playwright chromium
+      # WebKit as well as chromium, and deliberately: the phone projects emulate an
+      # iPhone, and Playwright runs those on WebKit. Installing chromium alone left them
+      # launching a browser that was not there — which passed locally, on a machine that
+      # happened to have WebKit from an earlier install, and failed here. Firefox is not
+      # installed because nothing targets it.
+      - name: Install Playwright browsers
         working-directory: web
-        run: npx playwright install --with-deps chromium
+        run: npx playwright install --with-deps chromium webkit
 
       # Drives the real binary serving the real embedded frontend, against copies of the
       # fixtures in a scratch directory — see test/e2e/run-server.sh.
