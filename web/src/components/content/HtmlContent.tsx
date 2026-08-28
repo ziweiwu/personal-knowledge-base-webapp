@@ -46,6 +46,13 @@ function makeTasksReadOnly(container: HTMLElement): void {
   }
 }
 
+/*
+ * `loading="lazy"` is deliberately NOT set here any more. This runs after
+ * `container.innerHTML = html`, and by then the browser has already started fetching every
+ * image, so setting it was a no-op that merely looked right in the inspector. The server
+ * puts it in the markup instead, where the parser sees it first.
+ */
+
 /** Wide elements get their own scroll container so the page never scrolls sideways. */
 function wrapWideElements(container: HTMLElement): void {
   const wide = container.querySelectorAll<HTMLElement>('table, .mermaid-source');
@@ -60,9 +67,10 @@ function wrapWideElements(container: HTMLElement): void {
 
 function rewriteAssets(container: HTMLElement, rootId: string, docPath: string): void {
   for (const media of container.querySelectorAll<HTMLImageElement | HTMLSourceElement>('img[src], source[src]')) {
+    // Only reaches images the server could not rewrite: raw HTML the document itself
+    // carries, which is not an AST node the renderer sees.
     const resolved = resolveAssetUrl(rootId, docPath, media.getAttribute('src') ?? '');
     if (resolved) media.setAttribute('src', resolved);
-    if (media instanceof HTMLImageElement) media.loading = 'lazy';
   }
   for (const anchor of container.querySelectorAll<HTMLAnchorElement>('a[href]')) {
     if (isExternalHref(anchor.getAttribute('href') ?? '')) {

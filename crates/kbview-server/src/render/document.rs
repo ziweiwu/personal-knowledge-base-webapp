@@ -82,7 +82,12 @@ fn render_docx(
         .and_then(|bytes| kbview_docx::convert(&bytes, &media_base).map_err(|e| e.to_string()))
     {
         Ok(converted) => CachedRender {
-            html: format!("<div class=\"docx\">{}</div>", converted.html),
+            // A Word document's images are fetched from /api/docx-media and deserve the
+            // same treatment as any other; a report can carry dozens of them.
+            html: markdown::lazy_load_images(&format!(
+                "<div class=\"docx\">{}</div>",
+                converted.html
+            )),
             headings: Vec::new(),
             warning: None,
         },
@@ -127,7 +132,7 @@ fn render_markdown(root_id: &str, index: &Index, document: &Document) -> CachedR
     // will write to, and the frontmatter this stripped is part of that file.
     let tasks = kbview_core::tasks::task_lines(source);
     CachedRender {
-        html: markdown::enable_task_checkboxes(&rendered.html, &tasks),
+        html: markdown::lazy_load_images(&markdown::enable_task_checkboxes(&rendered.html, &tasks)),
         headings: rendered.headings,
         warning: rendered.warning,
     }

@@ -75,6 +75,29 @@ test.describe('image responsiveness', () => {
     expect(width).toBeLessThan(50);
   });
 
+  /**
+   * The behaviour, not the attribute. `loading="lazy"` read back as "lazy" even when it
+   * was set too late to do anything, so inspecting it proves nothing — only whether the
+   * request happens does.
+   */
+  test('an image far below the fold is not fetched until it is scrolled towards', async ({ page }) => {
+    const fetched = new Set<string>();
+    page.on('response', (response) => {
+      const match = /\/api\/file\/[^?]*\/([^/?]+)$/.exec(response.url());
+      if (match) fetched.add(decodeURIComponent(match[1]));
+    });
+
+    await openDoc(page, 'shapes', 'far-below-fold.md');
+    await expect(page.locator('.prose img').first()).toBeVisible();
+    await page.waitForTimeout(1500);
+
+    expect(fetched.has('pixel.png'), 'the image on screen loads').toBe(true);
+    expect(fetched.has('wide-screenshot.png'), 'the one 5000px down does not').toBe(false);
+
+    await page.locator('.prose img').last().scrollIntoViewIfNeeded();
+    await expect.poll(() => fetched.has('wide-screenshot.png'), { timeout: 10_000 }).toBe(true);
+  });
+
   test('the page still never scrolls sideways with images on it', async ({ page }) => {
     await openDoc(page, 'shapes', 'images.md');
     const overflows = await page.evaluate(

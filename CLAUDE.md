@@ -141,6 +141,12 @@ parsing**, reusing the code-aware scanners in `kbview-core`. Standard markdown i
 comrak. This is why the link graph and the rendered output cannot disagree — they come
 from the same scanner.
 
+`loading="lazy"` is emitted **in the server's HTML**, never set from the client. The client
+writes markup with `innerHTML`, which starts every image fetch immediately, so an attribute
+applied afterwards is a no-op that still reads back as `lazy` in the inspector. Measured on
+two documents whose second image sat 5000px down: client-set fetched both, server-set
+fetched one.
+
 Maths renders to **MathML** via `latex2mathml`, so no client-side maths library ships.
 `escape_stray_dollars` runs first and escapes any `$` that is not a delimiter under
 Pandoc's rules, plus any `$` followed by a digit. Without it, "costs $5 today and $7

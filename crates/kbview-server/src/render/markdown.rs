@@ -384,6 +384,49 @@ fn render_math<'a>(node: &'a comrak::nodes::AstNode<'a>, warnings: &mut Vec<Stri
     }
 }
 
+/// Give every rendered image `loading="lazy"` and `decoding="async"`.
+///
+/// This has to be in the HTML the browser first parses. The client used to set it after
+/// writing the markup with `innerHTML`, by which point the fetches had already started —
+/// so the attribute was present on inspection and had no effect whatever. Measured on two
+/// documents whose second image sat 5000px down: the client-set version fetched both, the
+/// server-set version fetched one.
+///
+/// comrak renders an image as `<img ... />` with no way to add attributes from the AST, so
+/// this is a pass over the generated markup. It is comrak's own output plus whatever raw
+/// HTML the document carried; an `<img` inside a code block is already escaped to `&lt;img`
+/// by the time this runs and cannot match.
+pub(super) fn lazy_load_images(html: &str) -> String {
+    const TAG: &str = "<img";
+    const ATTRIBUTES: &str = " loading=\"lazy\" decoding=\"async\"";
+
+    /// Most documents carry a handful of images; this only sizes the initial allocation.
+    const TYPICAL_IMAGES_PER_DOCUMENT: usize = 4;
+
+    let mut out =
+        String::with_capacity(html.len() + ATTRIBUTES.len() * TYPICAL_IMAGES_PER_DOCUMENT);
+    let mut rest = html;
+    while let Some(at) = rest.find(TAG) {
+        let (before, tail) = rest.split_at(at);
+        out.push_str(before);
+        let Some(end) = tail.find('>') else {
+            out.push_str(tail);
+            return out;
+        };
+        let (tag, remainder) = tail.split_at(end + 1);
+
+        out.push_str(TAG);
+        // An embed already carries the attribute; a second copy would be invalid markup.
+        if !tag.contains("loading=") {
+            out.push_str(ATTRIBUTES);
+        }
+        out.push_str(&tag[TAG.len()..]);
+        rest = remainder;
+    }
+    out.push_str(rest);
+    out
+}
+
 /// Make rendered task checkboxes clickable, and tell the client which line of the file on
 /// disk each one stands for.
 ///
@@ -617,6 +660,52 @@ mod math_tests {
         assert!(
             out.starts_with("<math xmlns=\"x\" display=\"block\"><mrow>"),
             "got {out}"
+        );
+    }
+}
+
+#[cfg(test)]
+mod lazy_image_tests {
+    use super::lazy_load_images;
+
+    #[test]
+    fn every_image_gains_the_attributes() {
+        let out = lazy_load_images("<p><img src=\"a.png\" alt=\"a\" /><img src=\"b.png\" /></p>");
+        assert_eq!(out.matches("loading=\"lazy\"").count(), 2, "got {out}");
+        assert_eq!(out.matches("decoding=\"async\"").count(), 2, "got {out}");
+        assert!(
+            out.contains("src=\"a.png\""),
+            "the tag must survive intact: {out}"
+        );
+    }
+
+    /// Obsidian embeds already carry it; a second copy would be invalid markup.
+    #[test]
+    fn an_image_that_already_declares_loading_is_left_alone() {
+        let html = "<img class=\"embed\" src=\"a.png\" loading=\"lazy\">";
+        assert_eq!(lazy_load_images(html), html);
+    }
+
+    /// An image written as a code sample is escaped before this runs, so it cannot match
+    /// and must not be rewritten into something that renders.
+    #[test]
+    fn an_escaped_image_inside_a_code_block_is_untouched() {
+        let html = "<pre><code>&lt;img src=\"a.png\"&gt;</code></pre>";
+        assert_eq!(lazy_load_images(html), html);
+    }
+
+    #[test]
+    fn a_document_with_no_images_is_returned_unchanged() {
+        let html = "<p>nothing here</p>";
+        assert_eq!(lazy_load_images(html), html);
+    }
+
+    #[test]
+    fn a_truncated_tag_does_not_lose_the_tail() {
+        let html = "<p>text</p><img src=\"a.png\"";
+        assert!(
+            lazy_load_images(html).ends_with("<img src=\"a.png\""),
+            "content must not be dropped"
         );
     }
 }
