@@ -1,0 +1,7 @@
+id,name,kind,editable
+1,index.md,markdown,yes
+2,pixel.png,image,no
+3,inventory.csv,csv,no
+4,"a name, with a comma",markdown,yes
+5,"a name with ""quotes""",markdown,yes
+6,汉字.md,markdown,yes

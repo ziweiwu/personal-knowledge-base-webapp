@@ -20,6 +20,12 @@ phone over Tailscale, behind a password.
 
 Rust stable and Node 22 (what CI uses). Nothing else — no database, no external services.
 
+Running the end-to-end suite additionally needs its browser, once:
+
+```sh
+cd web && npx playwright install chromium
+```
+
 ## Quick start
 
 ```sh
@@ -137,6 +143,8 @@ crates/kbview-docx/   OOXML to HTML, isolated so it can be tested hard
 crates/kbview-server/ axum, auth, rendering, watching
 web/                  Vite + React + TypeScript
 test/fixtures/        three folders exercising vault / plain / mixed-media behaviour
+test/e2e/             Playwright fixtures and the isolated server the suite runs against
+web/e2e/              the end-to-end specs themselves
 deploy/               Dockerfiles, compose template, macOS launch agent
 .github/workflows/    CI: tests, then publishes the container image
 .cargo/config.toml    points ts-rs at web/src/api so the bindings stay generated
@@ -145,17 +153,24 @@ deploy/               Dockerfiles, compose template, macOS launch agent
 ## Development
 
 ```sh
-cargo test --workspace                       # 278 tests
+cargo test --workspace                       # 321 tests
 cargo clippy --workspace --all-targets -- -D warnings
 cargo fmt --all
 cd web && npm run dev                        # proxies /api to 127.0.0.1:4321
 cd web && npm run typecheck                  # tsc --noEmit
 cd web && npm run lint                       # eslint
+cd web && npm run e2e                        # Playwright, against the real binary
 python3 test/fixtures/verify_fixtures.py     # checks the binary fixtures are still valid
 ```
 
+The end-to-end suite drives the actual binary serving the actual embedded frontend — no
+mock server, no mocked API — across a desktop viewport and a phone in both orientations.
+It runs against **copies** of the fixture roots in a scratch directory, so a test that
+saves, renames or deletes can never modify the fixtures themselves. `test/e2e/README.md`
+explains the corpus and what each file is there to pin.
+
 CI runs exactly this list, and additionally fails if the generated API bindings differ
-from what is committed.
+from what is committed, or if the e2e run left a fingerprint on `test/fixtures/`.
 
 `web/src/api/types.ts` is **generated** from the Rust types by `cargo test` — never edit
 it by hand. If the API changes, rerun the tests and commit the regenerated file.

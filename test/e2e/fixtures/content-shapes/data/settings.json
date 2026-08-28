@@ -1,0 +1,5 @@
+{
+  "theme": "system",
+  "roots": ["shapes", "vault"],
+  "nested": { "depth": 2 }
+}

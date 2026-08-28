@@ -28,7 +28,16 @@ cd web && npm run typecheck
 cd web && npm run lint       # eslint; CI runs this too
 
 python3 test/fixtures/verify_fixtures.py    # the binary fixtures are hand-built; this proves they are still valid
+
+cd web && npm run e2e                                   # Playwright, against the real binary
+cd web && npm run e2e:ui                                # pick and watch individual tests
+cd web && npx playwright test --project=phone-landscape # one project
 ```
+
+The e2e suite starts its own server on port 4399 through `test/e2e/run-server.sh`, against
+**copies** of every fixture root in `$TMPDIR/kbview-e2e`. Nothing it does can modify
+`test/fixtures/`, and CI asserts that with `git diff --exit-code` after the run.
+`test/e2e/README.md` covers the fixtures and the rule for adding a test.
 
 Running locally needs a `kbview.config.json` and at least one account; the server refuses
 to start with no accounts:
@@ -96,6 +105,11 @@ rendered checkboxes. Do not go back to comrak's `sourcepos` for this: the parser
 drift from the file on disk and a click silently ticks a different task. The pairing is
 checked on both count and ticked state; on any disagreement no checkbox is wired up at
 all, because a dead checkbox is a smaller failure than one editing the wrong line.
+
+**A root is in Obsidian mode if and only if it has an `.obsidian/` directory.** Wikilinks,
+embeds, callouts and tags are all downstream of that one check. A fixture root without it
+renders every `[[link]]` as literal text and still looks entirely healthy, which is how
+`test/e2e/fixtures/content-shapes` spent its first run testing nothing.
 
 **The auth gate is a `route_layer` on the whole `/api` group** in `crates/kbview-server/src/router.rs`, not
 per-route. A new route is protected by construction. `crates/kbview-server/tests/api.rs`

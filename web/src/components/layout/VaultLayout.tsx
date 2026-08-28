@@ -5,6 +5,7 @@ import { useIsDesktop } from '../../hooks/useMediaQuery';
 import { useEscapeKey } from '../../hooks/useEscapeKey';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import { useScrollRestoration } from '../../hooks/useScrollRestoration';
+import { useFocusMode } from '../../hooks/useFocusMode';
 import { FileActionsProvider } from '../files/FileActionsProvider';
 import { useRoots } from '../../state/roots-context';
 import { VaultProvider } from '../../state/VaultProvider';
@@ -34,6 +35,13 @@ function decodeSplat(splat: string | undefined): string {
     .join('/');
 }
 
+/** Whether a key event came from somewhere the user is typing. */
+function isTypingTarget(target: EventTarget | null): boolean {
+  const element = target as HTMLElement | null;
+  if (!element) return false;
+  return element.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(element.tagName);
+}
+
 export function VaultLayout({ mode }: { mode: VaultMode }) {
   const params = useParams();
   const rootId = params.rootId ?? '';
@@ -57,13 +65,20 @@ function VaultShell({ mode, path }: { mode: VaultMode; path: string }) {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [pageTitle, setPageTitle] = useState<string>('');
+  const [focusNotice, setFocusNotice] = useState('');
+  const focus = useFocusMode();
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const mainRef = useRef<HTMLElement>(null);
 
   useScrollRestoration(mainRef);
 
   const closeDrawer = useCallback(() => setDrawerOpen(false), []);
-  useEscapeKey(drawerOpen && !isDesktop ? closeDrawer : null);
+
+  // Escape closes the topmost layer: the drawer outranks focus mode, and the search
+  // palette binds its own so it is never reached through here while open.
+  const escapeClosesDrawer = drawerOpen && !isDesktop;
+  const escapeLeavesFocus = focus.focused && !searchOpen;
+  useEscapeKey(escapeClosesDrawer ? closeDrawer : escapeLeavesFocus ? focus.exit : null);
   useBodyScrollLock(drawerOpen && !isDesktop ? 'locked' : 'scrollable');
 
   // A navigation on mobile should reveal the document, not leave the drawer open.
@@ -96,6 +111,35 @@ function VaultShell({ mode, path }: { mode: VaultMode; path: string }) {
     return () => document.removeEventListener('keydown', onKeyDown);
   }, []);
 
+  // A bare letter, so it is guarded against every context where it would be a keystroke
+  // rather than a command.
+  const canFocus = mode === 'doc';
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key.toLowerCase() !== 'f') return;
+      if (event.metaKey || event.ctrlKey || event.altKey) return;
+      if (!canFocus || searchOpen || isTypingTarget(event.target)) return;
+      event.preventDefault();
+      focus.toggle();
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [canFocus, searchOpen, focus]);
+
+  // A folder or tag listing is navigation; there is no document to focus on, and the
+  // chrome focus mode hides is the whole page.
+  useEffect(() => {
+    if (!canFocus && focus.focused) focus.exit();
+  }, [canFocus, focus]);
+
+  // Chrome appearing and disappearing is a silent event to a screen reader.
+  const hasFocusedOnce = useRef(false);
+  useEffect(() => {
+    if (!focus.focused && !hasFocusedOnce.current) return;
+    hasFocusedOnce.current = true;
+    setFocusNotice(focus.focused ? 'Focus reading on. Press Escape to exit.' : 'Focus reading off.');
+  }, [focus.focused]);
+
   const rootName = root?.name ?? roots.find((candidate) => candidate.id === rootId)?.name ?? rootId;
   const currentDirectory = mode === 'doc' ? parentPath(path) : mode === 'tag' ? '' : path;
   const title = pageTitle || (mode === 'doc' ? baseName(path) : baseName(path) || rootName);
@@ -111,7 +155,7 @@ function VaultShell({ mode, path }: { mode: VaultMode; path: string }) {
   const behindDrawer = !isDesktop && drawerOpen;
 
   return (
-    <div className="app-shell">
+    <div className={`app-shell${focus.focused ? ' app-shell--focus' : ''}`}>
       <a className="skip-link" href="#main-content">
         Skip to content
       </a>
@@ -151,6 +195,20 @@ function VaultShell({ mode, path }: { mode: VaultMode; path: string }) {
           <span className="sr-only">Search this collection</span>
         </button>
 
+        {canFocus ? (
+          <button
+            type="button"
+            className="btn btn--icon"
+            onClick={focus.toggle}
+            aria-pressed={focus.focused}
+            aria-keyshortcuts="F"
+            inert={behindDrawer}
+          >
+            <span aria-hidden="true">⤢</span>
+            <span className="sr-only">Focus reading mode</span>
+          </button>
+        ) : null}
+
         <span className="only-mobile" inert={behindDrawer}>
           <ThemeToggle />
         </span>
@@ -183,6 +241,19 @@ function VaultShell({ mode, path }: { mode: VaultMode; path: string }) {
             <FolderPage rootId={rootId} path={path} onTitleChange={setPageTitle} />
           )}
         </main>
+      </div>
+
+      {/* The only control left on screen in focus mode, and on a touch device the only
+          way out at all — there is no Escape key on a phone. */}
+      {focus.focused ? (
+        <button type="button" className="focus-exit" onClick={focus.exit} aria-keyshortcuts="Escape">
+          <span aria-hidden="true">✕</span>
+          <span className="sr-only">Exit focus reading mode</span>
+        </button>
+      ) : null}
+
+      <div className="sr-only" role="status" aria-live="polite">
+        {focusNotice}
       </div>
 
       {searchOpen ? <SearchPalette rootId={rootId} rootName={rootName} onClose={() => setSearchOpen(false)} /> : null}

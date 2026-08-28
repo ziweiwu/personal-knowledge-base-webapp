@@ -1340,3 +1340,70 @@ kbd {
       calc(12px + env(safe-area-inset-left));
   }
 }
+
+/* -------------------------------------------------------- focus reading -- */
+
+/*
+ * Focus reading strips the app back to the document. Native fullscreen is requested
+ * alongside it, but iOS Safari implements `requestFullscreen` for `<video>` and nothing
+ * else — and a phone is this app's primary target — so these rules are what actually
+ * deliver the mode on the device that most needs it. Everything hidden here is chrome:
+ * the title, tags, prose and backlinks stay, because they are the document.
+ */
+/* Carries the spacing the inline style on this row used to, now that it needs a class
+   of its own — `.editor__bar` is shared with the editor's Save/Close bar, which must
+   survive focus mode. */
+.doc__actions {
+  margin-bottom: 12px;
+}
+
+.app-shell--focus .topbar,
+.app-shell--focus .sidebar,
+.app-shell--focus .doc__meta,
+.app-shell--focus .doc__actions,
+.app-shell--focus .toc--rail {
+  display: none;
+}
+
+/*
+ * With no topbar above it the document carries the top inset itself, and clears the exit
+ * button's corner. Landscape is the case this matters most in: the topbar is 52px of a
+ * 390px-tall phone, so giving it back is a seventh of the reading area.
+ */
+.app-shell--focus .doc {
+  padding-top: calc(var(--tap) + 8px + env(safe-area-inset-top));
+}
+
+/* The rail is gone, so the measure centres on the window rather than hugging its left. */
+.app-shell--focus .doc--with-toc .doc__inner {
+  margin: 0 auto;
+}
+
+.focus-exit {
+  position: fixed;
+  z-index: 75;
+  top: calc(8px + env(safe-area-inset-top));
+  right: calc(8px + env(safe-area-inset-right));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: var(--tap);
+  block-size: var(--tap);
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: var(--bg-elevated);
+  color: var(--fg-muted);
+  font-size: 0.9rem;
+  cursor: pointer;
+  /* Quiet enough to read past, solid enough to find. It never fades out entirely: on a
+     touch device this is the only way back, and a control that hides itself is a trap. */
+  opacity: 0.55;
+  transition: opacity 0.12s ease;
+}
+
+.focus-exit:hover,
+.focus-exit:focus-visible {
+  opacity: 1;
+  color: var(--fg);
+}

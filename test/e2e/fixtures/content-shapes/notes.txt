@@ -1,0 +1,4 @@
+A plain text file.
+
+It is highlighted server-side like any other source file,
+and it is editable, because text has a source.

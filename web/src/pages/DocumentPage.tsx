@@ -150,7 +150,7 @@ export function DocumentPage({ rootId, path, onTitleChange }: DocumentPageProps)
           </p>
         ) : null}
 
-        <div className="editor__bar" style={{ marginBottom: 12 }}>
+        <div className="editor__bar doc__actions">
           {editable ? (
             <button type="button" className="btn" onClick={() => setEditing(true)}>
               {/* Decorative: its siblings carry no icon, and announcing "pencil Edit"

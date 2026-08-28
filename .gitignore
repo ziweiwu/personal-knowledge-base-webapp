@@ -12,3 +12,7 @@ kbview.config.json
 # Vite dotenv files: the mock flag lives in the npm script instead.
 .env*
 !.env.example
+playwright/.auth/
+web/playwright/.auth/
+web/test-results/
+web/playwright-report/

@@ -72,6 +72,31 @@ jobs:
       - name: Verify test fixtures
         run: python3 test/fixtures/verify_fixtures.py
 
+      # Only chromium: the suite asserts behaviour and layout, not cross-engine rendering,
+      # and three browser downloads is most of the job's wall clock for no added signal.
+      - name: Install Playwright chromium
+        working-directory: web
+        run: npx playwright install --with-deps chromium
+
+      # Drives the real binary serving the real embedded frontend, against copies of the
+      # fixtures in a scratch directory — see test/e2e/run-server.sh.
+      - name: End-to-end tests
+        working-directory: web
+        run: npm run e2e
+
+      - name: Upload e2e report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: web/playwright-report/
+          retention-days: 7
+
+      # A test that writes must do so in the scratch copies. If the checkout moved, the
+      # isolation the suite depends on has broken and every later run is suspect.
+      - name: Fixtures survived the e2e run untouched
+        run: git diff --exit-code -- test/fixtures/
+
   publish:
     name: Publish container image
     needs: test
