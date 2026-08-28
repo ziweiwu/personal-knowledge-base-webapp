@@ -22,7 +22,7 @@ const PROJECTS = [
     name: 'phone-portrait',
     use: { ...devices['iPhone 13'], viewport: { width: 390, height: 844 }, storageState: STORAGE_STATE },
     dependencies: ['setup'],
-    testMatch: /responsive\.spec\.ts/,
+    testMatch: /(responsive|images)\.spec\.ts/,
   },
   {
     name: 'phone-landscape',
@@ -32,7 +32,7 @@ const PROJECTS = [
       storageState: STORAGE_STATE,
     },
     dependencies: ['setup'],
-    testMatch: /responsive\.spec\.ts/,
+    testMatch: /(responsive|images)\.spec\.ts/,
   },
 ];
 

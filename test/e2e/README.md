@@ -71,6 +71,7 @@ Nothing in `content-shapes` is decorative. Each file pins a behaviour that has b
 | `math.md` | MathML as one expression, and an `aligned` environment that must degrade in place |
 | `code-and-highlighting.md` | Class-based highlighting, a long line that scrolls in its own box, CJK inside a fence that once panicked the renderer |
 | `tables.md` | A table wider than any phone |
+| `images.md` | A 1600px screenshot, a 2000px-tall diagram, an embed, an SVG and a 4px square — all of which must scale to the column without overflowing it |
 | `crlf.md` | Line endings a write must preserve exactly |
 | `empty.md` | A zero-byte document must reach an explained empty state, never a blank pane |
 | `Spaces And Caps.md`, `unicode-标题.md` | Names that have to survive a URL round trip |

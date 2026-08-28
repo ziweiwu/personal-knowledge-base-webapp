@@ -140,6 +140,12 @@
   margin: 2em 0;
 }
 
+/*
+ * `height: auto` alongside the width cap is what keeps the aspect ratio: capping only the
+ * width squashes any image that carries explicit dimensions. A tall image is bounded by
+ * the column and then scrolls with the page — capping its height instead would shrink a
+ * 300x2000 diagram to thumbnail width to make it fit, which is not reading it.
+ */
 .prose img,
 .prose video {
   max-width: 100%;
@@ -339,12 +345,26 @@
   max-width: 70ch;
 }
 
+/*
+ * These escape the reading measure because they are not prose: a table or a code block
+ * that has to wrap at 70ch is unreadable, and each of them is given its own horizontal
+ * scroll container by `wrapWideElements`.
+ *
+ * An image is deliberately NOT in this list. It has no scroll container, so `none` did
+ * not widen it — it unbounded it, and a 1600px screenshot rendered 1600px wide inside a
+ * 390px phone, with the excess clipped away by the page's `overflow-x: hidden` and no way
+ * to reach it. Images stay capped at the column by the `max-width: 100%` above.
+ *
+ * `:not(img)` is load-bearing for the same reason: an Obsidian image embed carries the
+ * `embed` class on the `<img>` element itself, so without it the escape applies straight
+ * to the image and outranks the cap on specificity. A transcluded note or a PDF embed is
+ * a block and still escapes.
+ */
 .prose table,
 .prose pre,
 .prose .table-scroll,
 .prose .mermaid,
-.prose img,
-.prose .embed {
+.prose .embed:not(img) {
   max-width: none;
 }
 
