@@ -45,6 +45,48 @@ cargo build --release
 Then open http://127.0.0.1:4321. For access from other devices, see
 [deploy/README.md](deploy/README.md).
 
+## As a Mac app
+
+`KBView.app` is a menu bar item and a window of its own. It starts the server itself and
+signs you in, so none of the quick start above is needed at run time; it asks for a folder
+the first time and remembers it. Details, and what it does when a server is already
+running on the port, are in [macos/README.md](macos/README.md).
+
+### Download it — Apple Silicon
+
+Take the `.zip` from
+[Releases](https://github.com/ziweiwu/personal-knowledge-base-webapp/releases), unzip it,
+and drag `KBView.app` into `/Applications`.
+
+**macOS refuses to open it the first time**, saying:
+
+> "KBView" is damaged and can't be opened. You should move it to the Trash.
+
+It is not damaged, and the download is not corrupt. The app is signed *ad hoc* rather than
+with a paid Apple Developer ID, so Gatekeeper sees something that arrived from the internet
+and cannot say who built it — and reports that as damage. To open it anyway: dismiss the
+dialog, go to **System Settings → Privacy & Security**, scroll down to the line about
+KBView, and click **Open Anyway**. Once is enough. The terminal equivalent, if you prefer
+it:
+
+```sh
+xattr -dr com.apple.quarantine /Applications/KBView.app
+```
+
+The release is **Apple Silicon only**. The bundle carries a server binary built for the
+machine that built it, and no universal build is published — on an Intel Mac, build from
+source.
+
+### Build it yourself
+
+```sh
+macos/build-app.sh --install
+```
+
+Builds the app and copies it to `/Applications`. Needs the Xcode Command Line Tools for
+`swiftc`, plus the Node and Rust toolchains the rest of the repo needs. A locally built
+copy is never quarantined, so none of the Gatekeeper step above applies to it.
+
 ## Container image
 
 CI publishes a multi-architecture image (`linux/amd64` and `linux/arm64`) on every push to
@@ -152,6 +194,7 @@ test/fixtures/        three folders exercising vault / plain / mixed-media behav
 test/e2e/             Playwright fixtures and the isolated server the suite runs against
 web/e2e/              the end-to-end specs themselves
 deploy/               Dockerfiles, compose template, macOS launch agent
+macos/                the KBView.app wrapper: Swift sources, bundle build, smoke test
 .github/workflows/    CI: tests, then publishes the container image
 .cargo/config.toml    points ts-rs at web/src/api so the bindings stay generated
 ```

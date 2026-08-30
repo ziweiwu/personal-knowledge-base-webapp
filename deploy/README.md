@@ -62,6 +62,26 @@ change needs the frontend built *before* `cargo build --release`.
 The Mac must be awake to serve. If you want the knowledge base reachable while it sleeps,
 run it on the NAS instead.
 
+### The launch agent and KBView.app
+
+Both want port 4321, and nothing breaks if both are set up. `KBView.app` probes the port
+before binding and asks whether the server there accepts its own account. The agent's
+does not — it runs this repository's config against `data/` here, not the app's account
+store — so the app declines to adopt it, takes the next free port, and runs its own
+server alongside. Adopting it would have served the agent's folders instead of the one
+the app was told to serve, and left you on a login screen the app cannot fill in.
+
+So by default the two coexist, each with its own port and its own accounts. Giving the
+app a config that names this same `data/` directory makes it adopt the agent's server
+instead, which is usually what you want with Tailscale in the picture —
+`../macos/README.md` has the steps, including the agent restart that `AuthStore` makes
+necessary.
+
+Either way, If you use the app, the
+agent is largely redundant: the app starts a server when you open it. The agent still
+earns its place if you want the server up while the app is closed — serving your phone
+over Tailscale with nothing open on the Mac. See [../macos/README.md](../macos/README.md).
+
 ## Docker
 
 `deploy/compose.yaml` is a **template, not a deployment**. Every path in it that

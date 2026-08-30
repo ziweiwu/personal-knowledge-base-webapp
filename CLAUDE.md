@@ -32,6 +32,10 @@ python3 test/fixtures/verify_fixtures.py    # the binary fixtures are hand-built
 cd web && npm run e2e                                   # Playwright, against the real binary
 cd web && npm run e2e:ui                                # pick and watch individual tests
 cd web && npx playwright test --project=phone-landscape # one project
+
+macos/build-app.sh --install                            # KBView.app -> target/macos, then /Applications
+macos/build-app.sh --zip                                # also pack KBView-<version>-<arch>.zip for a release
+macos/smoke-test.sh                                     # drive the built bundle against a scratch vault
 ```
 
 The e2e suite starts its own server on port 4399 through `test/e2e/run-server.sh`, against
@@ -76,6 +80,7 @@ crates/kbview-core/    domain: paths, kinds, links, frontmatter, tasks, index, s
 crates/kbview-docx/    OOXML -> HTML, deliberately isolated
 crates/kbview-server/  axum, auth, rendering, watching, CLI
 web/                   Vite + React + TS
+macos/                 KBView.app: a Swift wrapper around the binary, changing neither
 ```
 
 ### Things that are load-bearing
@@ -133,6 +138,49 @@ a change ignores its own echo. `AppState` remembers the mtime it wrote and only 
 the watcher's echo when the file still holds exactly that — matching on path alone would
 swallow a genuine external edit landing in the same window, which is the one event the
 author most needs to see.
+
+### The macOS app
+
+`macos/` wraps the server in an `.app` and touches no Rust and no TypeScript: it drives
+`kbview user add --password-stdin` and `POST /api/auth/login` exactly as a person would.
+Keep it that way — a change that needs the server modified to suit the wrapper belongs in
+the server, behind an interface the CLI already exposes.
+
+**The bundled server is `Contents/MacOS/kbview-server`, never `kbview`.** The wrapper's
+own executable is `KBView`, and macOS filesystems are case insensitive, so `kbview` and
+`KBView` are one file and the second copy silently overwrites the first. Both outcomes
+run and neither reports anything: the server ends up launched with no arguments against
+whatever config the working directory holds, or the wrapper spawns itself once per
+generation until the process table fills. `build-app.sh` compares inodes to prove the two
+survived as separate files.
+
+**The app's password lives in `data/app-credentials.json` at 0600, not the login
+keychain.** The keychain is the better home for a secret, but the app is ad-hoc signed and
+so has a new code identity after every build; macOS treats each build as a stranger and
+prompts before releasing the item, which turns every rebuild into a dialog. The file sits
+beside `users.json`, which is already 0600 and already stores the Argon2 hash of that same
+password. This changes nothing about the server's authentication — the app holds a
+password so the user does not have to type one, and `tailscale serve` still publishes 4321
+to the whole tailnet behind the same login.
+
+**Adding an account to a running server has no effect until it restarts.** `AuthStore`
+reads `users.json` once in `open()` and serves every login from memory, so `kbview user
+add` against a live server's data directory is invisible to it. This is what decides
+whether the app adopts that server or starts its own, and it fails in the confusing
+direction: the credential is right, the file is right, and the login is still refused.
+
+**`NSAllowsLocalNetworking` is required in `Info.plist`.** Without it App Transport
+Security blocks the `http://127.0.0.1` load and the window stays blank with nothing
+logged anywhere.
+
+The app probes `/api/auth/session` before binding, because the `deploy/` launch agent and
+a manual run both take 4321. It adopts a server already there **only if that server
+accepts the app's own account**, which is the only available test of whether it was given
+the same configuration — a running kbview cannot be asked what config it holds. Adopting
+one that does not know the account would serve somebody else's folders and strand the
+user on a login screen the app has no credentials for, so that case takes a free port
+instead. `build-app.sh` builds the frontend before the server for the usual `rust-embed`
+reason.
 
 ### Rendering
 
@@ -200,5 +248,6 @@ like the folder is simply empty.
   per-suite pass counts hides a failing suite entirely; this has already produced one
   false "all green" report.
 - Comments explain why a non-obvious choice was made; they do not restate the code.
-- New document kinds: add to `crates/kbview-core/src/kinds.rs`, a renderer arm in `crates/kbview-server/src/render/document.rs`, and a
+- New document kinds: add to `crates/kbview-core/src/kinds.rs`, a renderer arm in
+  `crates/kbview-server/src/render/document.rs`, and a
   viewer on the client. The three must stay in step.

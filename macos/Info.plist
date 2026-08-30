@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleName</key>
+	<string>KBView</string>
+	<key>CFBundleDisplayName</key>
+	<string>KBView</string>
+	<key>CFBundleIdentifier</key>
+	<string>com.ziweiwu.kbview</string>
+	<key>CFBundleExecutable</key>
+	<string>KBView</string>
+	<key>CFBundleIconFile</key>
+	<string>KBView</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleShortVersionString</key>
+	<string>__VERSION__</string>
+	<key>CFBundleVersion</key>
+	<string>__VERSION__</string>
+	<key>LSMinimumSystemVersion</key>
+	<string>13.0</string>
+	<key>NSHighResolutionCapable</key>
+	<true/>
+	<key>NSSupportsAutomaticGraphicsSwitching</key>
+	<true/>
+	<key>NSHumanReadableCopyright</key>
+	<string>MIT licensed.</string>
+
+	<!-- The window loads http://127.0.0.1. Without this, App Transport Security
+	     blocks the load and the window stays blank with nothing logged. -->
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
+
+	<!-- Shown in the macOS permission prompt when the chosen vault lives in a
+	     protected folder. Without them the prompt has no explanation. -->
+	<key>NSDocumentsFolderUsageDescription</key>
+	<string>KBView reads and edits the notes in the folder you choose.</string>
+	<key>NSDesktopFolderUsageDescription</key>
+	<string>KBView reads and edits the notes in the folder you choose.</string>
+	<key>NSDownloadsFolderUsageDescription</key>
+	<string>KBView reads and edits the notes in the folder you choose.</string>
+	<key>NSRemovableVolumesUsageDescription</key>
+	<string>KBView reads and edits the notes in the folder you choose.</string>
+</dict>
+</plist>
