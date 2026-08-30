@@ -1,16 +1,16 @@
 #!/usr/bin/env bash
 # Launches the built app against a scratch vault and checks that it really serves.
 #
-# KBVIEW_APP_SUPPORT redirects everything the app stores - config, account store and the
+# KBVIEWER_APP_SUPPORT redirects everything the app stores - config, account store and the
 # generated credential - so nothing here can touch the real vault setup.
 
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO="$(cd "$HERE/.." && pwd)"
-APP="$REPO/target/macos/KBView.app"
+APP="$REPO/target/macos/KBViewer.app"
 PORT=4487
-SCRATCH="${TMPDIR:-/tmp}/kbview-app-smoke"
+SCRATCH="${TMPDIR:-/tmp}/kbviewer-app-smoke"
 
 if [ ! -d "$APP" ]; then
 	echo "smoke-test: $APP is not built — run macos/build-app.sh first" >&2
@@ -40,7 +40,7 @@ rm -rf "$SCRATCH"
 mkdir -p "$SCRATCH/vault" "$SCRATCH/support"
 printf '# Smoke test vault\n\nA note.\n' > "$SCRATCH/vault/index.md"
 
-cat > "$SCRATCH/support/kbview.config.json" <<JSON
+cat > "$SCRATCH/support/kbviewer.config.json" <<JSON
 {
   "host": "127.0.0.1",
   "port": $PORT,
@@ -50,7 +50,7 @@ cat > "$SCRATCH/support/kbview.config.json" <<JSON
 JSON
 
 echo "==> Launching the app"
-KBVIEW_APP_SUPPORT="$SCRATCH/support" "$APP/Contents/MacOS/KBView" \
+KBVIEWER_APP_SUPPORT="$SCRATCH/support" "$APP/Contents/MacOS/KBViewer" \
 	>"$SCRATCH/app.log" 2>&1 &
 app_pid=$!
 
@@ -72,15 +72,15 @@ done
 pass "the server answers /api/auth/session with 401"
 
 grep -q '"error":"unauthorized"' "$SCRATCH/probe.json" \
-	|| fail "the 401 body is not kbview's: $(cat "$SCRATCH/probe.json")"
-pass "the 401 body is kbview's"
+	|| fail "the 401 body is not kbviewer's: $(cat "$SCRATCH/probe.json")"
+pass "the 401 body is kbviewer's"
 
 curl -fs "http://127.0.0.1:$PORT/" | grep -qi '<div id="root"' \
 	|| fail "the SPA shell was not served at /"
 pass "the frontend shell is served"
 
-pgrep -f "kbview-server --config $SCRATCH/support/kbview.config.json" >/dev/null \
-	|| fail "no kbview-server child process is running with the scratch config"
+pgrep -f "kbviewer-server --config $SCRATCH/support/kbviewer.config.json" >/dev/null \
+	|| fail "no kbviewer-server child process is running with the scratch config"
 pass "the server runs as a child of the app"
 
 # A wrapper that spawns itself instead of the server climbs from one process to
@@ -95,8 +95,8 @@ pass "the bundle runs one wrapper and one server"
 
 # Proves first-run setup ran the CLI, not just that a server started: without an
 # account the server refuses to start at all, so this is what the app had to create.
-"$APP/Contents/MacOS/kbview-server" --config "$SCRATCH/support/kbview.config.json" \
-	user list | grep -q "kbview-app@localhost" \
+"$APP/Contents/MacOS/kbviewer-server" --config "$SCRATCH/support/kbviewer.config.json" \
+	user list | grep -q "kbviewer-app@localhost" \
 	|| fail "first-run setup did not create the app account"
 pass "the app account exists"
 
@@ -113,7 +113,7 @@ app_pid=""
 pass "the app quits on SIGTERM"
 
 sleep 1
-pgrep -f "$SCRATCH/support/kbview.config.json" >/dev/null \
+pgrep -f "$SCRATCH/support/kbviewer.config.json" >/dev/null \
 	&& fail "the server was left running after the app quit"
 pass "no orphaned server process"
 
@@ -124,12 +124,12 @@ pass "the port is closed"
 echo
 echo "==> A server on the port that does not share the app's account"
 
-# The launch agent in deploy/ is exactly this: a kbview on 4321 with the repository's
+# The launch agent in deploy/ is exactly this: a kbviewer on 4321 with the repository's
 # config and its own accounts. Adopting it would ignore the folder this app was told to
 # serve and strand the user on a login screen the app cannot fill in.
 mkdir -p "$SCRATCH/foreign" "$SCRATCH/foreign-vault"
 printf '# Foreign vault\n' > "$SCRATCH/foreign-vault/index.md"
-cat > "$SCRATCH/foreign/kbview.config.json" <<JSON
+cat > "$SCRATCH/foreign/kbviewer.config.json" <<JSON
 {
   "host": "127.0.0.1",
   "port": $PORT,
@@ -137,9 +137,9 @@ cat > "$SCRATCH/foreign/kbview.config.json" <<JSON
   "roots": [{ "id": "kb", "name": "Foreign", "path": "$SCRATCH/foreign-vault" }]
 }
 JSON
-"$APP/Contents/MacOS/kbview-server" --config "$SCRATCH/foreign/kbview.config.json" \
+"$APP/Contents/MacOS/kbviewer-server" --config "$SCRATCH/foreign/kbviewer.config.json" \
 	user add someone@else.test --password-stdin <<< 'a-long-enough-password' >/dev/null
-"$APP/Contents/MacOS/kbview-server" --config "$SCRATCH/foreign/kbview.config.json" \
+"$APP/Contents/MacOS/kbviewer-server" --config "$SCRATCH/foreign/kbviewer.config.json" \
 	>"$SCRATCH/foreign.log" 2>&1 &
 foreign_pid=$!
 disown %% 2>/dev/null || true   # otherwise bash prints "Terminated" when it is stopped
@@ -152,7 +152,7 @@ done
 pass "a foreign server holds port $PORT"
 
 rm -rf "$SCRATCH/support/data" "$SCRATCH/support/logs"
-KBVIEW_APP_SUPPORT="$SCRATCH/support" "$APP/Contents/MacOS/KBView" \
+KBVIEWER_APP_SUPPORT="$SCRATCH/support" "$APP/Contents/MacOS/KBViewer" \
 	>"$SCRATCH/app-adopt.log" 2>&1 &
 app_pid=$!
 
@@ -163,11 +163,11 @@ until [ -f "$SCRATCH/support/data/sessions.json" ]; do
 done
 pass "the app signed in to a server of its own"
 
-grep -q "\"port\" : $PORT," "$SCRATCH/support/kbview.config.json" \
+grep -q "\"port\" : $PORT," "$SCRATCH/support/kbviewer.config.json" \
 	&& fail "the app kept port $PORT and adopted the foreign server"
 pass "the app moved to a free port"
 
-pgrep -f "kbview-server --config $SCRATCH/support" >/dev/null \
+pgrep -f "kbviewer-server --config $SCRATCH/support" >/dev/null \
 	|| fail "the app did not start a server of its own"
 pass "the app runs its own server"
 

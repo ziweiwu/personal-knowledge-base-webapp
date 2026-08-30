@@ -1,4 +1,4 @@
-# Deploying kbview
+# Deploying kbviewer
 
 The server binds `127.0.0.1` and never terminates TLS itself. Exposure is Tailscale's
 job, which means there is no certificate to manage and nothing listening on a public
@@ -29,30 +29,30 @@ your documents to the public internet.
 
 ## macOS, as a launch agent
 
-`deploy/com.kbview.plist` is a template. Substituting it into place leaves the
+`deploy/com.kbviewer.plist` is a template. Substituting it into place leaves the
 template itself untouched, so the same command works on the next machine:
 
 ```sh
 cargo build --release
 mkdir -p ~/Library/LaunchAgents
-sed "s|PROJECT_DIR|$PWD|g" deploy/com.kbview.plist > ~/Library/LaunchAgents/com.kbview.plist
-launchctl load ~/Library/LaunchAgents/com.kbview.plist
+sed "s|PROJECT_DIR|$PWD|g" deploy/com.kbviewer.plist > ~/Library/LaunchAgents/com.kbviewer.plist
+launchctl load ~/Library/LaunchAgents/com.kbviewer.plist
 ```
 
 Confirm it came up, and that the auth gate is in front of it:
 
 ```sh
-launchctl list | grep com.kbview                                        # pid, then 0
+launchctl list | grep com.kbviewer                                        # pid, then 0
 curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:4321/api/roots  # 401
 ```
 
 `KeepAlive` is on, so killing the process restarts it; stopping it for real means
-`launchctl unload`. Logs go to `data/kbview.log`.
+`launchctl unload`. Logs go to `data/kbviewer.log`.
 
 ```sh
-launchctl unload ~/Library/LaunchAgents/com.kbview.plist   # stop
-launchctl load   ~/Library/LaunchAgents/com.kbview.plist   # start
-rm ~/Library/LaunchAgents/com.kbview.plist                 # uninstall, after unload
+launchctl unload ~/Library/LaunchAgents/com.kbviewer.plist   # stop
+launchctl load   ~/Library/LaunchAgents/com.kbviewer.plist   # start
+rm ~/Library/LaunchAgents/com.kbviewer.plist                 # uninstall, after unload
 ```
 
 Rebuild the binary and the agent keeps running the old one until you
@@ -62,9 +62,9 @@ change needs the frontend built *before* `cargo build --release`.
 The Mac must be awake to serve. If you want the knowledge base reachable while it sleeps,
 run it on the NAS instead.
 
-### The launch agent and KBView.app
+### The launch agent and KBViewer.app
 
-Both want port 4321, and nothing breaks if both are set up. `KBView.app` probes the port
+Both want port 4321, and nothing breaks if both are set up. `KBViewer.app` probes the port
 before binding and asks whether the server there accepts its own account. The agent's
 does not — it runs this repository's config against `data/` here, not the app's account
 store — so the app declines to adopt it, takes the next free port, and runs its own
@@ -108,9 +108,9 @@ Step 3 must come before step 4. The server refuses to start with zero accounts, 
 ```sh
 # 1. Config. "host" must be 0.0.0.0 (a container's loopback is its own, so the
 #    127.0.0.1 default would publish nothing), "dataDir" must be /data, and the
-#    root's "id" must be "kb" to match KBVIEW_ROOT_KB in the compose file.
-cp kbview.config.example.json deploy/kbview.config.json
-$EDITOR deploy/kbview.config.json
+#    root's "id" must be "kb" to match KBVIEWER_ROOT_KB in the compose file.
+cp kbviewer.config.example.json deploy/kbviewer.config.json
+$EDITOR deploy/kbviewer.config.json
 
 # 2. Point the vault mount at your folder, and set `user:` to the UID:GID that
 #    owns it. Both are marked in the file.
@@ -121,7 +121,7 @@ docker compose -f deploy/compose.yaml pull
 # 3. Create the first account. Interactive, prompts for a password, echo off.
 #    `run --rm` shares the service's volumes, so this writes deploy/data/users.json.
 #    It does not publish port 4321, so it cannot collide with a running instance.
-docker compose -f deploy/compose.yaml run --rm kbview user add you@example.com
+docker compose -f deploy/compose.yaml run --rm kbviewer user add you@example.com
 
 # 4. Start it.
 docker compose -f deploy/compose.yaml up -d
@@ -132,7 +132,7 @@ Non-interactive account creation, for scripted provisioning:
 
 ```sh
 printf '%s' 'the-password' | docker compose -f deploy/compose.yaml \
-  run --rm -T kbview user add you@example.com --password-stdin
+  run --rm -T kbviewer user add you@example.com --password-stdin
 ```
 
 Updating is `docker compose -f deploy/compose.yaml pull` then `up -d`. If you run
@@ -142,7 +142,7 @@ forward unattended; pin a version tag if you do not want that.
 ### Two things to get right before the first run
 
 - **The folder path.** If the path you mount at `/vault` does not exist, Docker
-  creates an empty directory and kbview starts normally on an empty folder. There
+  creates an empty directory and kbviewer starts normally on an empty folder. There
   is no error to notice. Check the path exists — and, for a vault, that it contains
   `.obsidian` — before starting, not after.
 - **The UID:GID.** The image sets no `USER` — that belongs to the deployment, not
@@ -166,11 +166,11 @@ There is no signup page. Accounts exist only if someone with shell access create
 the server refuses to start with none rather than presenting a login it cannot satisfy.
 
 ```sh
-kbview user add you@example.com          # prompts, echo off
-kbview user add you@example.com --password-stdin < secret.txt
-kbview user list
-kbview user passwd you@example.com
-kbview user revoke                        # sign out every device, e.g. a lost phone
+kbviewer user add you@example.com          # prompts, echo off
+kbviewer user add you@example.com --password-stdin < secret.txt
+kbviewer user list
+kbviewer user passwd you@example.com
+kbviewer user revoke                        # sign out every device, e.g. a lost phone
 ```
 
 `data/users.json` holds Argon2id hashes and is written `0600`. Back up `data/` — losing it

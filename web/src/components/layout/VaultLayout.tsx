@@ -145,7 +145,7 @@ function VaultShell({ mode, path }: { mode: VaultMode; path: string }) {
   const title = pageTitle || (mode === 'doc' ? baseName(path) : baseName(path) || rootName);
 
   useEffect(() => {
-    document.title = title ? `${title} · kbview` : 'kbview';
+    document.title = title ? `${title} · kbviewer` : 'kbviewer';
   }, [title]);
 
   const drawerHidden = !isDesktop && !drawerOpen;

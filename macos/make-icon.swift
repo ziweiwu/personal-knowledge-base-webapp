@@ -1,4 +1,4 @@
-// Renders KBView.iconset. Run by build-app.sh; iconutil turns the result into .icns.
+// Renders KBViewer.iconset. Run by build-app.sh; iconutil turns the result into .icns.
 //
 // The icon is generated rather than committed as a binary blob so it stays editable
 // in the same place as everything else about the app.

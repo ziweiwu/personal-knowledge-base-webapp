@@ -1,7 +1,7 @@
-// Starting, adopting and stopping the kbview server.
+// Starting, adopting and stopping the kbviewer server.
 //
 // The app cannot assume the port is free: the LaunchAgent in deploy/ and a manual
-// `./target/release/kbview` both take 4321. So the port is probed first and the
+// `./target/release/kbviewer` both take 4321. So the port is probed first and the
 // server is adopted rather than duplicated when one is already there.
 
 import Foundation
@@ -31,7 +31,7 @@ final class ServerProcess {
     /// Printed unconditionally by the server once the listener is bound. Waiting for
     /// this is more reliable than polling the socket, which can accept a connection
     /// before the index has finished building.
-    private static let readyMarker = "kbview listening on http://"
+    private static let readyMarker = "kbviewer listening on http://"
 
     private static let startTimeout: TimeInterval = 30
     private static let recentLineLimit = 40
@@ -82,8 +82,8 @@ final class ServerProcess {
         var mustRelocate = false
 
         switch Self.probe(port: configured) {
-        case .kbview:
-            // A kbview is there, but it need not be serving this app's configuration.
+        case .kbviewer:
+            // A kbviewer is there, but it need not be serving this app's configuration.
             // The launch agent in deploy/ runs the repository's config against its own
             // account store; adopting that would quietly ignore the folder this app was
             // told to serve and land on a login screen the app cannot fill in. Sharing
@@ -163,7 +163,7 @@ final class ServerProcess {
         process.currentDirectoryURL = Paths.supportDirectory
 
         var environment = ProcessInfo.processInfo.environment
-        environment["RUST_LOG"] = environment["RUST_LOG"] ?? "kbview=info"
+        environment["RUST_LOG"] = environment["RUST_LOG"] ?? "kbviewer=info"
         process.environment = environment
         return process
     }
@@ -281,12 +281,12 @@ final class ServerProcess {
     // MARK: - Probing
 
     enum Probe {
-        case kbview
+        case kbviewer
         case foreign
         case absent
     }
 
-    /// A kbview answers this route with a JSON 401: it sits behind the session gate
+    /// A kbviewer answers this route with a JSON 401: it sits behind the session gate
     /// that covers the whole /api group. Any other server on the port answers
     /// differently, which is what distinguishes "ours" from "someone else's".
     static func probe(port: Int) -> Probe {
@@ -305,7 +305,7 @@ final class ServerProcess {
             let body = data.flatMap { String(data: $0, encoding: .utf8) } ?? ""
             outcome =
                 (http.statusCode == unauthorizedStatusCode && body.contains("\"error\":\"unauthorized\""))
-                ? .kbview : .foreign
+                ? .kbviewer : .foreign
         }.resume()
         _ = done.wait(timeout: .now() + probeWaitTimeout)
         return outcome

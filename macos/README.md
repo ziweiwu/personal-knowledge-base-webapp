@@ -1,13 +1,13 @@
-# KBView.app
+# KBViewer.app
 
-A macOS wrapper around the `kbview` server: a menu bar item, a dedicated window, and
+A macOS wrapper around the `kbviewer` server: a menu bar item, a dedicated window, and
 no terminal. It changes nothing about the server — it drives the same CLI and the same
 HTTP API that a person would.
 
 ## Build
 
 ```sh
-macos/build-app.sh              # -> target/macos/KBView.app
+macos/build-app.sh              # -> target/macos/KBViewer.app
 macos/build-app.sh --install    # also copies it to /Applications
 ```
 
@@ -18,9 +18,9 @@ rest of the repo needs. The script builds the frontend first because the server 
 ## What it does on first launch
 
 1. Asks for the folder to serve, and writes
-   `~/Library/Application Support/KBView/kbview.config.json`.
-2. Creates an account, `kbview-app@localhost`, by running the bundled
-   `kbview user add --password-stdin` — the same path a person would use, since the
+   `~/Library/Application Support/KBViewer/kbviewer.config.json`.
+2. Creates an account, `kbviewer-app@localhost`, by running the bundled
+   `kbviewer user add --password-stdin` — the same path a person would use, since the
    server has no signup route.
 3. Saves the generated password to `app-credentials.json` beside `users.json` in the
    configured `dataDir`, mode 0600 - next to the account it opens, so re-pointing the
@@ -36,19 +36,19 @@ tailnet; anything reachable there still requires a login.
 
 | Path | Holds |
 |---|---|
-| `~/Library/Application Support/KBView/kbview.config.json` | the config |
-| the config's `dataDir` (default `…/KBView/data/`) | `users.json`, `sessions.json`, `app-credentials.json` |
-| `~/Library/Logs/KBView/server.log` | the server's stderr |
+| `~/Library/Application Support/KBViewer/kbviewer.config.json` | the config |
+| the config's `dataDir` (default `…/KBViewer/data/`) | `users.json`, `sessions.json`, `app-credentials.json` |
+| `~/Library/Logs/KBViewer/server.log` | the server's stderr |
 
 ## Sharing the port
 
-The LaunchAgent in `deploy/` and a manual `./target/release/kbview` both want 4321, so
+The LaunchAgent in `deploy/` and a manual `./target/release/kbviewer` both want 4321, so
 the app probes before it binds:
 
-- a kbview that **accepts the app's account** → it adopts that server rather than
+- a kbviewer that **accepts the app's account** → it adopts that server rather than
   starting a second one, and reuses the session that check established. "Restart Server"
   is disabled, because it is not the app's to restart;
-- a kbview that does not know the account — the launch agent, which serves the
+- a kbviewer that does not know the account — the launch agent, which serves the
   repository's config from its own account store — → **not** adopted. Adopting it would
   ignore the folder the app was told to serve and strand you on a login screen the app
   cannot fill in, so the app takes the next free port and runs its own alongside it;
@@ -56,7 +56,7 @@ the app probes before it binds:
 - nothing there → it starts its own, and stops it again on quit.
 
 Sharing an account is the usable test for "the same server": there is no other way to ask
-a running kbview which configuration it was given.
+a running kbviewer which configuration it was given.
 
 ## Sharing one server with the launch agent
 
@@ -68,11 +68,11 @@ Copy the agent's config into the app's, with `dataDir` made absolute - the agent
 create the app's account in that shared store and restart the agent:
 
     REPO=/path/to/this/repo
-    SUPPORT=~/Library/Application\ Support/KBView
+    SUPPORT=~/Library/Application\ Support/KBViewer
 
-    "$REPO/target/release/kbview" --config "$SUPPORT/kbview.config.json" \
-        user add kbview-app@localhost
-    launchctl kickstart -k "gui/$(id -u)/com.kbview"
+    "$REPO/target/release/kbviewer" --config "$SUPPORT/kbviewer.config.json" \
+        user add kbviewer-app@localhost
+    launchctl kickstart -k "gui/$(id -u)/com.kbviewer"
 
 **The restart is not optional.** `AuthStore` reads `users.json` once at startup and holds
 it in memory, so a running server never sees an account the CLI just added - and the app,
@@ -80,14 +80,14 @@ finding its account rejected, declines to adopt and starts a second server inste
 
 The app then adopts the agent's server on 4321: one server, one index, and whatever
 `tailscale serve` publishes is the same vault the app shows. To undo it, delete the app's
-`kbview.config.json` and it will ask for a folder again on the next launch.
+`kbviewer.config.json` and it will ask for a folder again on the next launch.
 
 Two things to leave alone in that arrangement:
 
 - **Keep the launch agent.** Tailscale is pinned to 4321. If the agent goes away while the
   app is closed, nothing is on that port.
 - **Drop roots that do not exist.** A missing folder puts a warning in front of the app on
-  every launch; the repo config's `/tmp/kbview-scratch` is one such.
+  every launch; the repo config's `/tmp/kbviewer-scratch` is one such.
 
 ## Testing
 
@@ -96,7 +96,7 @@ macos/smoke-test.sh
 ```
 
 Launches the built bundle against a scratch vault, checks that it serves and that it
-leaves no orphaned server behind. `KBVIEW_APP_SUPPORT` redirects the config, the account
+leaves no orphaned server behind. `KBVIEWER_APP_SUPPORT` redirects the config, the account
 store and the generated credential, so a test run cannot touch the real setup. That
 variable exists for this script; nothing else sets it.
 
@@ -104,10 +104,10 @@ variable exists for this script; nothing else sets it.
 
 ```sh
 macos/build-app.sh --zip
-gh release create v0.1.0 --generate-notes target/macos/KBView-0.1.0-arm64.zip
+gh release create v0.1.0 --generate-notes target/macos/KBViewer-0.1.0-arm64.zip
 ```
 
-`--zip` packs the signed bundle with `ditto` into `target/macos/KBView-<version>-<arch>.zip`.
+`--zip` packs the signed bundle with `ditto` into `target/macos/KBViewer-<version>-<arch>.zip`.
 `ditto` preserves symlinks and extended attributes and is the form Apple's notarisation
 flow takes; `zip -r` preserves neither. The bundle is flat enough today that both round
 trip with the signature intact — checked, not assumed — but that stops being true the
@@ -138,9 +138,9 @@ The architecture is in the archive's name because the build is not universal —
 
 ## The one thing not to change
 
-The server inside the bundle is `Contents/MacOS/kbview-server`, **not** `kbview`. The
-wrapper's own executable is `KBView`, and the Mac's filesystem is case insensitive, so
-`kbview` is the same file as `KBView`: copying the server in under that name overwrites
+The server inside the bundle is `Contents/MacOS/kbviewer-server`, **not** `kbviewer`. The
+wrapper's own executable is `KBViewer`, and the Mac's filesystem is case insensitive, so
+`kbviewer` is the same file as `KBViewer`: copying the server in under that name overwrites
 one binary with the other and leaves a single working file with no error. Whichever
 survived, the result was wrong — the server ran against whatever config the working
 directory happened to hold, or the wrapper spawned itself once per generation until the

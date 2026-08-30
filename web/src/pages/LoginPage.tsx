@@ -74,7 +74,7 @@ function LoginHeading() {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
       <h1 className="login__brand" style={{ flex: 1 }}>
-        kbview
+        kbviewer
       </h1>
       <ThemeToggle />
     </div>
@@ -155,7 +155,7 @@ export function LoginPage() {
   const from = (location.state as { from?: string } | null)?.from ?? '/';
 
   useEffect(() => {
-    document.title = 'Sign in · kbview';
+    document.title = 'Sign in · kbviewer';
   }, []);
 
   if (status === 'authenticated') return <Navigate to={from} replace />;

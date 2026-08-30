@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  macOS launch agent for kbviewer.
+
+  This is a template, not an installable file: the path placeholders below are
+  substituted for the absolute path of the checkout at install time. Copying it
+  verbatim produces an agent that cannot exec. See deploy/README.md for the one
+  command that installs it.
+-->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.kbviewer</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>PROJECT_DIR/target/release/kbviewer</string>
+  </array>
+
+  <key>WorkingDirectory</key>
+  <string>PROJECT_DIR</string>
+
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>RUST_LOG</key>
+    <string>kbviewer=info</string>
+  </dict>
+
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+
+  <key>StandardOutPath</key>
+  <string>PROJECT_DIR/data/kbviewer.log</string>
+  <key>StandardErrorPath</key>
+  <string>PROJECT_DIR/data/kbviewer.log</string>
+</dict>
+</plist>

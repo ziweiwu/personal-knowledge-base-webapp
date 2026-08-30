@@ -35,7 +35,7 @@ enum FirstRun {
 
         let panel = NSOpenPanel()
         panel.title = "Choose your knowledge base folder"
-        panel.message = "Pick the folder KBView should serve. Your Obsidian vault is a good choice."
+        panel.message = "Pick the folder KBViewer should serve. Your Obsidian vault is a good choice."
         panel.prompt = "Use This Folder"
         panel.canChooseFiles = false
         panel.canChooseDirectories = true
@@ -106,10 +106,12 @@ enum FirstRun {
 
         let output = String(data: outputBytes, encoding: .utf8) ?? ""
         guard process.terminationStatus == 0 else {
+            let reported = output.trimmingCharacters(in: .whitespacesAndNewlines)
+            let invocation = arguments.joined(separator: " ")
             throw Failure.command(
-                output.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                    ? "`kbview \(arguments.joined(separator: " "))` failed with exit code \(process.terminationStatus)."
-                    : output.trimmingCharacters(in: .whitespacesAndNewlines))
+                reported.isEmpty
+                    ? "`kbviewer \(invocation)` failed with exit code \(process.terminationStatus)."
+                    : reported)
         }
         return CommandResult(status: process.terminationStatus, output: output)
     }

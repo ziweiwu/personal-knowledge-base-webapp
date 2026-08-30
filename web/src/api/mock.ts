@@ -59,7 +59,8 @@ addFile({
   },
   source: '# Knowledge Base\n\nStart here.\n',
   html:
-    '<h1 id="knowledge-base">Knowledge Base</h1><p>Start here. See <a href="/n/kb/projects/kbview.md">kbview</a>.</p>' +
+    '<h1 id="knowledge-base">Knowledge Base</h1>' +
+    '<p>Start here. See <a href="/n/kb/projects/kbviewer.md">kbviewer</a>.</p>' +
     '<h2 id="sections">Sections</h2><ul><li>Projects</li><li>Reading</li></ul>',
   headings: [
     { depth: 1, text: 'Knowledge Base', slug: 'knowledge-base' },
@@ -69,26 +70,26 @@ addFile({
 
 addFile({
   meta: {
-    path: 'projects/kbview.md',
-    name: 'kbview.md',
-    title: 'kbview',
+    path: 'projects/kbviewer.md',
+    name: 'kbviewer.md',
+    title: 'kbviewer',
     kind: 'markdown',
     size: 2400,
     mtimeMs: NOW - 3_600_000,
     editable: true,
     tags: ['project', 'rust'],
   },
-  source: '# kbview\n\nA browser for local folders.\n\n## Design\n\nServer renders, client displays.\n',
+  source: '# kbviewer\n\nA browser for local folders.\n\n## Design\n\nServer renders, client displays.\n',
   html:
-    '<h1 id="kbview">kbview</h1><p>A browser for local folders of documents.</p>' +
+    '<h1 id="kbviewer">kbviewer</h1><p>A browser for local folders of documents.</p>' +
     '<h2 id="design">Design</h2><p>The server renders; the client displays. Inline math: ' +
     '<math><mrow><mi>a</mi><mo>+</mo><mi>b</mi></mrow></math>.</p>' +
     '<pre class="mermaid">graph LR\n  Browser --&gt; Server\n  Server --&gt; Disk</pre>' +
     '<h2 id="table">Table</h2><table><thead><tr><th>Route</th><th>Returns</th></tr></thead>' +
     '<tbody><tr><td>/api/doc</td><td>DocumentPayload</td></tr></tbody></table>' +
-    '<h3 id="notes">Notes</h3><pre><code>cargo run -- --config kbview.config.json</code></pre>',
+    '<h3 id="notes">Notes</h3><pre><code>cargo run -- --config kbviewer.config.json</code></pre>',
   headings: [
-    { depth: 1, text: 'kbview', slug: 'kbview' },
+    { depth: 1, text: 'kbviewer', slug: 'kbviewer' },
     { depth: 2, text: 'Design', slug: 'design' },
     { depth: 2, text: 'Table', slug: 'table' },
     { depth: 3, text: 'Notes', slug: 'notes' },
@@ -167,8 +168,8 @@ addFile({
     mtimeMs: NOW - 600_000,
     editable: true,
   },
-  source: 'buy milk\nship kbview\n',
-  html: '<pre><code>buy milk\nship kbview\n</code></pre>',
+  source: 'buy milk\nship kbviewer\n',
+  html: '<pre><code>buy milk\nship kbviewer\n</code></pre>',
 });
 
 const roots: RootInfo[] = [
@@ -352,7 +353,7 @@ function handleRename(request: MockRequest): Response {
     file.meta = { ...file.meta, path: body.to, name: body.to.slice(body.to.lastIndexOf('/') + 1) };
     files.set(body.to, file);
   }
-  return json({ from: body.from, to: body.to, updated: ['index.md', 'projects/kbview.md'] });
+  return json({ from: body.from, to: body.to, updated: ['index.md', 'projects/kbviewer.md'] });
 }
 
 function createDocument(path: string, existing: MockFile | undefined): Response {
@@ -501,5 +502,5 @@ export function installMockTransport(): void {
       return error(HTTP_INTERNAL_ERROR, 'mock_error', cause instanceof Error ? cause.message : 'Mock failure');
     }
   });
-  console.info(`[kbview] mock API active \u2014 sign in with any email and the password "${MOCK_PASSWORD}"`);
+  console.info(`[kbviewer] mock API active \u2014 sign in with any email and the password "${MOCK_PASSWORD}"`);
 }

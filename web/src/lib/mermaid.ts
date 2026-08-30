@@ -57,7 +57,7 @@ export async function renderMermaid(
     if (!source.trim()) continue;
 
     diagramSequence += 1;
-    const drawn = await drawDiagram(mermaid, `kbview-mermaid-${diagramSequence}`, source);
+    const drawn = await drawDiagram(mermaid, `kbviewer-mermaid-${diagramSequence}`, source);
     if (isCancelled() || !node.isConnected) return;
     showDiagram(node, source, drawn);
   }
@@ -82,5 +82,5 @@ function showDiagram(node: HTMLElement, source: string, drawn: Drawn): void {
   }
   node.textContent = `Diagram could not be rendered.\n\n${source}`;
   node.dataset.mermaidState = 'error';
-  console.warn('[kbview] mermaid render failed', drawn.failure);
+  console.warn('[kbviewer] mermaid render failed', drawn.failure);
 }

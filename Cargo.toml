@@ -1,9 +1,9 @@
 [workspace]
 resolver = "2"
-members = ["crates/kbview-core", "crates/kbview-docx", "crates/kbview-server"]
+members = ["crates/kbviewer-core", "crates/kbviewer-docx", "crates/kbviewer-server"]
 
 [workspace.package]
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 license = "MIT"
 

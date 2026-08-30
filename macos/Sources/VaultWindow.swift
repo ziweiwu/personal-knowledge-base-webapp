@@ -29,14 +29,14 @@ final class VaultWindow: NSObject, WKNavigationDelegate, WKUIDelegate {
             styleMask: [.titled, .closable, .miniaturizable, .resizable],
             backing: .buffered,
             defer: false)
-        window.title = "KBView"
+        window.title = "KBViewer"
         window.isReleasedWhenClosed = false
         window.minSize = NSSize(width: 520, height: 420)
         window.contentView = webView
         // Centre first: setting the autosave name restores the remembered frame over
         // the top of it, so doing this the other way round loses the saved position.
         window.center()
-        window.setFrameAutosaveName("KBViewVaultWindow")
+        window.setFrameAutosaveName("KBViewerVaultWindow")
 
         super.init()
         webView.navigationDelegate = self

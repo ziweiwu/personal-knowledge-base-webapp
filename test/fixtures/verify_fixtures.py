@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify the kbview test fixtures are structurally what the tests assume.
+"""Verify the kbviewer test fixtures are structurally what the tests assume.
 
 Run from anywhere:  python3 test/fixtures/verify_fixtures.py
 Exits non-zero if any check fails.

@@ -1,4 +1,4 @@
-// Reading and writing kbview.config.json.
+// Reading and writing kbviewer.config.json.
 //
 // Rewrites go through JSONSerialization on the parsed object rather than through a
 // typed struct, so a field the app does not model - readOnly, folderNotes, a second

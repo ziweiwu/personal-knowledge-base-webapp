@@ -15,13 +15,13 @@ WORKDIR /build
 COPY Cargo.toml Cargo.lock ./
 COPY crates ./crates
 COPY --from=web /build/dist ./web/dist
-RUN cargo build --release --locked -p kbview-server
+RUN cargo build --release --locked -p kbviewer-server
 
 FROM alpine:3
 RUN apk add --no-cache ca-certificates tini && \
-    addgroup -g 1033 kbview && \
-    adduser -D -u 1033 -G kbview kbview
-COPY --from=server /build/target/release/kbview /usr/local/bin/kbview
+    addgroup -g 1033 kbviewer && \
+    adduser -D -u 1033 -G kbviewer kbviewer
+COPY --from=server /build/target/release/kbviewer /usr/local/bin/kbviewer
 USER 1033:1033
 EXPOSE 4321
-ENTRYPOINT ["/sbin/tini", "--", "/usr/local/bin/kbview"]
+ENTRYPOINT ["/sbin/tini", "--", "/usr/local/bin/kbviewer"]

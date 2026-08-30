@@ -3,15 +3,15 @@
 <plist version="1.0">
 <dict>
 	<key>CFBundleName</key>
-	<string>KBView</string>
+	<string>KBViewer</string>
 	<key>CFBundleDisplayName</key>
-	<string>KBView</string>
+	<string>KBViewer</string>
 	<key>CFBundleIdentifier</key>
-	<string>com.ziweiwu.kbview</string>
+	<string>com.ziweiwu.kbviewer</string>
 	<key>CFBundleExecutable</key>
-	<string>KBView</string>
+	<string>KBViewer</string>
 	<key>CFBundleIconFile</key>
-	<string>KBView</string>
+	<string>KBViewer</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleInfoDictionaryVersion</key>
@@ -40,12 +40,12 @@
 	<!-- Shown in the macOS permission prompt when the chosen vault lives in a
 	     protected folder. Without them the prompt has no explanation. -->
 	<key>NSDocumentsFolderUsageDescription</key>
-	<string>KBView reads and edits the notes in the folder you choose.</string>
+	<string>KBViewer reads and edits the notes in the folder you choose.</string>
 	<key>NSDesktopFolderUsageDescription</key>
-	<string>KBView reads and edits the notes in the folder you choose.</string>
+	<string>KBViewer reads and edits the notes in the folder you choose.</string>
 	<key>NSDownloadsFolderUsageDescription</key>
-	<string>KBView reads and edits the notes in the folder you choose.</string>
+	<string>KBViewer reads and edits the notes in the folder you choose.</string>
 	<key>NSRemovableVolumesUsageDescription</key>
-	<string>KBView reads and edits the notes in the folder you choose.</string>
+	<string>KBViewer reads and edits the notes in the folder you choose.</string>
 </dict>
 </plist>

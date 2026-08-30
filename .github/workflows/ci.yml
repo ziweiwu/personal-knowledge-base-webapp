@@ -138,21 +138,21 @@ jobs:
 
       - name: Cross-compile both architectures
         run: |
-          cargo zigbuild --release --locked -p kbview-server \
+          cargo zigbuild --release --locked -p kbviewer-server \
             --target x86_64-unknown-linux-musl \
             --target aarch64-unknown-linux-musl
           mkdir -p dist/amd64 dist/arm64
-          cp target/x86_64-unknown-linux-musl/release/kbview dist/amd64/kbview
-          cp target/aarch64-unknown-linux-musl/release/kbview dist/arm64/kbview
+          cp target/x86_64-unknown-linux-musl/release/kbviewer dist/amd64/kbviewer
+          cp target/aarch64-unknown-linux-musl/release/kbviewer dist/arm64/kbviewer
 
       # Prove what was produced before shipping it: a dynamically linked binary would
       # fail at runtime on alpine, and a wrong-architecture one fails on the NAS.
       - name: Verify the binaries
         run: |
-          file dist/amd64/kbview dist/arm64/kbview
-          file dist/amd64/kbview | grep -q 'x86-64'
-          file dist/arm64/kbview | grep -q 'aarch64'
-          file dist/amd64/kbview | grep -q 'static'
+          file dist/amd64/kbviewer dist/arm64/kbviewer
+          file dist/amd64/kbviewer | grep -q 'x86-64'
+          file dist/arm64/kbviewer | grep -q 'aarch64'
+          file dist/amd64/kbviewer | grep -q 'static'
 
       # Only the tiny `apk add` layer is emulated; nothing is compiled here.
       - uses: docker/setup-qemu-action@v3

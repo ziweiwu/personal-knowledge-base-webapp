@@ -19,14 +19,14 @@ cd web && npx playwright test --project=phone-landscape
 
 ## Isolation
 
-`run-server.sh` builds a throwaway world under `$TMPDIR/kbview-e2e` before starting the
+`run-server.sh` builds a throwaway world under `$TMPDIR/kbviewer-e2e` before starting the
 server on port 4399:
 
 - every fixture root is **copied** there, so a test that saves, renames, deletes or ticks
   a checkbox can never modify `test/fixtures/`, which is hand-built and verified
   byte-for-byte by `verify_fixtures.py`
 - the account and its sessions live there too, so the suite never touches `./data` or the
-  real `kbview.config.json`
+  real `kbviewer.config.json`
 
 CI asserts the isolation held by running `git diff --exit-code -- test/fixtures/` after
 the suite. If that ever fails, the copies stopped being copies and the run is suspect.
@@ -38,12 +38,12 @@ colliding with the first — a stale server on 4399 would otherwise be silently 
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `KBVIEW_E2E_PORT` | `4399` | Port the suite's own server listens on |
-| `KBVIEW_E2E_DIR` | `$TMPDIR/kbview-e2e` | Scratch directory holding the root copies, the config and the account |
+| `KBVIEWER_E2E_PORT` | `4399` | Port the suite's own server listens on |
+| `KBVIEWER_E2E_DIR` | `$TMPDIR/kbviewer-e2e` | Scratch directory holding the root copies, the config and the account |
 
-`KBVIEW_E2E_DIR` is wiped and rebuilt on every start, so anything left in it from a
-previous run is gone. The Playwright config reads `KBVIEW_E2E_PORT` too, and `helpers.ts`
-reads `KBVIEW_E2E_DIR` to check what landed on disk.
+`KBVIEWER_E2E_DIR` is wiped and rebuilt on every start, so anything left in it from a
+previous run is gone. The Playwright config reads `KBVIEWER_E2E_PORT` too, and `helpers.ts`
+reads `KBVIEWER_E2E_DIR` to check what landed on disk.
 
 ## Roots the suite mounts
 

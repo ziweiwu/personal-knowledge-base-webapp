@@ -1,0 +1,32 @@
+{
+  "host": "127.0.0.1",
+  "port": 4321,
+  "dataDir": "./data",
+  "roots": [
+    {
+      "id": "kb",
+      "name": "Knowledge Base",
+      "path": "/Users/ziweiwu/SynologyDrive/my-knowledge-base"
+    },
+    {
+      "id": "demo-vault",
+      "name": "Demo Vault",
+      "path": "/Users/ziweiwu/Projects/personal-knowledge-base-webapp/test/fixtures/obsidian-vault"
+    },
+    {
+      "id": "demo-plain",
+      "name": "Demo Plain Folder",
+      "path": "/Users/ziweiwu/Projects/personal-knowledge-base-webapp/test/fixtures/plain-markdown"
+    },
+    {
+      "id": "demo-media",
+      "name": "Demo Media Folder",
+      "path": "/Users/ziweiwu/Projects/personal-knowledge-base-webapp/test/fixtures/mixed-media"
+    },
+    {
+      "id": "scratch",
+      "name": "Scratch",
+      "path": "/tmp/kbview-scratch"
+    }
+  ]
+}

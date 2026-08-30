@@ -14,7 +14,7 @@ export function HomePage() {
       <div className="state">
         <p className="state__title">No folders configured</p>
         <p className="state__detail">
-          Add at least one entry to the <code>roots</code> array in kbview.config.json and restart the server.
+          Add at least one entry to the <code>roots</code> array in kbviewer.config.json and restart the server.
         </p>
       </div>
     );

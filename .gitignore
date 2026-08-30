@@ -2,7 +2,7 @@
 /data
 node_modules
 web/dist
-kbview.config.json
+kbviewer.config.json
 
 # Local deployment artefacts
 /deploy/*.local.*

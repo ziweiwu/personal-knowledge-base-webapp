@@ -1,4 +1,4 @@
-# kbview — reference Docker Compose. THIS IS A TEMPLATE, NOT A DEPLOYMENT.
+# kbviewer — reference Docker Compose. THIS IS A TEMPLATE, NOT A DEPLOYMENT.
 #
 # Every path below that names your documents is a PLACEHOLDER. Edit them. The file
 # is written to be readable by someone who is not you, running on a machine that is
@@ -13,7 +13,7 @@
 #
 # Before the first start, in this directory:
 #
-#   cp ../kbview.config.example.json ./kbview.config.json
+#   cp ../kbviewer.config.example.json ./kbviewer.config.json
 #   # then edit it: "host": "0.0.0.0", "dataDir": "/data", and one root with
 #   # "id": "kb" and "path": "/vault"
 #
@@ -21,13 +21,13 @@
 # signup page — and only then bring it up:
 #
 #   docker compose -f deploy/compose.yaml pull
-#   docker compose -f deploy/compose.yaml run --rm kbview user add you@example.com
+#   docker compose -f deploy/compose.yaml run --rm kbviewer user add you@example.com
 #   docker compose -f deploy/compose.yaml up -d
 #
 # See deploy/README.md for the full sequence and the reasoning.
 
 services:
-  kbview:
+  kbviewer:
     # Published by this repo's CI as a public package, so no `docker login` is
     # needed to pull it. There is deliberately no `build:` section: building this
     # workspace compiles a Rust binary and a Vite frontend, which is slow and
@@ -35,7 +35,7 @@ services:
     # and a `build:` key would make every `up -d` pay that cost. To build it
     # yourself anyway, use deploy/Dockerfile directly and tag it as this image.
     image: ghcr.io/ziweiwu/personal-knowledge-base-webapp:latest
-    container_name: kbview
+    container_name: kbviewer
     # REQUIRED. The image sets no USER on purpose — the uid/gid belong to your
     # deployment, not to the image — so WITHOUT this line the container runs as
     # ROOT and writes root-owned files into your documents folder.
@@ -47,22 +47,22 @@ services:
     environment:
       # Log timestamps. Set to your zone, e.g. Europe/Berlin.
       - TZ=UTC
-      # --config defaults to a RELATIVE "kbview.config.json" resolved against the
+      # --config defaults to a RELATIVE "kbviewer.config.json" resolved against the
       # working directory, which the image does not set. Pinned so that adding a
       # WORKDIR later cannot silently start the server on a different config.
-      - KBVIEW_CONFIG=/kbview.config.json
-      # KBVIEW_ROOT_<ID uppercased> repoints a root without editing the config
+      - KBVIEWER_CONFIG=/kbviewer.config.json
+      # KBVIEWER_ROOT_<ID uppercased> repoints a root without editing the config
       # file, so one config works both on a laptop and in a container where the
       # folder is mounted elsewhere. The root id below is "kb".
-      - KBVIEW_ROOT_KB=/vault
-      - RUST_LOG=kbview=info
+      - KBVIEWER_ROOT_KB=/vault
+      - RUST_LOG=kbviewer=info
     volumes:
       # YOUR DOCUMENTS. <<< EDIT THIS LINE >>>
-      # Read-write, because kbview supports editing. Append `:ro` if you want a
+      # Read-write, because kbviewer supports editing. Append `:ro` if you want a
       # viewer that can never write, and set "readOnly": true in the config too.
       #
       # Beware: if this path does not exist, Docker CREATES AN EMPTY DIRECTORY and
-      # kbview starts happily on an empty folder. That is a silent failure, not an
+      # kbviewer starts happily on an empty folder. That is a silent failure, not an
       # error, so check the path before the first start rather than after.
       - /volume1/path/to/your/vault:/vault   # set this to your own folder
       # ACCOUNTS AND SESSIONS — users.json (Argon2id hashes, written 0600) and
@@ -72,7 +72,7 @@ services:
       - ./data:/data
       # Read-only: the server only reads it. Must already exist as a FILE — a bind
       # mount to a missing path creates a directory, and config parsing then fails.
-      - ./kbview.config.json:/kbview.config.json:ro
+      - ./kbviewer.config.json:/kbviewer.config.json:ro
     ports:
       # The config's "host" must be 0.0.0.0 for this to be reachable: a container's
       # loopback is its own, so the source's 127.0.0.1 default would publish

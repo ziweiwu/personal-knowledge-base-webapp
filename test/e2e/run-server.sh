@@ -1,17 +1,17 @@
 #!/usr/bin/env bash
 #
-# Boot a kbview instance the e2e suite owns outright.
+# Boot a kbviewer instance the e2e suite owns outright.
 #
 # Everything it touches lives in a scratch directory: the roots are *copies*, so a test
 # that saves, renames, deletes or ticks a checkbox can never dirty the repo's fixtures —
 # which are hand-built, verified by verify_fixtures.py, and must stay byte-identical.
 # The account and its sessions live there too, so the suite never sees, or writes to, the
-# real ./data or the real kbview.config.json.
+# real ./data or the real kbviewer.config.json.
 set -euo pipefail
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-PORT="${KBVIEW_E2E_PORT:-4399}"
-WORK="${KBVIEW_E2E_DIR:-${TMPDIR:-/tmp}/kbview-e2e}"
+PORT="${KBVIEWER_E2E_PORT:-4399}"
+WORK="${KBVIEWER_E2E_DIR:-${TMPDIR:-/tmp}/kbviewer-e2e}"
 EMAIL="e2e@example.test"
 PASSWORD="e2e-password-not-a-secret"
 
@@ -26,7 +26,7 @@ cp -R "$REPO/test/fixtures/obsidian-vault"     "$WORK/roots/obsidian-vault"
 cp -R "$REPO/test/fixtures/plain-markdown"     "$WORK/roots/plain-markdown"
 cp -R "$REPO/test/fixtures/mixed-media"        "$WORK/roots/mixed-media"
 
-cat > "$WORK/kbview.config.json" <<JSON
+cat > "$WORK/kbviewer.config.json" <<JSON
 {
   "host": "127.0.0.1",
   "port": $PORT,
@@ -40,7 +40,7 @@ cat > "$WORK/kbview.config.json" <<JSON
 }
 JSON
 
-export KBVIEW_CONFIG="$WORK/kbview.config.json"
+export KBVIEWER_CONFIG="$WORK/kbviewer.config.json"
 
 # The frontend is embedded from web/dist, so it has to exist before the binary is built.
 if [ ! -f "$REPO/web/dist/index.html" ]; then
@@ -48,8 +48,8 @@ if [ ! -f "$REPO/web/dist/index.html" ]; then
   exit 1
 fi
 
-cargo build --quiet -p kbview-server
-BIN="$REPO/target/debug/kbview"
+cargo build --quiet -p kbviewer-server
+BIN="$REPO/target/debug/kbviewer"
 
 # The server refuses to start with no accounts, which is the point of it.
 "$BIN" user add "$EMAIL" --password-stdin <<< "$PASSWORD" >/dev/null

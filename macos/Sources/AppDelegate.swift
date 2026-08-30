@@ -25,7 +25,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             NSApp.terminate(nil)
             return
         } catch {
-            presentFatal("KBView could not set itself up", detail: error.localizedDescription)
+            presentFatal("KBViewer could not set itself up", detail: error.localizedDescription)
             return
         }
 
@@ -74,7 +74,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 self.openVault()
             case .failure(let error):
                 self.presentFatal(
-                    "KBView could not start the server", detail: error.localizedDescription)
+                    "KBViewer could not start the server", detail: error.localizedDescription)
             }
         }
     }
@@ -91,7 +91,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         alert.alertStyle = .warning
         alert.messageText = "A configured folder is missing"
         alert.informativeText =
-            "KBView is set up to serve:\n\n\(missing.joined(separator: "\n"))\n\n"
+            "KBViewer is set up to serve:\n\n\(missing.joined(separator: "\n"))\n\n"
             + "That folder is not there, so the vault will look empty."
         // Choosing a folder rewrites the config to that one root, so it is only offered
         // when there is a single root to replace. With several, picking one would throw
@@ -118,8 +118,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func buildStatusItem() {
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         item.button?.image = NSImage(
-            systemSymbolName: "books.vertical", accessibilityDescription: "KBView")
-        item.button?.toolTip = "KBView"
+            systemSymbolName: "books.vertical", accessibilityDescription: "KBViewer")
+        item.button?.toolTip = "KBViewer"
 
         let menu = NSMenu()
         menu.autoenablesItems = false
@@ -143,7 +143,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         restartItem = restart
 
         menu.addItem(.separator())
-        menu.addItem(actionItem("Quit KBView", #selector(quit)))
+        menu.addItem(actionItem("Quit KBViewer", #selector(quit)))
 
         item.menu = menu
         statusItem = item
@@ -193,16 +193,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func makeAppMenu() -> NSMenu {
         let appMenu = NSMenu()
         appMenu.addItem(
-            withTitle: "About KBView", action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)),
+            withTitle: "About KBViewer", action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)),
             keyEquivalent: "")
         appMenu.addItem(.separator())
         // Target left nil so it travels the responder chain to NSApp; the delegate
         // does not implement hide: and would silently disable the item.
         appMenu.addItem(
-            withTitle: "Hide KBView", action: #selector(NSApplication.hide(_:)),
+            withTitle: "Hide KBViewer", action: #selector(NSApplication.hide(_:)),
             keyEquivalent: "h")
         appMenu.addItem(.separator())
-        appMenu.addItem(actionItem("Quit KBView", #selector(quit), key: "q"))
+        appMenu.addItem(actionItem("Quit KBViewer", #selector(quit), key: "q"))
         return appMenu
     }
 
@@ -265,7 +265,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         guard let password = Credentials.load() else {
             presentWarning(
                 "No stored password",
-                detail: "KBView has no saved credential for \(Paths.accountEmail).")
+                detail: "KBViewer has no saved credential for \(Paths.accountEmail).")
             return
         }
         let pasteboard = NSPasteboard.general
@@ -314,7 +314,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         statusLabel?.title = "Stopped"
         let alert = NSAlert()
         alert.alertStyle = .critical
-        alert.messageText = "The KBView server stopped"
+        alert.messageText = "The KBViewer server stopped"
         alert.informativeText = detail
         alert.addButton(withTitle: "Restart")
         alert.addButton(withTitle: "Show Log")

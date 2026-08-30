@@ -1,4 +1,4 @@
-# kbview
+# kbviewer
 
 A web viewer and light editor for folders of documents on your own machine — an Obsidian
 vault, a plain folder of markdown, or a pile of PDFs and Word files — reachable from a
@@ -35,11 +35,11 @@ emulate an iPhone, which Playwright drives with WebKit.
 ## Quick start
 
 ```sh
-cp kbview.config.example.json kbview.config.json   # then set your folder path
+cp kbviewer.config.example.json kbviewer.config.json   # then set your folder path
 cd web && npm install && npm run build && cd ..
 cargo build --release
-./target/release/kbview user add you@example.com
-./target/release/kbview
+./target/release/kbviewer user add you@example.com
+./target/release/kbviewer
 ```
 
 Then open http://127.0.0.1:4321. For access from other devices, see
@@ -47,7 +47,7 @@ Then open http://127.0.0.1:4321. For access from other devices, see
 
 ## As a Mac app
 
-`KBView.app` is a menu bar item and a window of its own. It starts the server itself and
+`KBViewer.app` is a menu bar item and a window of its own. It starts the server itself and
 signs you in, so none of the quick start above is needed at run time; it asks for a folder
 the first time and remembers it. Details, and what it does when a server is already
 running on the port, are in [macos/README.md](macos/README.md).
@@ -56,21 +56,21 @@ running on the port, are in [macos/README.md](macos/README.md).
 
 Take the `.zip` from
 [Releases](https://github.com/ziweiwu/personal-knowledge-base-webapp/releases), unzip it,
-and drag `KBView.app` into `/Applications`.
+and drag `KBViewer.app` into `/Applications`.
 
 **macOS refuses to open it the first time**, saying:
 
-> "KBView" is damaged and can't be opened. You should move it to the Trash.
+> "KBViewer" is damaged and can't be opened. You should move it to the Trash.
 
 It is not damaged, and the download is not corrupt. The app is signed *ad hoc* rather than
 with a paid Apple Developer ID, so Gatekeeper sees something that arrived from the internet
 and cannot say who built it — and reports that as damage. To open it anyway: dismiss the
 dialog, go to **System Settings → Privacy & Security**, scroll down to the line about
-KBView, and click **Open Anyway**. Once is enough. The terminal equivalent, if you prefer
+KBViewer, and click **Open Anyway**. Once is enough. The terminal equivalent, if you prefer
 it:
 
 ```sh
-xattr -dr com.apple.quarantine /Applications/KBView.app
+xattr -dr com.apple.quarantine /Applications/KBViewer.app
 ```
 
 The release is **Apple Silicon only**. The bundle carries a server binary built for the
@@ -101,7 +101,7 @@ template using it — set your own folder path and run `docker compose up -d`. C
 account **before** the first start; the server refuses to run with none:
 
 ```sh
-docker compose run --rm kbview user add you@example.com
+docker compose run --rm kbviewer user add you@example.com
 ```
 
 The image is built by cross-compiling on the CI runner and copying the finished binary in,
@@ -140,8 +140,8 @@ runs as root** — the template sets one.
 | `folderNotes` | Treat a note named after its folder as that folder's page |
 | `readOnly` | Refuse every write route for this root |
 
-`KBVIEW_ROOT_<ID>` overrides a root's path (`KBVIEW_ROOT_KB=/vault`), so one config works
-in a container where the folder is mounted elsewhere. `KBVIEW_CONFIG` moves the config
+`KBVIEWER_ROOT_<ID>` overrides a root's path (`KBVIEWER_ROOT_KB=/vault`), so one config works
+in a container where the folder is mounted elsewhere. `KBVIEWER_CONFIG` moves the config
 file itself.
 
 ## Security model
@@ -152,13 +152,13 @@ switched on.
 
 - **Argon2id** password hashing at OWASP parameters. Login is rate limited per email and
   per address, checked before hashing, with lengthening lockouts.
-- **Server-side sessions**, not JWTs, so `kbview user revoke` genuinely signs out a lost
+- **Server-side sessions**, not JWTs, so `kbviewer user revoke` genuinely signs out a lost
   device. `HttpOnly`, `SameSite=Lax`, `Secure` when the connection is HTTPS.
 - **No signup route exists.** Accounts come from the CLI only, and the server refuses to
   start with none.
 - **Every** `/api` route is behind the gate, file bytes included — an attachment is
   document content.
-- **One containment check** (`kbview_core::paths::resolve_in_root`) guards every read and
+- **One containment check** (`kbviewer_core::paths::resolve_in_root`) guards every read and
   write. It refuses `..`, absolute paths, and symlinks pointing out of the folder, and it
   bounds paths that do not exist yet. `.obsidian/`, `.trash/`, `.git/` and Synology's
   `@eaDir` are never served.
@@ -180,21 +180,21 @@ Stated plainly so nothing looks broken when it is merely absent:
   A knowledge base is full of currency, and a permissive `$…$` scanner pairs "costs $5"
   with a later `$`, silently swallowing the prose between them. Write `$x5$` or use a
   display block. Currency is always safe.
-- `.docx` gaps are documented in `crates/kbview-docx`: style inheritance, `rowspan` from
+- `.docx` gaps are documented in `crates/kbviewer-docx`: style inheritance, `rowspan` from
   `vMerge`, list numbering overrides, text boxes, footnotes and headers.
 
 ## Layout
 
 ```
-crates/kbview-core/   documents, paths, links, index, search, wire types
-crates/kbview-docx/   OOXML to HTML, isolated so it can be tested hard
-crates/kbview-server/ axum, auth, rendering, watching
+crates/kbviewer-core/   documents, paths, links, index, search, wire types
+crates/kbviewer-docx/   OOXML to HTML, isolated so it can be tested hard
+crates/kbviewer-server/ axum, auth, rendering, watching
 web/                  Vite + React + TypeScript
 test/fixtures/        three folders exercising vault / plain / mixed-media behaviour
 test/e2e/             Playwright fixtures and the isolated server the suite runs against
 web/e2e/              the end-to-end specs themselves
 deploy/               Dockerfiles, compose template, macOS launch agent
-macos/                the KBView.app wrapper: Swift sources, bundle build, smoke test
+macos/                the KBViewer.app wrapper: Swift sources, bundle build, smoke test
 .github/workflows/    CI: tests, then publishes the container image
 .cargo/config.toml    points ts-rs at web/src/api so the bindings stay generated
 ```

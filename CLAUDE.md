@@ -16,9 +16,9 @@ export PATH="$HOME/.cargo/bin:$PATH"
 
 ```sh
 cargo test --workspace                                  # everything
-cargo test -p kbview-core links                          # one module
-cargo test -p kbview-server --test api                   # HTTP integration tests
-cargo test -p kbview-server -- --nocapture rename         # one test, with output
+cargo test -p kbviewer-core links                          # one module
+cargo test -p kbviewer-server --test api                   # HTTP integration tests
+cargo test -p kbviewer-server -- --nocapture rename         # one test, with output
 cargo clippy --workspace --all-targets -- -D warnings     # must be clean
 cargo fmt --all
 
@@ -33,23 +33,23 @@ cd web && npm run e2e                                   # Playwright, against th
 cd web && npm run e2e:ui                                # pick and watch individual tests
 cd web && npx playwright test --project=phone-landscape # one project
 
-macos/build-app.sh --install                            # KBView.app -> target/macos, then /Applications
-macos/build-app.sh --zip                                # also pack KBView-<version>-<arch>.zip for a release
+macos/build-app.sh --install                            # KBViewer.app -> target/macos, then /Applications
+macos/build-app.sh --zip                                # also pack KBViewer-<version>-<arch>.zip for a release
 macos/smoke-test.sh                                     # drive the built bundle against a scratch vault
 ```
 
 The e2e suite starts its own server on port 4399 through `test/e2e/run-server.sh`, against
-**copies** of every fixture root in `$TMPDIR/kbview-e2e`. Nothing it does can modify
+**copies** of every fixture root in `$TMPDIR/kbviewer-e2e`. Nothing it does can modify
 `test/fixtures/`, and CI asserts that with `git diff --exit-code` after the run.
 `test/e2e/README.md` covers the fixtures and the rule for adding a test.
 
-Running locally needs a `kbview.config.json` and at least one account; the server refuses
+Running locally needs a `kbviewer.config.json` and at least one account; the server refuses
 to start with no accounts:
 
 ```sh
-./target/debug/kbview user add you@example.com --password-stdin <<< 'a-long-password'
-./target/debug/kbview
-RUST_LOG=kbview=debug ./target/debug/kbview     # see reindex/watch activity
+./target/debug/kbviewer user add you@example.com --password-stdin <<< 'a-long-password'
+./target/debug/kbviewer
+RUST_LOG=kbviewer=debug ./target/debug/kbviewer     # see reindex/watch activity
 ```
 
 ## CI
@@ -76,16 +76,16 @@ yourself adding incremental indexing or a cache invalidation graph, check whethe
 corpus actually grew first.
 
 ```
-crates/kbview-core/    domain: paths, kinds, links, frontmatter, tasks, index, search, wire types
-crates/kbview-docx/    OOXML -> HTML, deliberately isolated
-crates/kbview-server/  axum, auth, rendering, watching, CLI
+crates/kbviewer-core/    domain: paths, kinds, links, frontmatter, tasks, index, search, wire types
+crates/kbviewer-docx/    OOXML -> HTML, deliberately isolated
+crates/kbviewer-server/  axum, auth, rendering, watching, CLI
 web/                   Vite + React + TS
-macos/                 KBView.app: a Swift wrapper around the binary, changing neither
+macos/                 KBViewer.app: a Swift wrapper around the binary, changing neither
 ```
 
 ### Things that are load-bearing
 
-**`kbview_core::paths::resolve_in_root` is the security boundary.** Every filesystem read
+**`kbviewer_core::paths::resolve_in_root` is the security boundary.** Every filesystem read
 and write goes through it. It canonicalises the nearest existing ancestor so a symlink
 pointing out of the folder is caught even for a file that does not exist yet. Do not add a
 filesystem access that bypasses it, and do not "simplify" the canonicalisation away.
@@ -99,11 +99,11 @@ open. Removing the precondition means last-write-wins and silent data loss.
 
 **Rename rewrites inbound links** using byte ranges from `scan_wikilinks`, which skips
 code blocks and inline code. Never replace this with a regex over the document: the tests
-in `crates/kbview-core/src/links.rs` cover prose that merely mentions the name, and links inside code samples,
+in `crates/kbviewer-core/src/links.rs` cover prose that merely mentions the name, and links inside code samples,
 because both get corrupted by naive replacement.
 
 **A task checkbox's line number comes from the raw file, never from the parsed
-document.** `kbview_core::tasks::task_lines` scans the source with the same scanner
+document.** `kbviewer_core::tasks::task_lines` scans the source with the same scanner
 `set_task_state` writes through, and `enable_task_checkboxes` pairs its results with the
 rendered checkboxes. Do not go back to comrak's `sourcepos` for this: the parser sees a
 *prepared* source with frontmatter stripped and callouts expanded, so its line numbers
@@ -116,8 +116,8 @@ embeds, callouts and tags are all downstream of that one check. A fixture root w
 renders every `[[link]]` as literal text and still looks entirely healthy, which is how
 `test/e2e/fixtures/content-shapes` spent its first run testing nothing.
 
-**The auth gate is a `route_layer` on the whole `/api` group** in `crates/kbview-server/src/router.rs`, not
-per-route. A new route is protected by construction. `crates/kbview-server/tests/api.rs`
+**The auth gate is a `route_layer` on the whole `/api` group** in `crates/kbviewer-server/src/router.rs`, not
+per-route. A new route is protected by construction. `crates/kbviewer-server/tests/api.rs`
 asserts this for every route; add new routes to that list.
 
 ### The API's shape
@@ -142,13 +142,13 @@ author most needs to see.
 ### The macOS app
 
 `macos/` wraps the server in an `.app` and touches no Rust and no TypeScript: it drives
-`kbview user add --password-stdin` and `POST /api/auth/login` exactly as a person would.
+`kbviewer user add --password-stdin` and `POST /api/auth/login` exactly as a person would.
 Keep it that way — a change that needs the server modified to suit the wrapper belongs in
 the server, behind an interface the CLI already exposes.
 
-**The bundled server is `Contents/MacOS/kbview-server`, never `kbview`.** The wrapper's
-own executable is `KBView`, and macOS filesystems are case insensitive, so `kbview` and
-`KBView` are one file and the second copy silently overwrites the first. Both outcomes
+**The bundled server is `Contents/MacOS/kbviewer-server`, never `kbviewer`.** The wrapper's
+own executable is `KBViewer`, and macOS filesystems are case insensitive, so `kbviewer` and
+`KBViewer` are one file and the second copy silently overwrites the first. Both outcomes
 run and neither reports anything: the server ends up launched with no arguments against
 whatever config the working directory holds, or the wrapper spawns itself once per
 generation until the process table fills. `build-app.sh` compares inodes to prove the two
@@ -164,7 +164,7 @@ password so the user does not have to type one, and `tailscale serve` still publ
 to the whole tailnet behind the same login.
 
 **Adding an account to a running server has no effect until it restarts.** `AuthStore`
-reads `users.json` once in `open()` and serves every login from memory, so `kbview user
+reads `users.json` once in `open()` and serves every login from memory, so `kbviewer user
 add` against a live server's data directory is invisible to it. This is what decides
 whether the app adopts that server or starts its own, and it fails in the confusing
 direction: the credential is right, the file is right, and the login is still refused.
@@ -176,7 +176,7 @@ logged anywhere.
 The app probes `/api/auth/session` before binding, because the `deploy/` launch agent and
 a manual run both take 4321. It adopts a server already there **only if that server
 accepts the app's own account**, which is the only available test of whether it was given
-the same configuration — a running kbview cannot be asked what config it holds. Adopting
+the same configuration — a running kbviewer cannot be asked what config it holds. Adopting
 one that does not know the account would serve somebody else's folders and strand the
 user on a login screen the app has no credentials for, so that case takes a free port
 instead. `build-app.sh` builds the frontend before the server for the usual `rust-embed`
@@ -185,7 +185,7 @@ reason.
 ### Rendering
 
 Obsidian syntax (wikilinks, embeds, callouts, tags) is rewritten **in the source before
-parsing**, reusing the code-aware scanners in `kbview-core`. Standard markdown is left to
+parsing**, reusing the code-aware scanners in `kbviewer-core`. Standard markdown is left to
 comrak. This is why the link graph and the rendered output cannot disagree — they come
 from the same scanner.
 
@@ -248,6 +248,6 @@ like the folder is simply empty.
   per-suite pass counts hides a failing suite entirely; this has already produced one
   false "all green" report.
 - Comments explain why a non-obvious choice was made; they do not restate the code.
-- New document kinds: add to `crates/kbview-core/src/kinds.rs`, a renderer arm in
-  `crates/kbview-server/src/render/document.rs`, and a
+- New document kinds: add to `crates/kbviewer-core/src/kinds.rs`, a renderer arm in
+  `crates/kbviewer-server/src/render/document.rs`, and a
   viewer on the client. The three must stay in step.

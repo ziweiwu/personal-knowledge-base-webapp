@@ -6,7 +6,7 @@ import { STORAGE_STATE } from './e2e/helpers';
  * the repo's fixtures in a scratch directory. `test/e2e/run-server.sh` makes those copies,
  * so a test that writes can never dirty a fixture the Rust tests depend on being exact.
  */
-const PORT = Number(process.env.KBVIEW_E2E_PORT ?? 4399);
+const PORT = Number(process.env.KBVIEWER_E2E_PORT ?? 4399);
 
 const PROJECTS = [
   { name: 'setup', testMatch: /auth\.setup\.ts/ },

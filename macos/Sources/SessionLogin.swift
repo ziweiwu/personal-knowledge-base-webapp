@@ -1,4 +1,4 @@
-// Signing in to a local kbview, shared by the server adoption check and the window.
+// Signing in to a local kbviewer, shared by the server adoption check and the window.
 
 import Foundation
 

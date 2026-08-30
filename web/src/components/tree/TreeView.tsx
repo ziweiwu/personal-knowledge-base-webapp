@@ -14,7 +14,7 @@ const INDENT_PER_DEPTH_PX = 12;
 const MENU_OFFSET_PX = 4;
 
 function storageKey(rootId: string): string {
-  return `kbview.expanded.${rootId}`;
+  return `kbviewer.expanded.${rootId}`;
 }
 
 function readExpanded(rootId: string): Set<string> {

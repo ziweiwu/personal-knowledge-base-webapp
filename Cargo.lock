@@ -1088,12 +1088,12 @@ dependencies = [
 ]
 
 [[package]]
-name = "kbview-core"
-version = "0.1.0"
+name = "kbviewer-core"
+version = "0.1.1"
 dependencies = [
  "comrak",
  "image",
- "kbview-docx",
+ "kbviewer-docx",
  "serde",
  "serde_json",
  "thiserror",
@@ -1102,8 +1102,8 @@ dependencies = [
 ]
 
 [[package]]
-name = "kbview-docx"
-version = "0.1.0"
+name = "kbviewer-docx"
+version = "0.1.1"
 dependencies = [
  "quick-xml 0.42.0",
  "thiserror",
@@ -1111,8 +1111,8 @@ dependencies = [
 ]
 
 [[package]]
-name = "kbview-server"
-version = "0.1.0"
+name = "kbviewer-server"
+version = "0.1.1"
 dependencies = [
  "anyhow",
  "arc-swap",
@@ -1126,8 +1126,8 @@ dependencies = [
  "getrandom",
  "http-body-util",
  "image",
- "kbview-core",
- "kbview-docx",
+ "kbviewer-core",
+ "kbviewer-docx",
  "latex2mathml",
  "mime_guess",
  "notify",

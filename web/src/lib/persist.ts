@@ -6,7 +6,7 @@
  * outcome than a blank page.
  */
 
-const PREFIX = 'kbview.';
+const PREFIX = 'kbviewer.';
 
 export function readStored(key: string): string | null {
   try {

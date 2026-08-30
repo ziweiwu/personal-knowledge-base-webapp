@@ -1,11 +1,11 @@
 # Test fixtures
 
-Three document roots that kbview is pointed at, by the automated tests and by a
+Three document roots that kbviewer is pointed at, by the automated tests and by a
 human clicking through the running app. Between them they cover every input
 shape the app claims to handle.
 
 ```sh
-cargo run -p kbview-server -- \
+cargo run -p kbviewer-server -- \
   --root ./test/fixtures/obsidian-vault \
   --root ./test/fixtures/plain-markdown \
   --root ./test/fixtures/mixed-media

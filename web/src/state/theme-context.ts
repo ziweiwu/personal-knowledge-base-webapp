@@ -2,7 +2,7 @@ import { createContext, useContext } from 'react';
 
 export type ThemeChoice = 'light' | 'dark' | 'system';
 
-export const THEME_STORAGE_KEY = 'kbview.theme';
+export const THEME_STORAGE_KEY = 'kbviewer.theme';
 
 export interface ThemeContextValue {
   choice: ThemeChoice;

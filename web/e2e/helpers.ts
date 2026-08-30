@@ -7,7 +7,7 @@ export const EMAIL = 'e2e@example.test';
 export const PASSWORD = 'e2e-password-not-a-secret';
 
 /** Where run-server.sh put the throwaway copies of the fixture roots. */
-export const WORK = process.env.KBVIEW_E2E_DIR ?? join(tmpdir(), 'kbview-e2e');
+export const WORK = process.env.KBVIEWER_E2E_DIR ?? join(tmpdir(), 'kbviewer-e2e');
 
 /** Where the setup project parks the signed-in session. */
 export const STORAGE_STATE = 'playwright/.auth/user.json';
