@@ -6,6 +6,7 @@
 //! than a single modify. Debouncing collapses each burst into one rebuild.
 
 use crate::state::AppState;
+use notify::event::{AccessKind, AccessMode, EventKind};
 use notify::RecursiveMode;
 use notify_debouncer_full::{new_debouncer, DebounceEventResult};
 use std::sync::Arc;
@@ -65,22 +66,39 @@ fn reindex_changed_paths(
     state.reindex(root_id, paths, None);
 }
 
-/// Relative paths worth reacting to, with excluded directories filtered out.
+/// Relative paths worth reacting to, with read-only events and excluded directories
+/// filtered out.
 ///
-/// Without this filter a Synology `@eaDir` thumbnail refresh would rebuild the index
-/// repeatedly for content the app never shows.
+/// Without the directory filter a Synology `@eaDir` thumbnail refresh would rebuild the
+/// index repeatedly for content the app never shows.
 fn changed_paths(
     root: &std::path::Path,
     events: &[notify_debouncer_full::DebouncedEvent],
 ) -> Vec<String> {
     let mut paths: Vec<String> = events
         .iter()
+        .filter(|event| is_change(&event.kind))
         .flat_map(|event| event.paths.iter())
         .filter_map(|path| relative_if_relevant(root, path))
         .collect();
     paths.sort();
     paths.dedup();
     paths
+}
+
+/// Whether an event can mean the file's content or name changed.
+///
+/// On Linux, notify subscribes to inotify's `IN_OPEN` and `IN_CLOSE_NOWRITE`, so merely
+/// reading a file is reported. Rebuilding the index reads every file, so without this
+/// filter each rebuild triggered the next: an endless reindex loop that held a core and
+/// grew the NAS container to 9 GiB within two hours. macOS reports no reads, which is why
+/// it never showed up there.
+fn is_change(kind: &EventKind) -> bool {
+    match kind {
+        EventKind::Access(AccessKind::Close(AccessMode::Write)) => true,
+        EventKind::Access(_) => false,
+        _ => true,
+    }
 }
 
 fn relative_if_relevant(root: &std::path::Path, path: &std::path::Path) -> Option<String> {
@@ -120,6 +138,47 @@ mod tests {
             relative_if_relevant(root, &std::path::PathBuf::from("/vault/notes/a.md")).as_deref(),
             Some("notes/a.md")
         );
+    }
+
+    fn event(kind: EventKind, path: &str) -> notify_debouncer_full::DebouncedEvent {
+        notify_debouncer_full::DebouncedEvent::new(
+            notify::Event::new(kind).add_path(std::path::PathBuf::from(path)),
+            std::time::Instant::now(),
+        )
+    }
+
+    /// The reindex loop: rebuilding the index opens every file, and on Linux each open
+    /// arrives as an event. Reads must never count as changes.
+    #[test]
+    fn ignores_reads() {
+        let root = Path::new("/vault");
+        let reads = [
+            event(
+                EventKind::Access(AccessKind::Open(AccessMode::Any)),
+                "/vault/a.md",
+            ),
+            event(
+                EventKind::Access(AccessKind::Close(AccessMode::Read)),
+                "/vault/b.md",
+            ),
+        ];
+        assert!(changed_paths(root, &reads).is_empty());
+    }
+
+    #[test]
+    fn reports_writes() {
+        let root = Path::new("/vault");
+        let writes = [
+            event(
+                EventKind::Access(AccessKind::Close(AccessMode::Write)),
+                "/vault/a.md",
+            ),
+            event(
+                EventKind::Modify(notify::event::ModifyKind::Any),
+                "/vault/b.md",
+            ),
+        ];
+        assert_eq!(changed_paths(root, &writes), vec!["a.md", "b.md"]);
     }
 
     #[test]
