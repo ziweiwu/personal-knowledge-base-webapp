@@ -8,7 +8,7 @@
 //!      whole folder.
 
 use crate::error::{AppError, AppResult};
-use crate::state::AppState;
+use crate::state::{AppState, WriteGuard};
 use axum::body::Bytes;
 use axum::extract::{Path, Query, State};
 use axum::http::HeaderMap;
@@ -19,6 +19,8 @@ use kbviewer_core::model::{
     DocumentMeta, RenameRequest, RenameResult, SaveConflict, SaveRequest, TaskToggleRequest,
 };
 use kbviewer_core::paths::resolve_in_root;
+#[cfg(unix)]
+use std::os::unix::fs::PermissionsExt;
 use std::path::{Path as FsPath, PathBuf};
 use std::sync::Arc;
 use std::time::UNIX_EPOCH;
@@ -31,7 +33,7 @@ pub const MAX_WRITE_BYTES: usize = 16 * 1024 * 1024;
 /// It is echoed back on the change event so the tab that caused it can ignore its own
 /// echo, while every *other* connected client still refreshes. Without it a save would
 /// bounce straight back as an external change and fight the editor.
-const ORIGIN_HEADER: &str = "x-kbviewer-origin";
+pub const ORIGIN_HEADER: &str = "x-kbviewer-origin";
 
 /// Uploads are streamed into memory, so this bounds what one request can allocate.
 pub const MAX_UPLOAD_BYTES: usize = 64 * 1024 * 1024;
@@ -46,6 +48,15 @@ fn origin_of(headers: &HeaderMap) -> Option<String> {
         .and_then(|value| value.to_str().ok())
         .map(|value| value.chars().take(MAX_ORIGIN_CHARS).collect::<String>())
         .filter(|value| !value.is_empty())
+}
+
+/// Hold the root's write gate; see `AppState::write_gate`.
+fn one_writer<'a>(state: &'a AppState, root_id: &str) -> AppResult<WriteGuard<'a>> {
+    let gate = state
+        .write_gate(root_id)
+        .ok_or(AppError::NotFound("folder".into()))?;
+    // A panic while writing does not make the gate itself unusable.
+    Ok(gate.lock().unwrap_or_else(|poisoned| poisoned.into_inner()))
 }
 
 fn writable_root<'a>(
@@ -85,23 +96,63 @@ fn mtime_ms(path: &FsPath) -> i64 {
         .unwrap_or(0)
 }
 
+/// The mode a file gets when kbviewer creates it: what a text editor would give it.
+///
+/// `tempfile` defaults to 0600, and `persist` replaces the inode, so without this every
+/// note written here ended up readable by the server's uid alone. The vault is shared
+/// with a sync client and with Obsidian running as other users, so a private file is a
+/// file they may not be able to read back.
+#[cfg(unix)]
+const NEW_FILE_MODE: u32 = 0o644;
+
 /// Write via a temporary file in the same directory, then rename.
 ///
 /// A partial write would leave a truncated note behind, and this folder is also being
 /// watched and synced; `rename` within a directory is atomic, so readers see either the
-/// old file or the new one and never a half-written one.
-fn write_atomic(absolute: &FsPath, contents: &str) -> AppResult<()> {
+/// old file or the new one and never a half-written one. An existing file keeps its
+/// mode: a save is an edit, not a permission change.
+fn write_atomic(absolute: &FsPath, contents: &[u8]) -> AppResult<()> {
     let parent = absolute
         .parent()
         .ok_or_else(|| AppError::BadRequest("invalid path".into()))?;
-    std::fs::create_dir_all(parent)?;
+    ensure_folder(parent)?;
 
     let mut temp = tempfile::NamedTempFile::new_in(parent)?;
-    std::io::Write::write_all(&mut temp, contents.as_bytes())?;
+    // On the open handle, not at creation: a mode given to `open` is masked by the
+    // process umask, which would quietly turn a group-writable note read-only for the
+    // group on every save.
+    #[cfg(unix)]
+    temp.as_file()
+        .set_permissions(std::fs::Permissions::from_mode(mode_to_keep(absolute)))?;
+    std::io::Write::write_all(&mut temp, contents)?;
     temp.as_file().sync_all()?;
     temp.persist(absolute)
         .map_err(|e| AppError::Internal(e.error.to_string()))?;
     Ok(())
+}
+
+/// Create the folder, blaming the request when a file sits where a folder was asked for.
+///
+/// `note.md/child.md` reaches the filesystem as `mkdir note.md`, which answers `EEXIST`
+/// for the direct child and `ENOTDIR` one level deeper; left alone both surface as an
+/// unexplained 500 for what is a malformed path.
+fn ensure_folder(folder: &FsPath) -> AppResult<()> {
+    std::fs::create_dir_all(folder).map_err(|error| {
+        let file_in_the_way = error.kind() == std::io::ErrorKind::NotADirectory
+            || (folder.exists() && !folder.is_dir());
+        if file_in_the_way {
+            AppError::BadRequest("part of that path is a file, not a folder".into())
+        } else {
+            AppError::from(error)
+        }
+    })
+}
+
+#[cfg(unix)]
+fn mode_to_keep(absolute: &FsPath) -> u32 {
+    std::fs::metadata(absolute)
+        .map(|existing| existing.permissions().mode())
+        .unwrap_or(NEW_FILE_MODE)
 }
 
 pub async fn save(
@@ -116,6 +167,7 @@ pub async fn save(
     }
 
     reject_uneditable(&state, &root_id, &path)?;
+    let _one_writer = one_writer(&state, &root_id)?;
 
     let absolute = resolve_in_root(&root.path, &path)?;
     let current = mtime_ms(&absolute);
@@ -123,7 +175,11 @@ pub async fn save(
     // The precondition. Without it, whoever saves last wins and the other edit is gone
     // with no trace and no warning.
     if current != body.base_mtime_ms {
-        let disk_content = std::fs::read_to_string(&absolute).unwrap_or_default();
+        // Lossy on purpose: a file another writer just turned into non-UTF-8 bytes must
+        // still surface as a conflict the user can see, not as an empty "disk version".
+        let disk_content = std::fs::read(&absolute)
+            .map(|bytes| String::from_utf8_lossy(&bytes).into_owned())
+            .unwrap_or_default();
         return Err(AppError::Conflict(Box::new(SaveConflict {
             path: path.clone(),
             your_content: body.content,
@@ -132,7 +188,7 @@ pub async fn save(
         })));
     }
 
-    write_atomic(&absolute, &body.content)?;
+    write_atomic(&absolute, body.content.as_bytes())?;
     state.reindex(&root_id, vec![path.clone()], origin_of(&headers));
     indexed_meta(&state, &root_id, &path)
 }
@@ -145,9 +201,11 @@ fn reject_uneditable(state: &AppState, root_id: &str, path: &str) -> AppResult<(
     let document = index
         .get(path)
         .ok_or(AppError::NotFound("document".into()))?;
-    if !document.kind.is_editable() {
+    // The same answer the client was given in `meta.editable`, so a file the server could
+    // not read as text is refused here too, not only hidden from the editor.
+    if !document.meta().editable {
         return Err(AppError::BadRequest(
-            "this file type cannot be edited here".into(),
+            "this file cannot be edited here".into(),
         ));
     }
     Ok(())
@@ -178,6 +236,7 @@ pub async fn toggle_task(
 ) -> AppResult<Json<DocumentMeta>> {
     let root = writable_root(&state, &root_id)?;
     reject_unless_markdown(&state, &root_id, &path)?;
+    let _one_writer = one_writer(&state, &root_id)?;
 
     let absolute = resolve_in_root(&root.path, &path)?;
     // The same precondition a full save carries: a checkbox is a smaller edit, not a
@@ -189,7 +248,7 @@ pub async fn toggle_task(
     }
 
     if let Some(updated) = toggled_source(&absolute, &body)? {
-        write_atomic(&absolute, &updated)?;
+        write_atomic(&absolute, updated.as_bytes())?;
         state.reindex(&root_id, vec![path.clone()], origin_of(&headers));
     }
 
@@ -210,6 +269,10 @@ fn toggled_source(
     } else {
         TaskState::Todo
     };
+    // The same bound a full save has: the whole file is read and written back.
+    if std::fs::metadata(absolute)?.len() > MAX_WRITE_BYTES as u64 {
+        return Err(AppError::BadRequest("document too large".into()));
+    }
     let source = std::fs::read_to_string(absolute)?;
     match set_task_state(&source, body.line, wanted) {
         Ok(updated) => Ok(Some(updated)),
@@ -243,11 +306,12 @@ pub async fn create(
     let root = writable_root(&state, &root_id)?;
     reject_excluded(&path)?;
     let absolute = resolve_in_root(&root.path, &path)?;
+    let _one_writer = one_writer(&state, &root_id)?;
 
     if absolute.exists() {
         return Err(AppError::AlreadyExists(path));
     }
-    write_atomic(&absolute, &body.content)?;
+    write_atomic(&absolute, body.content.as_bytes())?;
     state.reindex(&root_id, vec![path.clone()], origin_of(&headers));
     Ok((StatusCode::CREATED, indexed_meta(&state, &root_id, &path)?))
 }
@@ -260,11 +324,12 @@ pub async fn create_folder(
     let root = writable_root(&state, &root_id)?;
     reject_excluded(&path)?;
     let absolute = resolve_in_root(&root.path, &path)?;
+    let _one_writer = one_writer(&state, &root_id)?;
 
     if absolute.exists() {
         return Err(AppError::AlreadyExists(path));
     }
-    std::fs::create_dir_all(&absolute)?;
+    ensure_folder(&absolute)?;
     state.reindex(&root_id, vec![path], origin_of(&headers));
     Ok(StatusCode::CREATED)
 }
@@ -279,14 +344,19 @@ pub async fn delete(
     headers: HeaderMap,
 ) -> AppResult<StatusCode> {
     let root = writable_root(&state, &root_id)?;
+    // An excluded path is never shown, so nothing in the UI can ask for this; a hand-made
+    // request could still move `.obsidian/` or `.git/` into the bin. Refuse it up front,
+    // the way every other write does.
+    reject_excluded(&path)?;
     let absolute = resolve_in_root(&root.path, &path)?;
+    let _one_writer = one_writer(&state, &root_id)?;
     if !absolute.exists() {
         return Err(AppError::NotFound("document".into()));
     }
 
     let trashed = trash_destination(&root.path, &path);
     if let Some(parent) = trashed.parent() {
-        std::fs::create_dir_all(parent)?;
+        ensure_folder(parent)?;
     }
     std::fs::rename(&absolute, &trashed)?;
 
@@ -340,22 +410,11 @@ pub async fn upload(
     }
 
     let absolute = resolve_in_root(&root.path, &path)?;
+    let _one_writer = one_writer(&state, &root_id)?;
     if absolute.exists() {
         return Err(AppError::AlreadyExists(path));
     }
-    if let Some(parent) = absolute.parent() {
-        std::fs::create_dir_all(parent)?;
-    }
-
-    let mut temp = tempfile::NamedTempFile::new_in(
-        absolute
-            .parent()
-            .ok_or_else(|| AppError::BadRequest("invalid path".into()))?,
-    )?;
-    std::io::Write::write_all(&mut temp, &body)?;
-    temp.as_file().sync_all()?;
-    temp.persist(&absolute)
-        .map_err(|e| AppError::Internal(e.error.to_string()))?;
+    write_atomic(&absolute, &body)?;
 
     state.reindex(&root_id, vec![path], origin_of(&headers));
     Ok(StatusCode::CREATED)
@@ -373,8 +432,13 @@ pub async fn rename(
     // otherwise excluded path succeeded, took the file out of the index, and rewrote every
     // inbound link to point at something no longer served — all reported as success.
     reject_excluded(&body.to)?;
+    // And the source: moving `.obsidian/app.json` out into the open would serve a file
+    // the index deliberately hides, and moving `.git/` wholesale would index its objects.
+    reject_excluded(&body.from)?;
+    reject_move_into_itself(&body)?;
     let from_absolute = resolve_in_root(&root.path, &body.from)?;
     let to_absolute = resolve_in_root(&root.path, &body.to)?;
+    let _one_writer = one_writer(&state, &root_id)?;
 
     if !from_absolute.exists() {
         return Err(AppError::NotFound("document".into()));
@@ -428,9 +492,21 @@ fn reject_occupied_destination(
     Err(AppError::AlreadyExists(destination.to_string()))
 }
 
+/// A folder cannot be moved into its own subtree: the filesystem refuses with `EINVAL`,
+/// which would surface as an unexplained 500 after `move_file` had already created the
+/// destination's parent inside the folder being moved.
+fn reject_move_into_itself(request: &RenameRequest) -> AppResult<()> {
+    if request.to.starts_with(&format!("{}/", request.from)) {
+        return Err(AppError::BadRequest(
+            "a folder cannot be moved inside itself".into(),
+        ));
+    }
+    Ok(())
+}
+
 fn move_file(source: &FsPath, destination: &FsPath) -> AppResult<()> {
     if let Some(parent) = destination.parent() {
-        std::fs::create_dir_all(parent)?;
+        ensure_folder(parent)?;
     }
     std::fs::rename(source, destination)?;
     Ok(())
@@ -450,7 +526,7 @@ fn apply_link_rewrites(
         let absolute = resolve_in_root(&root.path, &source_path)?;
         // The move already succeeded; a link that fails to rewrite is a visible broken
         // link, which is recoverable, so report it rather than failing the whole rename.
-        match write_atomic(&absolute, &rewritten) {
+        match write_atomic(&absolute, rewritten.as_bytes()) {
             Ok(()) => updated.push(source_path),
             Err(error) => tracing::warn!(%source_path, ?error, "could not rewrite inbound link"),
         }
@@ -621,8 +697,8 @@ mod tests {
         std::fs::create_dir_all(&dir).unwrap();
         let file = dir.join("a.md");
 
-        write_atomic(&file, "first version, quite long").unwrap();
-        write_atomic(&file, "short").unwrap();
+        write_atomic(&file, b"first version, quite long").unwrap();
+        write_atomic(&file, b"short").unwrap();
         assert_eq!(
             std::fs::read_to_string(&file).unwrap(),
             "short",
@@ -635,7 +711,78 @@ mod tests {
         let dir = std::env::temp_dir().join("kbviewer-atomic-mkdir");
         let _ = std::fs::remove_dir_all(&dir);
         let file = dir.join("deep/nested/a.md");
-        write_atomic(&file, "content").unwrap();
+        write_atomic(&file, b"content").unwrap();
         assert_eq!(std::fs::read_to_string(&file).unwrap(), "content");
+    }
+
+    #[cfg(unix)]
+    fn mode_of(file: &FsPath) -> u32 {
+        std::fs::metadata(file).unwrap().permissions().mode() & 0o777
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn an_atomic_write_keeps_the_mode_the_file_already_had() {
+        let dir = std::env::temp_dir().join("kbviewer-atomic-mode-kept");
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let file = dir.join("a.md");
+        std::fs::write(&file, "before").unwrap();
+        std::fs::set_permissions(&file, std::fs::Permissions::from_mode(0o664)).unwrap();
+
+        write_atomic(&file, b"after").unwrap();
+        assert_eq!(mode_of(&file), 0o664, "a save is not a chmod");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_file_written_for_the_first_time_is_readable_by_others() {
+        let dir = std::env::temp_dir().join("kbviewer-atomic-mode-new");
+        let _ = std::fs::remove_dir_all(&dir);
+        let file = dir.join("new.md");
+        write_atomic(&file, b"content").unwrap();
+        assert_eq!(
+            mode_of(&file),
+            NEW_FILE_MODE,
+            "tempfile's private default must not leak into the vault"
+        );
+    }
+
+    #[test]
+    fn writing_beneath_a_file_is_the_callers_mistake_not_a_server_fault() {
+        let dir = std::env::temp_dir().join("kbviewer-atomic-under-file");
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("note.md"), "a file").unwrap();
+
+        for below in ["note.md/child.md", "note.md/deeper/child.md"] {
+            let error = write_atomic(&dir.join(below), b"x").unwrap_err();
+            assert!(
+                matches!(error, AppError::BadRequest(_)),
+                "{below}: expected a bad request, got {error:?}"
+            );
+        }
+        assert_eq!(
+            std::fs::read_to_string(dir.join("note.md")).unwrap(),
+            "a file"
+        );
+    }
+
+    #[test]
+    fn a_folder_is_never_moved_inside_itself() {
+        let request = |from: &str, to: &str| RenameRequest {
+            from: from.into(),
+            to: to.into(),
+            update_links: true,
+        };
+        assert!(reject_move_into_itself(&request("deep", "deep/nested-again")).is_err());
+        assert!(
+            reject_move_into_itself(&request("deep", "deepX")).is_ok(),
+            "a sibling whose name merely starts the same is a legitimate rename"
+        );
+        assert!(
+            reject_move_into_itself(&request("deep", "deep")).is_ok(),
+            "renaming in place is decided by the destination check, not here"
+        );
     }
 }

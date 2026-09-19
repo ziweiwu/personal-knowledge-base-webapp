@@ -197,12 +197,14 @@ deploy/               Dockerfiles, compose template, macOS launch agent
 macos/                the KBViewer.app wrapper: Swift sources, bundle build, smoke test
 .github/workflows/    CI: tests, then publishes the container image
 .cargo/config.toml    points ts-rs at web/src/api so the bindings stay generated
+INVARIANTS.md         the properties the app must hold, each with the test that enforces it
+.claude/qa-recipe.md  how to run a scratch instance for a QA pass without touching real data
 ```
 
 ## Development
 
 ```sh
-cargo test --workspace                       # 321 tests
+cargo test --workspace                       # 356 tests
 cargo clippy --workspace --all-targets -- -D warnings
 cargo fmt --all
 cd web && npm run dev                        # proxies /api to 127.0.0.1:4321

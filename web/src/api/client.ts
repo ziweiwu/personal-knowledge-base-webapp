@@ -30,7 +30,7 @@ import {
  * ignore it, in which case we simply refetch after our own saves too.
  */
 export const CLIENT_ORIGIN = `web-${Math.random().toString(36).slice(2, 10)}`;
-const ORIGIN_HEADER = 'X-Kbview-Origin';
+const ORIGIN_HEADER = 'X-Kbviewer-Origin';
 
 /** A non-JSON error body is shown to the user, so only its opening is kept. */
 const MAX_ERROR_MESSAGE_CHARS = 400;

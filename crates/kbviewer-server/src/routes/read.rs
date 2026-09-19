@@ -75,10 +75,9 @@ pub async fn raw(
             document.kind.as_str()
         )));
     }
-    document
-        .content
-        .clone()
-        .ok_or(AppError::NotFound("document source".into()))
+    document.content.clone().ok_or(AppError::BadRequest(
+        "this file is not valid UTF-8 text, so it has no editable source".into(),
+    ))
 }
 
 pub async fn folder(

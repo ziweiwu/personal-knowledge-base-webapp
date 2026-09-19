@@ -107,6 +107,15 @@ fn render_kind(
     index: &Index,
     document: &Document,
 ) -> CachedRender {
+    if document.content.is_none() && document.kind.is_editable() {
+        return CachedRender {
+            html: String::new(),
+            headings: Vec::new(),
+            warning: Some(
+                "this file is not valid UTF-8 text, so it cannot be shown or edited here".into(),
+            ),
+        };
+    }
     match document.kind {
         DocumentKind::Markdown => render_markdown(root_id, index, document),
         DocumentKind::Csv => render_table(document),
