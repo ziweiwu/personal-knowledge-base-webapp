@@ -75,6 +75,9 @@ impl RateLimiter {
     /// Record a failure. Each additional lockout doubles the wait, so sustained guessing
     /// becomes impractical while a user who mistypes twice is barely inconvenienced.
     pub fn record_failure(&self, keys: &[String]) {
+        // Failures are the only thing that adds entries, so this is the one place the map
+        // can grow; pruning here keeps it bounded by the failures of the last window.
+        self.prune();
         let now = Instant::now();
         for key in keys {
             let mut entry = self.entries.entry(key.clone()).or_insert(Attempts {
@@ -109,7 +112,7 @@ impl RateLimiter {
     }
 
     /// Drop entries that have aged out, so the map cannot grow without bound.
-    pub fn prune(&self) {
+    fn prune(&self) {
         let now = Instant::now();
         self.entries.retain(|_, entry| {
             entry.locked_until.map(|until| until > now).unwrap_or(false)
@@ -189,6 +192,21 @@ mod tests {
             second > first,
             "repeat lockouts must grow: {first:?} then {second:?}"
         );
+    }
+
+    /// The map only ever grows on failures, so it is bounded only if failures also prune.
+    #[test]
+    fn a_new_failure_drops_entries_that_aged_out_of_the_window() {
+        let limiter = RateLimiter::new();
+        limiter.record_failure(&keys("old"));
+        limiter.entries.get_mut("email:old").unwrap().first_seen =
+            Instant::now() - WINDOW - Duration::from_secs(1);
+        limiter.record_failure(&keys("new"));
+        assert!(
+            !limiter.entries.contains_key("email:old"),
+            "an entry outside the window must not survive the next failure"
+        );
+        assert!(limiter.entries.contains_key("email:new"));
     }
 
     #[test]

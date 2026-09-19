@@ -98,6 +98,15 @@ impl Index {
         self.documents.get(path)
     }
 
+    /// Notes written with `[[wikilink]]` syntax. Worth counting only when wikilinks are
+    /// off: a vault whose `.obsidian/` was dropped in transit still reads as one here.
+    pub fn notes_with_wikilink_syntax(&self) -> usize {
+        self.documents
+            .values()
+            .filter(|document| linkable_markdown(document).is_some_and(|text| text.contains("[[")))
+            .count()
+    }
+
     pub fn backlinks(&self, path: &str) -> Vec<LinkRef> {
         self.backlinks
             .get(path)
@@ -470,5 +479,44 @@ fn collect_urls<'a>(node: &'a comrak::nodes::AstNode<'a>, out: &mut Vec<String>)
     }
     for child in node.children() {
         collect_urls(child, out);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn root_with(label: &str, notes: &[(&str, &str)]) -> RootConfig {
+        let base = std::env::temp_dir().join(format!("kbviewer-index-{label}"));
+        let _ = std::fs::remove_dir_all(&base);
+        std::fs::create_dir_all(&base).unwrap();
+        for (name, body) in notes {
+            std::fs::write(base.join(name), body).unwrap();
+        }
+        RootConfig {
+            id: "kb".into(),
+            name: "kb".into(),
+            path: base,
+            index_names: Vec::new(),
+            wikilinks: None,
+            folder_notes: false,
+            read_only: false,
+        }
+    }
+
+    /// A vault that lost its `.obsidian/` in transit is still recognisable by its notes.
+    #[test]
+    fn counts_notes_that_use_wikilink_syntax_even_when_wikilinks_are_off() {
+        let root = root_with(
+            "wikilink-syntax",
+            &[
+                ("a.md", "see [[b]]\n"),
+                ("b.md", "plain\n"),
+                ("c.txt", "[[not markdown]]\n"),
+            ],
+        );
+        let index = Index::build(&root);
+        assert!(!index.wikilinks, "no .obsidian/ means detection says off");
+        assert_eq!(index.notes_with_wikilink_syntax(), 1);
     }
 }

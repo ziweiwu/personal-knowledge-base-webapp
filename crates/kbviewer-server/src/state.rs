@@ -62,6 +62,24 @@ fn mtime_of(index: &Index, path: &str) -> i64 {
         .unwrap_or(0)
 }
 
+/// A vault synced by a client that skips dot-folders arrives without `.obsidian/`, and
+/// detection then treats it as a plain folder: every `[[link]]` renders as literal text.
+/// The page still looks healthy, so the log is the only place this can be pointed out.
+fn warn_if_wikilinks_look_disabled(root: &RootConfig, index: &Index) {
+    if index.wikilinks || root.wikilinks.is_some() {
+        return;
+    }
+    let notes = index.notes_with_wikilink_syntax();
+    if notes == 0 {
+        return;
+    }
+    tracing::warn!(
+        root = %root.id,
+        notes,
+        "no .obsidian/ directory, but notes use [[wikilinks]]; set \"wikilinks\": true on this root if it is a vault"
+    );
+}
+
 impl AppState {
     pub fn new(config: Config, auth: AuthStore) -> Arc<Self> {
         let indexes = config
@@ -75,6 +93,7 @@ impl AppState {
                     wikilinks = index.wikilinks,
                     "indexed root"
                 );
+                warn_if_wikilinks_look_disabled(root, &index);
                 (root.id.clone(), ArcSwap::from_pointee(index))
             })
             .collect();
