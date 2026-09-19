@@ -142,16 +142,10 @@ impl AppState {
     ///
     /// `origin` identifies the client that asked for the change, or `None` when the change
     /// came from outside this server (Obsidian, a sync client, an editor).
-    /// Hold the returned guard from the precondition check to the write that relies on it.
-    /// `None` only for a root that does not exist, which the caller has already refused.
-    pub fn serialise_writes(&self, root_id: &str) -> Option<WriteGuard> {
-        // A panic while writing does not make the gate itself unusable.
-        let guard = self
-            .write_gates
-            .get(root_id)?
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner());
-        Some(guard)
+    /// The root's write gate. Lock it from the precondition check to the write that relies
+    /// on it. `None` only for a root that does not exist, which the caller already refused.
+    pub fn write_gate(&self, root_id: &str) -> Option<&std::sync::Mutex<()>> {
+        self.write_gates.get(root_id)
     }
 
     pub fn reindex(&self, root_id: &str, paths: Vec<String>, origin: Option<String>) {

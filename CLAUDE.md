@@ -97,7 +97,7 @@ events and the index would silently go stale. This was a real bug, not a hypothe
 **Saves carry `baseMtimeMs` and a mismatch is a 409.** Obsidian may have the same file
 open. Removing the precondition means last-write-wins and silent data loss.
 
-**Every write route holds the root's `AppState::serialise_writes()` guard from its check to its write.**
+**Every write route holds the root's write gate (`AppState::write_gate`) from its check to its write.**
 The precondition above, and `create`'s "does it exist yet", are check-then-act; two
 requests on different worker threads both passed the check and both wrote. The guard is a
 plain mutex held across no `.await`, so a new write route must do the same and must not

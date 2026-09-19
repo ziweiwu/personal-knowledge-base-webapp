@@ -50,11 +50,13 @@ fn origin_of(headers: &HeaderMap) -> Option<String> {
         .filter(|value| !value.is_empty())
 }
 
-/// The root's write gate; see `AppState::serialise_writes`.
+/// Hold the root's write gate; see `AppState::write_gate`.
 fn one_writer<'a>(state: &'a AppState, root_id: &str) -> AppResult<WriteGuard<'a>> {
-    state
-        .serialise_writes(root_id)
-        .ok_or(AppError::NotFound("folder".into()))
+    let gate = state
+        .write_gate(root_id)
+        .ok_or(AppError::NotFound("folder".into()))?;
+    // A panic while writing does not make the gate itself unusable.
+    Ok(gate.lock().unwrap_or_else(|poisoned| poisoned.into_inner()))
 }
 
 fn writable_root<'a>(

@@ -56,7 +56,7 @@ The window is not theoretical: sync latency is seconds, a note stays open in a
 phone tab for hours.
 
 The precondition is only as good as the gap between checking it and writing.
-Since 2026-09-19 every write route holds `AppState::serialise_writes()` from
+Since 2026-09-19 every write route holds the root's `AppState::write_gate` from
 its check to its write; before that, two requests on different worker
 threads both passed the same check and both wrote, so a `create` race gave
 two 201s with one body on disk (measured, C-2), and two saves with the same
