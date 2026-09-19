@@ -36,6 +36,15 @@ pub struct AppState {
     /// the event the author most needs to see. An external write changes the mtime, so it
     /// no longer matches and is correctly reported as external.
     recent_writes: DashMap<(String, String), RecentWrite>,
+
+    /// One write at a time.
+    ///
+    /// Every write route checks something — the mtime precondition, that a path is free —
+    /// and then acts on it. Two requests arriving together on different worker threads
+    /// both passed the check and both wrote, so one edit vanished with a 200. Writes are
+    /// human-paced and finish in milliseconds, so serialising them costs nothing; the
+    /// routes hold the guard across no `.await`, so the executor is never blocked on it.
+    write_gate: std::sync::Mutex<()>,
 }
 
 #[derive(Clone)]
@@ -107,6 +116,7 @@ impl AppState {
             auth,
             changes,
             recent_writes: DashMap::new(),
+            write_gate: std::sync::Mutex::new(()),
         })
     }
 
@@ -122,6 +132,14 @@ impl AppState {
     ///
     /// `origin` identifies the client that asked for the change, or `None` when the change
     /// came from outside this server (Obsidian, a sync client, an editor).
+    /// Hold the returned guard from the precondition check to the write that relies on it.
+    pub fn serialise_writes(&self) -> std::sync::MutexGuard<'_, ()> {
+        // A panic while writing does not make the gate itself unusable.
+        self.write_gate
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+    }
+
     pub fn reindex(&self, root_id: &str, paths: Vec<String>, origin: Option<String>) {
         let Some(root) = self.config.root(root_id) else {
             return;

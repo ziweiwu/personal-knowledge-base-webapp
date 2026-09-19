@@ -97,6 +97,17 @@ events and the index would silently go stale. This was a real bug, not a hypothe
 **Saves carry `baseMtimeMs` and a mismatch is a 409.** Obsidian may have the same file
 open. Removing the precondition means last-write-wins and silent data loss.
 
+**Every write route holds `AppState::serialise_writes()` from its check to its write.**
+The precondition above, and `create`'s "does it exist yet", are check-then-act; two
+requests on different worker threads both passed the check and both wrote. The guard is a
+plain mutex held across no `.await`, so a new write route must do the same and must not
+await while holding it.
+
+**`write_atomic` keeps the file's mode.** `tempfile` creates at 0600 and `persist`
+replaces the inode, so a save used to turn every note private to the server's uid — on
+the NAS that is a file the sync client may not read back. Route every file write,
+uploads included, through `write_atomic`; do not open-code a temp file.
+
 **Rename rewrites inbound links** using byte ranges from `scan_wikilinks`, which skips
 code blocks and inline code. Never replace this with a regex over the document: the tests
 in `crates/kbviewer-core/src/links.rs` cover prose that merely mentions the name, and links inside code samples,
@@ -133,7 +144,7 @@ line and a state, so it cannot carry content even if asked. It takes the same
 `baseMtimeMs` precondition and answers a mismatch with the same 409 — as `AppError::Stale`,
 which has no body, since a click has no edited buffer to offer back.
 
-Mutating requests carry `X-Kbview-Origin`, echoed on the change event so the tab that made
+Mutating requests carry `X-Kbviewer-Origin`, echoed on the change event so the tab that made
 a change ignores its own echo. `AppState` remembers the mtime it wrote and only attributes
 the watcher's echo when the file still holds exactly that — matching on path alone would
 swallow a genuine external edit landing in the same window, which is the one event the
@@ -240,6 +251,16 @@ A folder's name filter is stored **per folder**, never globally — one folder's
 silently hiding another folder's contents is the failure mode that keying it this way
 prevents. A restored filter also shows "N of M" and a Clear button, so it can never look
 like the folder is simply empty.
+
+## QA
+
+`INVARIANTS.md` lists the properties the app must hold, numbered `INV-n` and never
+renumbered, each with the test that enforces it and a Candidates section for what is
+suspected but unmeasured. `.claude/qa-recipe.md` says how to run a scratch instance on
+port 4500 over copied fixtures so a QA pass never touches port 4321, `./data` or a real
+config. Read the first before changing a write route; follow the second before driving
+the app. The 2026-09-19 bug bash is the worked example: the source-first pass found five
+defects and the triage read found three more, all now in `tests/api.rs`.
 
 ## Conventions
 

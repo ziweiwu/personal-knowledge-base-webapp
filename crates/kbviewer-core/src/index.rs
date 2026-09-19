@@ -25,7 +25,9 @@ pub struct Document {
     pub mtime_ms: i64,
     pub frontmatter: BTreeMap<String, String>,
     pub tags: Vec<String>,
-    /// Source text for editable and searchable kinds; `None` for binary content.
+    /// Source text for editable and searchable kinds; `None` for binary content, and for
+    /// a text-kind file whose bytes are not UTF-8 — a Latin-1 note from an old vault, or
+    /// an upload whose extension lies.
     pub content: Option<String>,
     /// Paths this document links to, already resolved. Unresolved links are dropped
     /// here but still render as broken links, so the graph never contains dead paths.
@@ -44,7 +46,9 @@ impl Document {
             kind: self.kind,
             size: self.size,
             mtime_ms: self.mtime_ms,
-            editable: self.kind.is_editable(),
+            // A file the server could not read as text has no source to hand an editor,
+            // whatever its extension says.
+            editable: self.kind.is_editable() && self.content.is_some(),
             tags: self.tags.clone(),
         }
     }

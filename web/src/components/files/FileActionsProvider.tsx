@@ -39,7 +39,7 @@ function uploadSummary(uploaded: number, attempted: number, destination: string,
  * tree, the folder listing and the toolbar all share one implementation.
  */
 export function FileActionsProvider({ children }: { children: ReactNode }) {
-  const { rootId, reloadTree, notifyLocalChange } = useVault();
+  const { rootId, root, reloadTree, notifyLocalChange } = useVault();
   const navigate = useNavigate();
 
   const [pending, setPending] = useState<Pending | null>(null);
@@ -222,7 +222,11 @@ export function FileActionsProvider({ children }: { children: ReactNode }) {
           title={pending.isDir ? 'Rename folder' : 'Rename note'}
           label="New name"
           initialValue={baseName(pending.path)}
-          hint="Links pointing at this file will be rewritten."
+          hint={
+            root?.obsidianMode
+              ? 'Links pointing at this file will be rewritten.'
+              : 'Links pointing at this file are not rewritten in a plain folder; update them by hand.'
+          }
           submitLabel="Rename"
           preselect={pending.isDir ? 'all' : 'stem'}
           busy={busy}

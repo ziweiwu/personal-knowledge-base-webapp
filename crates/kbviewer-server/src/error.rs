@@ -99,6 +99,10 @@ impl From<std::io::Error> for AppError {
         match error.kind() {
             std::io::ErrorKind::NotFound => Self::NotFound("file".into()),
             std::io::ErrorKind::PermissionDenied => Self::Forbidden("Permission denied".into()),
+            // `read_to_string` on bytes that are not UTF-8: the file is real but not text.
+            std::io::ErrorKind::InvalidData => {
+                Self::BadRequest("this file is not valid UTF-8 text".into())
+            }
             _ => Self::Internal(error.to_string()),
         }
     }

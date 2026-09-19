@@ -10,6 +10,8 @@ use http_body_util::BodyExt;
 use kbviewer_core::config::Config;
 use kbviewer_server::auth::store::AuthStore;
 use kbviewer_server::state::AppState;
+#[cfg(unix)]
+use std::os::unix::fs::PermissionsExt;
 use std::path::PathBuf;
 use tower::ServiceExt;
 
@@ -30,6 +32,7 @@ fn login_request(body: serde_json::Value) -> Request<Body> {
 struct Harness {
     app: axum::Router,
     root: PathBuf,
+    state: std::sync::Arc<AppState>,
 }
 
 fn harness(label: &str) -> Harness {
@@ -72,8 +75,9 @@ fn harness(label: &str) -> Harness {
     let canonical_root = config.roots[0].path.clone();
     let state = AppState::new(config, store);
     Harness {
-        app: kbviewer_server::router::build(state),
+        app: kbviewer_server::router::build(state.clone()),
         root: canonical_root,
+        state,
     }
 }
 
@@ -1027,4 +1031,268 @@ async fn task_toggling_requires_a_session() {
         )
         .await;
     assert_eq!(status, StatusCode::UNAUTHORIZED);
+}
+
+fn json_post(uri: &str, cookie: &str, body: serde_json::Value) -> Request<Body> {
+    Request::post(uri)
+        .header(header::COOKIE, cookie)
+        .header(header::CONTENT_TYPE, "application/json")
+        .body(Body::from(body.to_string()))
+        .unwrap()
+}
+
+/// The tab that made a change must see its own origin on the change event, or it treats
+/// its own save as someone else editing the file. The header name is the whole contract:
+/// a rename of the app once changed it on one side only, and nothing noticed.
+#[tokio::test]
+async fn a_browser_write_carries_its_origin_onto_the_change_event() {
+    let harness = harness("origin");
+    let cookie = harness.login().await;
+    let mut events = harness.state.changes.subscribe();
+
+    let (status, _) = harness
+        .send(
+            Request::post("/api/doc/kb/notes/Tagged.md")
+                .header(header::COOKIE, &cookie)
+                .header(header::CONTENT_TYPE, "application/json")
+                .header("X-Kbviewer-Origin", "tab-under-test")
+                .body(Body::from(
+                    serde_json::json!({ "content": "hello", "baseMtimeMs": 0 }).to_string(),
+                ))
+                .unwrap(),
+        )
+        .await;
+    assert_eq!(status, StatusCode::CREATED);
+
+    let event = events
+        .recv()
+        .await
+        .expect("a write broadcasts a change event");
+    assert_eq!(event.origin.as_deref(), Some("tab-under-test"));
+}
+
+/// The client's constant and the server's must name the same header. Neither side can
+/// check the other at compile time, so this reads the TypeScript source directly.
+#[test]
+fn the_client_sends_the_origin_header_the_server_reads() {
+    let client_source = std::fs::read_to_string(
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../web/src/api/client.ts"),
+    )
+    .expect("web/src/api/client.ts is part of this checkout");
+    let sent = client_source
+        .lines()
+        .find_map(|line| line.strip_prefix("const ORIGIN_HEADER = '"))
+        .and_then(|rest| rest.split('\'').next())
+        .expect("client.ts declares `const ORIGIN_HEADER = '...'`");
+    assert!(
+        sent.eq_ignore_ascii_case(kbviewer_server::routes::write::ORIGIN_HEADER),
+        "client sends {sent:?}, server reads {:?}",
+        kbviewer_server::routes::write::ORIGIN_HEADER
+    );
+}
+
+/// Two tabs creating the same new note at once: exactly one may win. Both winning means
+/// one of them was told its note exists when its content is gone.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn concurrent_creates_of_one_path_succeed_exactly_once() {
+    let harness = std::sync::Arc::new(harness("createrace"));
+    let cookie = harness.login().await;
+    const WRITERS: usize = 8;
+
+    let mut attempts = Vec::new();
+    for writer in 0..WRITERS {
+        let harness = harness.clone();
+        let cookie = cookie.clone();
+        attempts.push(tokio::spawn(async move {
+            let (status, _) = harness
+                .send(json_post(
+                    "/api/doc/kb/notes/Race.md",
+                    &cookie,
+                    serde_json::json!({ "content": format!("writer {writer}"), "baseMtimeMs": 0 }),
+                ))
+                .await;
+            status
+        }));
+    }
+    let mut created = 0;
+    for attempt in attempts {
+        match attempt.await.unwrap() {
+            StatusCode::CREATED => created += 1,
+            StatusCode::CONFLICT => {}
+            other => panic!("unexpected status {other}"),
+        }
+    }
+    assert_eq!(
+        created, 1,
+        "exactly one writer may be told it created the note"
+    );
+}
+
+/// A save is an edit, not a chmod: the vault is shared with a sync client running as
+/// another user, and a file that turns private after a save may never sync back.
+#[cfg(unix)]
+#[tokio::test]
+async fn a_save_keeps_the_files_mode_and_a_new_file_is_not_private() {
+    let harness = harness("mode");
+    let cookie = harness.login().await;
+    let mode_of = |relative: &str| {
+        std::fs::metadata(harness.root.join(relative))
+            .unwrap()
+            .permissions()
+            .mode()
+            & 0o777
+    };
+
+    let mtime = create_document(&harness, &cookie, "notes/Fresh.md", "new").await;
+    assert_eq!(mode_of("notes/Fresh.md"), 0o644);
+
+    std::fs::set_permissions(
+        harness.root.join("notes/Fresh.md"),
+        std::fs::Permissions::from_mode(0o664),
+    )
+    .unwrap();
+    let (status, _) = harness
+        .send(
+            Request::put("/api/doc/kb/notes/Fresh.md")
+                .header(header::COOKIE, &cookie)
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(
+                    serde_json::json!({ "content": "edited", "baseMtimeMs": mtime }).to_string(),
+                ))
+                .unwrap(),
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(mode_of("notes/Fresh.md"), 0o664);
+
+    let (status, _) = harness
+        .send(
+            Request::post("/api/file/kb/notes/attachment.bin")
+                .header(header::COOKIE, &cookie)
+                .body(Body::from(vec![0u8, 1, 2]))
+                .unwrap(),
+        )
+        .await;
+    assert_eq!(status, StatusCode::CREATED);
+    assert_eq!(
+        mode_of("notes/attachment.bin"),
+        0o644,
+        "uploads share the rule"
+    );
+}
+
+/// The filesystem answers `EINVAL` to this and the app used to pass that on as a 500,
+/// after creating the destination's parent inside the folder it then failed to move.
+#[tokio::test]
+async fn renaming_a_folder_into_its_own_subtree_is_refused_cleanly() {
+    let harness = harness("renameself");
+    let cookie = harness.login().await;
+    let (status, _) = harness
+        .send(json_post(
+            "/api/rename?root=kb",
+            &cookie,
+            serde_json::json!({ "from": "notes", "to": "notes/again/notes" }),
+        ))
+        .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    assert!(harness.root.join("notes/Target.md").exists());
+    assert!(
+        !harness.root.join("notes/again").exists(),
+        "a refused move leaves no half-made folder behind"
+    );
+}
+
+/// Nothing in the UI can ask for these, but the routes are reachable by hand and the
+/// index deliberately hides what they would expose or destroy.
+#[tokio::test]
+async fn excluded_paths_can_be_neither_deleted_nor_renamed_out() {
+    let harness = harness("excludedwrites");
+    let cookie = harness.login().await;
+
+    let (status, _) = harness
+        .send(
+            Request::delete("/api/doc/kb/.obsidian")
+                .header(header::COOKIE, &cookie)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    assert!(harness.root.join(".obsidian/app.json").exists());
+
+    let (status, _) = harness
+        .send(json_post(
+            "/api/rename?root=kb",
+            &cookie,
+            serde_json::json!({ "from": ".obsidian/app.json", "to": "leaked.json" }),
+        ))
+        .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    assert!(harness.root.join(".obsidian/app.json").exists());
+    assert!(!harness.root.join("leaked.json").exists());
+}
+
+/// A path that runs through a file is the request's mistake, not the server's.
+#[tokio::test]
+async fn creating_beneath_a_file_is_a_bad_request_not_a_crash() {
+    let harness = harness("underfile");
+    let cookie = harness.login().await;
+    let (status, _) = harness
+        .send(json_post(
+            "/api/doc/kb/index.md/child.md",
+            &cookie,
+            serde_json::json!({ "content": "x", "baseMtimeMs": 0 }),
+        ))
+        .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    assert!(harness.root.join("index.md").is_file());
+}
+
+/// A `.md` whose bytes are not UTF-8 is still a real file. It must say why it cannot be
+/// shown, not present a blank pane, and its editor must not claim the file is gone.
+#[tokio::test]
+async fn a_text_file_that_is_not_utf8_is_explained_rather_than_lost() {
+    let harness = harness("notutf8");
+    let cookie = harness.login().await;
+    let (status, _) = harness
+        .send(
+            Request::post("/api/file/kb/notes/latin1.md")
+                .header(header::COOKIE, &cookie)
+                .body(Body::from(b"caf\xe9\n".to_vec()))
+                .unwrap(),
+        )
+        .await;
+    assert_eq!(status, StatusCode::CREATED);
+
+    let (status, body) = harness
+        .get_authed(&cookie, "/api/doc/kb/notes/latin1.md")
+        .await;
+    assert_eq!(status, StatusCode::OK);
+    let payload: serde_json::Value = serde_json::from_str(&body).unwrap();
+    assert_eq!(payload["meta"]["editable"], false);
+    assert!(
+        payload["renderWarning"]
+            .as_str()
+            .unwrap_or_default()
+            .contains("UTF-8"),
+        "the reader is told why there is nothing to show: {body}"
+    );
+
+    let (status, _) = harness
+        .get_authed(&cookie, "/api/raw/kb/notes/latin1.md")
+        .await;
+    assert_eq!(
+        status,
+        StatusCode::BAD_REQUEST,
+        "not a 404: the file is right there"
+    );
+
+    let (status, _) = harness
+        .send(json_post(
+            "/api/task/kb/notes/latin1.md",
+            &cookie,
+            serde_json::json!({ "line": 1, "checked": true, "baseMtimeMs": payload["meta"]["mtimeMs"] }),
+        ))
+        .await;
+    assert_ne!(status, StatusCode::INTERNAL_SERVER_ERROR);
 }
