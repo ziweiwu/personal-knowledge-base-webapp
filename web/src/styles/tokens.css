@@ -20,7 +20,7 @@
 
   --fg: #14181d;
   --fg-muted: #5b6572;
-  --fg-faint: #8a93a0;
+  --fg-faint: #626c79;
   --fg-on-accent: #ffffff;
 
   --border: #dfe3e8;
@@ -42,6 +42,11 @@
   --success: #1a7f47;
   --success-subtle: #e6f5ec;
 
+  --teal: #0f7f8a;
+  --teal-subtle: #e2f4f6;
+  --violet: #6d3fc4;
+  --violet-subtle: #efe8fb;
+
   --code-bg: #f4f5f7;
   --mark-bg: #fff2a8;
   --mark-fg: #4a3c00;
@@ -55,6 +60,25 @@
   /* Edge shading for boxes that scroll sideways. Derived from --bg-overlay, so
      it follows whichever theme block is in force without a second definition. */
   --scroll-shadow: color-mix(in srgb, var(--bg-overlay) 70%, transparent);
+
+  /*
+   * The spacing scale. Layout values in app.css come from here, so a component
+   * that needs "a bit more room" picks the next step rather than inventing 9px.
+   */
+  --space-1: 4px;
+  --space-2: 6px;
+  --space-3: 8px;
+  --space-4: 12px;
+  --space-5: 16px;
+  --space-6: 24px;
+
+  /* The type scale for chrome. Prose sizes stay in em, relative to the reader's column. */
+  --text-xs: 0.72rem;
+  --text-sm: 0.8rem;
+  --text-md: 0.875rem;
+  --text-base: 1rem;
+  --text-lg: 1.05rem;
+  --text-xl: 1.4rem;
 
   --radius-sm: 4px;
   --radius-md: 8px;
@@ -85,7 +109,7 @@
 
     --fg: #e7ebf0;
     --fg-muted: #9aa4b1;
-    --fg-faint: #6d7885;
+    --fg-faint: #8b95a2;
     --fg-on-accent: #ffffff;
 
     --border: #2c333b;
@@ -106,6 +130,11 @@
 
     --success: #56c98a;
     --success-subtle: #13301f;
+
+    --teal: #4fc3cf;
+    --teal-subtle: #0f2c30;
+    --violet: #b08cf2;
+    --violet-subtle: #251a3d;
 
     --code-bg: #1b2026;
     --mark-bg: #6a5a12;
@@ -131,7 +160,7 @@
 
   --fg: #e7ebf0;
   --fg-muted: #9aa4b1;
-  --fg-faint: #6d7885;
+  --fg-faint: #8b95a2;
   --fg-on-accent: #ffffff;
 
   --border: #2c333b;
@@ -152,6 +181,11 @@
 
   --success: #56c98a;
   --success-subtle: #13301f;
+
+  --teal: #4fc3cf;
+  --teal-subtle: #0f2c30;
+  --violet: #b08cf2;
+  --violet-subtle: #251a3d;
 
   --code-bg: #1b2026;
   --mark-bg: #6a5a12;

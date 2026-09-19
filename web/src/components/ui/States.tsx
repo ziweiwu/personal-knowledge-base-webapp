@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { describeError } from '../../lib/errors';
+import { Button } from './Button';
 
 export function Spinner({ label = 'Loading' }: { label?: string }) {
   return (
@@ -34,11 +35,7 @@ export function ErrorState({ error, onRetry }: { error: Error; onRetry?: () => v
     <div className="state" role="alert">
       <p className="state__title">{title}</p>
       <p className="state__detail">{detail}</p>
-      {onRetry ? (
-        <button type="button" className="btn" onClick={onRetry}>
-          Try again
-        </button>
-      ) : null}
+      {onRetry ? <Button onClick={onRetry}>Try again</Button> : null}
     </div>
   );
 }
@@ -58,9 +55,9 @@ export function Banner({ tone = 'info', children, actions, onDismiss }: BannerPr
       <div className="banner__body">{children}</div>
       {actions ? <div className="banner__actions">{actions}</div> : null}
       {onDismiss ? (
-        <button type="button" className="btn btn--ghost" onClick={onDismiss} aria-label="Dismiss message">
+        <Button variant="ghost" onClick={onDismiss} aria-label="Dismiss message">
           ✕
-        </button>
+        </Button>
       ) : null}
     </div>
   );

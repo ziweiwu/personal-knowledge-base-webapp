@@ -18,9 +18,7 @@ export function LinkRefs({ title, refs, rootId, emptyLabel }: LinkRefsProps) {
         {title} {refs.length > 0 ? `(${refs.length})` : ''}
       </h2>
       {refs.length === 0 ? (
-        <p className="state__detail" style={{ textAlign: 'left' }}>
-          {emptyLabel}
-        </p>
+        <p className="state__detail state__detail--start">{emptyLabel}</p>
       ) : (
         <ul className="linkrefs__list">
           {refs.map((ref) => (

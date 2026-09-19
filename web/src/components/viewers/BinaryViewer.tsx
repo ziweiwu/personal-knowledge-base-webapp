@@ -9,7 +9,7 @@ export function BinaryViewer({ payload, rootId }: ViewerProps) {
   return (
     <div className="doc__inner">
       <div className="download-card">
-        <span aria-hidden="true" style={{ fontSize: '2rem' }}>
+        <span className="download-card__glyph" aria-hidden="true">
           📦
         </span>
         <p className="download-card__name">{meta.name}</p>

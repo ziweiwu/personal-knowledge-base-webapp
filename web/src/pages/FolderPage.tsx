@@ -12,6 +12,8 @@ import { formatRelative, formatSize, kindIcon, kindLabel } from '../lib/format';
 import { readStored, readStoredOneOf, writeStored } from '../lib/persist';
 import { useFileActions } from '../state/file-actions-context';
 import { useVault } from '../state/vault-context';
+import { Button } from '../components/ui/Button';
+import { Select } from '../components/ui/Select';
 
 type SortKey = 'name' | 'modified' | 'size';
 
@@ -48,9 +50,7 @@ interface FolderPageProps {
 export function FolderPage({ rootId, path, onTitleChange }: FolderPageProps) {
   const { canEdit, root, localChangeToken } = useVault();
   const actions = useFileActions();
-  const [sortKey, setSortKeyState] = useState<SortKey>(
-    () => readStoredOneOf(SORT_STORAGE_KEY, SORT_KEYS) ?? 'name',
-  );
+  const [sortKey, setSortKeyState] = useState<SortKey>(() => readStoredOneOf(SORT_STORAGE_KEY, SORT_KEYS) ?? 'name');
   const setSortKey = useCallback((key: SortKey) => {
     setSortKeyState(key);
     writeStored(SORT_STORAGE_KEY, key);
@@ -104,7 +104,9 @@ export function FolderPage({ rootId, path, onTitleChange }: FolderPageProps) {
   const entries = useMemo(() => {
     if (!listing) return [];
     const needle = filter.trim().toLowerCase();
-    const filtered = needle ? listing.entries.filter((entry) => entry.name.toLowerCase().includes(needle)) : listing.entries;
+    const filtered = needle
+      ? listing.entries.filter((entry) => entry.name.toLowerCase().includes(needle))
+      : listing.entries;
     return sortEntries(filtered, sortKey);
   }, [listing, filter, sortKey]);
 
@@ -147,38 +149,24 @@ export function FolderPage({ rootId, path, onTitleChange }: FolderPageProps) {
             value={filter}
             onChange={(event) => setFilter(event.target.value)}
           />
-          {filter ? (
-            <button type="button" className="btn" onClick={() => setFilter('')}>
-              Clear filter
-            </button>
-          ) : null}
+          {filter ? <Button onClick={() => setFilter('')}>Clear filter</Button> : null}
           <label className="sr-only" htmlFor="folder-sort">
             Sort entries
           </label>
-          <select
-            id="folder-sort"
-            className="select"
-            value={sortKey}
-            onChange={(event) => setSortKey(event.target.value as SortKey)}
-          >
+          <Select id="folder-sort" value={sortKey} onChange={(event) => setSortKey(event.target.value as SortKey)}>
             {(Object.keys(SORT_LABELS) as SortKey[]).map((key) => (
               <option key={key} value={key}>
                 Sort: {SORT_LABELS[key]}
               </option>
             ))}
-          </select>
+          </Select>
 
+          {root?.readOnly ? <span className="badge">Read-only</span> : null}
           {canEdit ? (
             <>
-              <button type="button" className="btn" onClick={() => actions.newNote(path)}>
-                New note
-              </button>
-              <button type="button" className="btn" onClick={() => actions.newFolder(path)}>
-                New folder
-              </button>
-              <button type="button" className="btn" onClick={() => actions.upload(path)}>
-                Upload
-              </button>
+              <Button onClick={() => actions.newNote(path)}>New note</Button>
+              <Button onClick={() => actions.newFolder(path)}>New folder</Button>
+              <Button onClick={() => actions.upload(path)}>Upload</Button>
             </>
           ) : null}
         </div>

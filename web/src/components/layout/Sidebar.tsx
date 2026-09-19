@@ -7,6 +7,8 @@ import { useRoots } from '../../state/roots-context';
 import { useVault } from '../../state/vault-context';
 import { TreeView } from '../tree/TreeView';
 import { ThemeToggle } from './ThemeToggle';
+import { Button } from '../ui/Button';
+import { Select } from '../ui/Select';
 
 const CONNECTION_LABELS = {
   connecting: 'Connecting to live updates',
@@ -35,12 +37,11 @@ export function Sidebar({ activePath, currentDirectory, onNavigate }: SidebarPro
         <label className="sr-only" htmlFor="root-picker">
           Folder collection
         </label>
-        <select
+        <Select
           id="root-picker"
-          className="select"
+          grow
           value={rootId}
           onChange={(event) => void navigate(folderRoute(event.target.value, ''))}
-          style={{ flex: 1, minWidth: 0 }}
         >
           {roots.length === 0 ? <option value={rootId}>{root?.name ?? rootId}</option> : null}
           {roots.map((candidate) => (
@@ -48,28 +49,26 @@ export function Sidebar({ activePath, currentDirectory, onNavigate }: SidebarPro
               {candidate.name}
             </option>
           ))}
-        </select>
+        </Select>
 
         {canEdit ? (
           <>
-            <button
-              type="button"
-              className="btn btn--icon"
+            <Button
+              variant="icon"
               onClick={() => actions.newNote(currentDirectory)}
               aria-label="New note in the current folder"
               title="New note"
             >
               <span aria-hidden="true">✚</span>
-            </button>
-            <button
-              type="button"
-              className="btn btn--icon"
+            </Button>
+            <Button
+              variant="icon"
               onClick={() => actions.newFolder(currentDirectory)}
               aria-label="New folder in the current folder"
               title="New folder"
             >
               <span aria-hidden="true">📁</span>
-            </button>
+            </Button>
           </>
         ) : null}
       </div>
@@ -87,9 +86,9 @@ export function Sidebar({ activePath, currentDirectory, onNavigate }: SidebarPro
         />
         <span className="sidebar__email">{session?.email ?? ''}</span>
         <ThemeToggle />
-        <button type="button" className="btn btn--ghost" onClick={() => void signOut()}>
+        <Button variant="ghost" onClick={() => void signOut()}>
           Sign out
-        </button>
+        </Button>
       </div>
     </>
   );

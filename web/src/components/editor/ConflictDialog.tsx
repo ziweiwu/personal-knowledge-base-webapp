@@ -1,6 +1,7 @@
 import type { SaveConflict } from '../../api/types';
 import { formatDateTime } from '../../lib/format';
 import { Modal } from '../ui/Modal';
+import { Button } from '../ui/Button';
 
 interface ConflictDialogProps {
   conflict: SaveConflict;
@@ -18,7 +19,7 @@ function Pane({ title, subtitle, content }: { title: string; subtitle: string; c
     <div className="conflict__pane">
       <div className="conflict__pane-head">
         {title}
-        <span style={{ display: 'block', fontWeight: 400, color: 'var(--fg-muted)' }}>{subtitle}</span>
+        <span className="conflict__pane-sub">{subtitle}</span>
       </div>
       <pre className="conflict__pre" tabIndex={0}>
         {content}
@@ -40,15 +41,15 @@ export function ConflictDialog({ conflict, busy, error, onKeepMine, onTakeTheirs
       dismissOnBackdrop={false}
       footer={
         <>
-          <button type="button" className="btn" onClick={onCancel} disabled={busy}>
+          <Button onClick={onCancel} disabled={busy}>
             Cancel
-          </button>
-          <button type="button" className="btn" onClick={onTakeTheirs} disabled={busy}>
+          </Button>
+          <Button onClick={onTakeTheirs} disabled={busy}>
             Take theirs (discard my edits)
-          </button>
-          <button type="button" className="btn btn--primary" onClick={onKeepMine} disabled={busy} data-autofocus>
+          </Button>
+          <Button variant="primary" onClick={onKeepMine} disabled={busy} data-autofocus>
             {busy ? 'Saving…' : 'Keep mine (overwrite disk)'}
-          </button>
+          </Button>
         </>
       }
     >
@@ -56,7 +57,11 @@ export function ConflictDialog({ conflict, busy, error, onKeepMine, onTakeTheirs
         <strong>{conflict.path}</strong> was modified by something else — most likely Obsidian — after you opened it.
         Nothing has been written yet.
       </p>
-      {error ? <p className="form-error">{error}</p> : null}
+      {error ? (
+        <p className="form-error" role="alert">
+          {error}
+        </p>
+      ) : null}
       <div className="conflict">
         <Pane title="Your version" subtitle="the buffer in this editor" content={conflict.yourContent} />
         <Pane
