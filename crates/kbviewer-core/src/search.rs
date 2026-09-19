@@ -205,25 +205,9 @@ fn ceil_char_boundary(text: &str, index: usize) -> usize {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::RootConfig;
 
     fn fixture_index(label: &str, files: &[(&str, &str)]) -> Index {
-        let root = std::env::temp_dir().join(format!("kbviewer-search-{label}"));
-        let _ = std::fs::remove_dir_all(&root);
-        for (path, body) in files {
-            let full = root.join(path);
-            std::fs::create_dir_all(full.parent().unwrap()).unwrap();
-            std::fs::write(full, body).unwrap();
-        }
-        Index::build(&RootConfig {
-            id: "t".into(),
-            name: "t".into(),
-            path: root,
-            index_names: vec!["index.md".into()],
-            wikilinks: Some(true),
-            folder_notes: false,
-            read_only: false,
-        })
+        Index::build(&crate::test_support::fixture_root(label, files, Some(true)))
     }
 
     #[test]

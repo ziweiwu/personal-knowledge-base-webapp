@@ -103,7 +103,9 @@ impl Index {
     pub fn notes_with_wikilink_syntax(&self) -> usize {
         self.documents
             .values()
-            .filter(|document| linkable_markdown(document).is_some_and(|text| text.contains("[[")))
+            .filter(|document| {
+                linkable_markdown(document).is_some_and(|text| !scan_wikilinks(text).is_empty())
+            })
             .count()
     }
 
@@ -485,35 +487,21 @@ fn collect_urls<'a>(node: &'a comrak::nodes::AstNode<'a>, out: &mut Vec<String>)
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    fn root_with(label: &str, notes: &[(&str, &str)]) -> RootConfig {
-        let base = std::env::temp_dir().join(format!("kbviewer-index-{label}"));
-        let _ = std::fs::remove_dir_all(&base);
-        std::fs::create_dir_all(&base).unwrap();
-        for (name, body) in notes {
-            std::fs::write(base.join(name), body).unwrap();
-        }
-        RootConfig {
-            id: "kb".into(),
-            name: "kb".into(),
-            path: base,
-            index_names: Vec::new(),
-            wikilinks: None,
-            folder_notes: false,
-            read_only: false,
-        }
-    }
+    use crate::test_support::fixture_root;
 
     /// A vault that lost its `.obsidian/` in transit is still recognisable by its notes.
+    /// The scanner is code-aware, so a note that merely shows the syntax does not count.
     #[test]
     fn counts_notes_that_use_wikilink_syntax_even_when_wikilinks_are_off() {
-        let root = root_with(
+        let root = fixture_root(
             "wikilink-syntax",
             &[
                 ("a.md", "see [[b]]\n"),
                 ("b.md", "plain\n"),
                 ("c.txt", "[[not markdown]]\n"),
+                ("howto.md", "```\n[[shown, not used]]\n```\n"),
             ],
+            None,
         );
         let index = Index::build(&root);
         assert!(!index.wikilinks, "no .obsidian/ means detection says off");
