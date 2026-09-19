@@ -1532,9 +1532,12 @@ kbd {
   background: var(--bg);
 }
 
-/* Q5: the tree is the phone's primary navigation, so its rows meet the same
-   tap size as every other control when the pointer is a finger. */
+/* Q5: when the pointer is a finger, every control meets the tap size, and the
+   tree rows with it, since the tree is the phone's primary navigation. */
 @media (pointer: coarse) {
+  .btn,
+  .select,
+  .menu__item,
   .tree__row {
     min-height: var(--tap);
   }

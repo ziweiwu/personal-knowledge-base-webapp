@@ -2,6 +2,7 @@ import type { SaveConflict } from '../../api/types';
 import { formatDateTime } from '../../lib/format';
 import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
+import { FormError } from '../ui/States';
 
 interface ConflictDialogProps {
   conflict: SaveConflict;
@@ -57,11 +58,7 @@ export function ConflictDialog({ conflict, busy, error, onKeepMine, onTakeTheirs
         <strong>{conflict.path}</strong> was modified by something else — most likely Obsidian — after you opened it.
         Nothing has been written yet.
       </p>
-      {error ? (
-        <p className="form-error" role="alert">
-          {error}
-        </p>
-      ) : null}
+      <FormError message={error ?? null} />
       <div className="conflict">
         <Pane title="Your version" subtitle="the buffer in this editor" content={conflict.yourContent} />
         <Pane

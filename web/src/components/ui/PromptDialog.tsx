@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { Modal } from './Modal';
 import { Button } from './Button';
+import { FormError } from './States';
 
 interface PromptDialogProps {
   title: string;
@@ -95,11 +96,7 @@ export function PromptDialog({
             {hint}
           </p>
         ) : null}
-        {error ? (
-          <p className="form-error" role="alert">
-            {error}
-          </p>
-        ) : null}
+        <FormError message={error ?? null} />
       </form>
     </Modal>
   );

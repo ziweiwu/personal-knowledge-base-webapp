@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Banner } from '../components/ui/States';
 import { ToastContext, type ToastTone } from './toast-context';
 
@@ -8,7 +8,7 @@ interface Toast {
   tone: ToastTone;
 }
 
-/** Long enough to read two sentences; a danger toast waits for a dismissal. */
+/** Long enough to read two sentences. A warning or danger toast waits to be dismissed. */
 const AUTO_DISMISS_MS = 7000;
 
 /**
@@ -19,16 +19,29 @@ const AUTO_DISMISS_MS = 7000;
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
   const nextId = useRef(0);
+  const timers = useRef(new Map<number, number>());
 
   const dismiss = useCallback((id: number) => {
+    window.clearTimeout(timers.current.get(id));
+    timers.current.delete(id);
     setToasts((current) => current.filter((toast) => toast.id !== id));
+  }, []);
+
+  useEffect(() => {
+    const pending = timers.current;
+    return () => pending.forEach((timer) => window.clearTimeout(timer));
   }, []);
 
   const show = useCallback(
     (message: string, tone: ToastTone = 'info') => {
       const id = nextId.current++;
       setToasts((current) => [...current, { id, message, tone }]);
-      if (tone !== 'danger') window.setTimeout(() => dismiss(id), AUTO_DISMISS_MS);
+      // A failure summary lists what to fix; it must not vanish while the user reads it.
+      if (tone === 'info')
+        timers.current.set(
+          id,
+          window.setTimeout(() => dismiss(id), AUTO_DISMISS_MS),
+        );
     },
     [dismiss],
   );

@@ -40,6 +40,16 @@ export function ErrorState({ error, onRetry }: { error: Error; onRetry?: () => v
   );
 }
 
+/** An inline error under a form or dialog body, announced when it appears. */
+export function FormError({ id, message }: { id?: string; message: string | null }) {
+  if (!message) return null;
+  return (
+    <p className="form-error" id={id} role="alert">
+      {message}
+    </p>
+  );
+}
+
 export type BannerTone = 'info' | 'warning' | 'danger';
 
 interface BannerProps {

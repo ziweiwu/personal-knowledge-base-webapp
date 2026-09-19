@@ -2,7 +2,7 @@ import { useEffect, useId, useState, type FormEvent, type InputHTMLAttributes } 
 import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { ApiRequestError } from '../api/client';
 import { ThemeToggle } from '../components/layout/ThemeToggle';
-import { Spinner } from '../components/ui/States';
+import { FormError, Spinner } from '../components/ui/States';
 import { useAuth } from '../state/auth-context';
 import { Button } from '../components/ui/Button';
 
@@ -77,15 +77,6 @@ function LoginHeading() {
       <h1 className="login__brand">kbviewer</h1>
       <ThemeToggle />
     </div>
-  );
-}
-
-function FormError({ id, message }: { id: string; message: string | null }) {
-  if (!message) return null;
-  return (
-    <p className="form-error" id={id} role="alert">
-      {message}
-    </p>
   );
 }
 

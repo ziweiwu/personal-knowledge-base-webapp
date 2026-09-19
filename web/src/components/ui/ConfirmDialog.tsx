@@ -1,5 +1,6 @@
 import { Modal } from './Modal';
 import { Button } from './Button';
+import { FormError } from './States';
 
 interface ConfirmDialogProps {
   title: string;
@@ -50,11 +51,7 @@ export function ConfirmDialog({
     >
       <p>{message}</p>
       {detail ? <p className="state__detail state__detail--start">{detail}</p> : null}
-      {error ? (
-        <p className="form-error" role="alert">
-          {error}
-        </p>
-      ) : null}
+      <FormError message={error ?? null} />
     </Modal>
   );
 }

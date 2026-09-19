@@ -1,6 +1,8 @@
 import { createContext, useContext } from 'react';
+import type { BannerTone } from '../components/ui/States';
 
-export type ToastTone = 'info' | 'warning' | 'danger';
+/** A toast is a Banner that arrives on its own, so it takes the same tones. */
+export type ToastTone = BannerTone;
 
 export interface ToastContextValue {
   /** Show a short, self-dismissing message at the bottom of the screen. */
