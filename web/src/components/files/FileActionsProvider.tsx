@@ -6,7 +6,7 @@ import { FileActionsContext } from '../../state/file-actions-context';
 import { useVault } from '../../state/vault-context';
 import { ConfirmDialog } from '../ui/ConfirmDialog';
 import { PromptDialog } from '../ui/PromptDialog';
-import { Banner } from '../ui/States';
+import { useToast } from '../../state/toast-context';
 import { describeError } from '../../lib/errors';
 
 type Pending =
@@ -41,11 +41,11 @@ function uploadSummary(uploaded: number, attempted: number, destination: string,
 export function FileActionsProvider({ children }: { children: ReactNode }) {
   const { rootId, root, reloadTree, notifyLocalChange } = useVault();
   const navigate = useNavigate();
+  const toast = useToast();
 
   const [pending, setPending] = useState<Pending | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
   const [uploadDirectory, setUploadDirectory] = useState<string>('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -73,11 +73,11 @@ export function FileActionsProvider({ children }: { children: ReactNode }) {
     (message: string | null) => {
       setPending(null);
       setBusy(false);
-      setNotice(message);
+      if (message) toast.show(message);
       reloadTree();
       notifyLocalChange();
     },
-    [reloadTree, notifyLocalChange],
+    [reloadTree, notifyLocalChange, toast],
   );
 
   const runCreateNote = async (name: string) => {
@@ -164,19 +164,11 @@ export function FileActionsProvider({ children }: { children: ReactNode }) {
     setBusy(false);
     reloadTree();
     notifyLocalChange();
-    setNotice(uploadSummary(uploaded, queued.length, destination, failures));
+    toast.show(uploadSummary(uploaded, queued.length, destination, failures), failures.length > 0 ? 'warning' : 'info');
   };
 
   return (
     <FileActionsContext value={actions}>
-      {notice ? (
-        <div style={{ position: 'fixed', left: 12, right: 12, bottom: 12, zIndex: 85, maxWidth: 520, margin: '0 auto' }}>
-          <Banner tone="info" onDismiss={() => setNotice(null)}>
-            {notice}
-          </Banner>
-        </div>
-      ) : null}
-
       <input
         ref={fileInputRef}
         type="file"

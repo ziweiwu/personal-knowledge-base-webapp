@@ -1,5 +1,7 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { Modal } from './Modal';
+import { Button } from './Button';
+import { FormError } from './States';
 
 interface PromptDialogProps {
   title: string;
@@ -57,17 +59,12 @@ export function PromptDialog({
       dismissOnBackdrop={false}
       footer={
         <>
-          <button type="button" className="btn" onClick={onCancel} disabled={busy}>
+          <Button onClick={onCancel} disabled={busy}>
             Cancel
-          </button>
-          <button
-            type="submit"
-            form={`${inputId}-form`}
-            className="btn btn--primary"
-            disabled={busy || trimmed.length === 0}
-          >
+          </Button>
+          <Button type="submit" form={`${inputId}-form`} variant="primary" disabled={busy || trimmed.length === 0}>
             {busy ? 'Working…' : submitLabel}
-          </button>
+          </Button>
         </>
       }
     >
@@ -95,11 +92,11 @@ export function PromptDialog({
           data-autofocus
         />
         {hint ? (
-          <p className="state__detail" id={hintId} style={{ textAlign: 'left' }}>
+          <p className="state__detail state__detail--start" id={hintId}>
             {hint}
           </p>
         ) : null}
-        {error ? <p className="form-error">{error}</p> : null}
+        <FormError message={error ?? null} />
       </form>
     </Modal>
   );

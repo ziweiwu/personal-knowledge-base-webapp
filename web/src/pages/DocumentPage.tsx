@@ -1,7 +1,8 @@
-import { Suspense, lazy, useCallback, useEffect, useRef, useState } from 'react';
+import { Fragment, Suspense, lazy, useCallback, useEffect, useRef, useState } from 'react';
 import { fetchDocument } from '../api/client';
 import { eventTouches } from '../api/events';
-import { baseName } from '../api/paths';
+import { Link } from 'react-router-dom';
+import { baseName, tagRoute } from '../api/paths';
 import type { ChangeEvent, DocumentMeta } from '../api/types';
 import { DocumentBody } from '../components/viewers/registry';
 import { toggleTask } from '../api/client';
@@ -11,6 +12,7 @@ import { useChangeEvents } from '../hooks/useChangeEvents';
 import { formatDateTime, formatSize, kindLabel } from '../lib/format';
 import { useFileActions } from '../state/file-actions-context';
 import { useVault } from '../state/vault-context';
+import { Button } from '../components/ui/Button';
 
 /**
  * CodeMirror and everything under `components/editor` load only when the user
@@ -26,8 +28,24 @@ interface DocumentPageProps {
   onTitleChange: (title: string) => void;
 }
 
+/** Frontmatter other than tags, which the tag chips above already show. */
+function Frontmatter({ fields }: { fields?: { [key: string]: string } }) {
+  const entries = Object.entries(fields ?? {}).filter(([key]) => key !== 'tags');
+  if (entries.length === 0) return null;
+  return (
+    <dl className="doc__frontmatter">
+      {entries.map(([key, value]) => (
+        <Fragment key={key}>
+          <dt>{key}</dt>
+          <dd>{value}</dd>
+        </Fragment>
+      ))}
+    </dl>
+  );
+}
+
 export function DocumentPage({ rootId, path, onTitleChange }: DocumentPageProps) {
-  const { canEdit } = useVault();
+  const { canEdit, root } = useVault();
   const actions = useFileActions();
 
   const load = useCallback((signal: AbortSignal) => fetchDocument(rootId, path, signal), [rootId, path]);
@@ -139,58 +157,48 @@ export function DocumentPage({ rootId, path, onTitleChange }: DocumentPageProps)
           <span>{kindLabel(meta.kind)}</span>
           <span>{formatSize(meta.size)}</span>
           <span>Modified {formatDateTime(meta.mtimeMs)}</span>
+          {root?.readOnly ? <span className="badge">Read-only</span> : null}
         </p>
         {meta.tags && meta.tags.length > 0 ? (
           <p className="doc__tags">
             {meta.tags.map((tag) => (
-              <span className="tag" key={tag}>
+              <Link className="tag" key={tag} to={tagRoute(rootId, tag)}>
                 #{tag}
-              </span>
+              </Link>
             ))}
           </p>
         ) : null}
+        <Frontmatter fields={payload.frontmatter} />
 
         <div className="editor__bar doc__actions">
           {editable ? (
-            <button type="button" className="btn" onClick={() => setEditing(true)}>
+            <Button onClick={() => setEditing(true)}>
               {/* Decorative: its siblings carry no icon, and announcing "pencil Edit"
                   makes this one button read differently from the rest of the row. */}
               <span aria-hidden="true">✏️</span>
               Edit
-            </button>
+            </Button>
           ) : null}
           {canEdit ? (
             <>
-              <button type="button" className="btn" onClick={() => actions.rename(path, false)}>
-                Rename
-              </button>
-              <button type="button" className="btn btn--danger-quiet" onClick={() => actions.remove(path, false)}>
+              <Button onClick={() => actions.rename(path, false)}>Rename</Button>
+              <Button variant="danger-quiet" onClick={() => actions.remove(path, false)}>
                 Delete
-              </button>
+              </Button>
             </>
           ) : null}
+          <Button onClick={() => window.print()}>Print</Button>
         </div>
 
         {payload.renderWarning ? <Banner tone="warning">{payload.renderWarning}</Banner> : null}
         {changedOnDisk ? (
-          <Banner
-            tone="info"
-            actions={
-              <button type="button" className="btn" onClick={reload}>
-                Reload
-              </button>
-            }
-          >
+          <Banner tone="info" actions={<Button onClick={reload}>Reload</Button>}>
             This document changed on disk.
           </Banner>
         ) : null}
       </div>
 
-      <DocumentBody
-        payload={payload}
-        rootId={rootId}
-        onToggleTask={editable ? onToggleTask : undefined}
-      />
+      <DocumentBody payload={payload} rootId={rootId} onToggleTask={editable ? onToggleTask : undefined} />
     </article>
   );
 }

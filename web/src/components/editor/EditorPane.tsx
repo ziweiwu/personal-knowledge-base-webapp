@@ -8,6 +8,7 @@ import { Banner, ErrorState, LoadingState } from '../ui/States';
 import { describeError } from '../../lib/errors';
 import { CodeMirrorField } from './CodeMirrorField';
 import { ConflictDialog } from './ConflictDialog';
+import { Button } from '../ui/Button';
 
 interface EditorHandle {
   getValue: () => string;
@@ -134,7 +135,9 @@ export function EditorPane({
     setSaving(true);
     setSaveError(null);
     try {
-      applySaved(await saveDocument(rootId, path, { content: conflict.yourContent, baseMtimeMs: conflict.diskMtimeMs }));
+      applySaved(
+        await saveDocument(rootId, path, { content: conflict.yourContent, baseMtimeMs: conflict.diskMtimeMs }),
+      );
       setConflict(null);
     } catch (cause) {
       if (cause instanceof SaveConflictError) setConflict(cause.conflict);
@@ -181,12 +184,12 @@ export function EditorPane({
   return (
     <div className="editor">
       <div className="editor__bar">
-        <button type="button" className="btn btn--primary" onClick={() => void save()} disabled={saving || !dirty}>
+        <Button variant="primary" onClick={() => void save()} disabled={saving || !dirty}>
           {saving ? 'Saving…' : 'Save'}
-        </button>
-        <button type="button" className="btn" onClick={requestClose} disabled={saving}>
+        </Button>
+        <Button onClick={requestClose} disabled={saving}>
           Done
-        </button>
+        </Button>
         <span className="editor__status" role="status">
           {dirty
             ? 'Unsaved changes'
@@ -194,7 +197,7 @@ export function EditorPane({
               ? `Saved ${formatDateTime(savedAt)}`
               : `Last modified ${formatDateTime(base)}`}
         </span>
-        <span className="editor__status only-desktop" style={{ flex: 'none' }}>
+        <span className="editor__status editor__status--fixed only-desktop">
           <kbd>⌘S</kbd> to save
         </span>
       </div>
@@ -206,12 +209,10 @@ export function EditorPane({
           tone="warning"
           actions={
             <>
-              <button type="button" className="btn" onClick={() => void reloadFromDisk()}>
-                Reload from disk
-              </button>
-              <button type="button" className="btn btn--ghost" onClick={onDiskChangeHandled}>
+              <Button onClick={() => void reloadFromDisk()}>Reload from disk</Button>
+              <Button variant="ghost" onClick={onDiskChangeHandled}>
                 Keep editing
-              </button>
+              </Button>
             </>
           }
         >

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { hasMermaid, renderMermaid } from '../../lib/mermaid';
 import { isExternalHref, resolveAssetUrl, resolveInternalRoute } from '../../lib/docLinks';
 import { useTheme } from '../../state/theme-context';
+import { useToast } from '../../state/toast-context';
 
 /**
  * Called when a task-list checkbox is ticked. Returns whether the write succeeded, so the
@@ -110,16 +111,14 @@ export function HtmlContent({ html, rootId, docPath, onToggleTask }: HtmlContent
 
   /** Checkboxes whose write has not come back yet, and the state each one asked for. */
   const inFlight = useRef(new WeakMap<HTMLInputElement, boolean>());
-  const statusRef = useRef<HTMLDivElement>(null);
+  const toast = useToast();
 
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
 
     const onChange = (event: Event) => {
-      const box = (event.target as HTMLElement | null)?.closest?.<HTMLInputElement>(
-        'input[data-task-line]',
-      );
+      const box = (event.target as HTMLElement | null)?.closest?.<HTMLInputElement>('input[data-task-line]');
       const toggle = toggleRef.current;
       if (!box || !toggle) return;
 
@@ -148,23 +147,25 @@ export function HtmlContent({ html, rootId, docPath, onToggleTask }: HtmlContent
         box.removeAttribute('aria-busy');
         if (saved) return;
         box.checked = !wanted;
-        // The revert is otherwise silent, which for a screen-reader user is
-        // indistinguishable from the write having worked.
-        if (statusRef.current) {
-          statusRef.current.textContent = 'That task could not be saved. The checkbox was put back.';
-        }
+        // The revert is otherwise silent, which is indistinguishable from the
+        // write having worked; the toast is announced as well as shown.
+        toast.show('That task could not be saved. The checkbox was put back.', 'warning');
       });
     };
 
     container.addEventListener('change', onChange);
     return () => container.removeEventListener('change', onChange);
-  }, []);
+  }, [toast]);
 
   useEffect(() => {
     const container = containerRef.current;
     if (!container || !hasMermaid(container)) return;
     let cancelled = false;
-    void renderMermaid(() => containerRef.current, themeMode, () => cancelled);
+    void renderMermaid(
+      () => containerRef.current,
+      themeMode,
+      () => cancelled,
+    );
     return () => {
       cancelled = true;
     };
@@ -182,10 +183,5 @@ export function HtmlContent({ html, rootId, docPath, onToggleTask }: HtmlContent
     void navigate(route);
   };
 
-  return (
-    <>
-      <div className="prose" ref={containerRef} onClick={onClick} />
-      <div ref={statusRef} className="sr-only" role="status" aria-live="polite" />
-    </>
-  );
+  return <div className="prose" ref={containerRef} onClick={onClick} />;
 }

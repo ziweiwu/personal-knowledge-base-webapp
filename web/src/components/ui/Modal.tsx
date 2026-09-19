@@ -4,6 +4,7 @@ import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import { useEscapeKey } from '../../hooks/useEscapeKey';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
 import { useInertBackground } from '../../hooks/useInertBackground';
+import { Button } from './Button';
 
 interface ModalProps {
   title: string;
@@ -33,14 +34,20 @@ export function Modal({ title, onClose, children, footer, wide, dismissOnBackdro
         if (dismissOnBackdrop && event.target === event.currentTarget) onClose();
       }}
     >
-      <div className={`modal${wide ? ' modal--wide' : ''}`} role="dialog" aria-modal="true" aria-labelledby={titleId} ref={panelRef}>
+      <div
+        className={`modal${wide ? ' modal--wide' : ''}`}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        ref={panelRef}
+      >
         <div className="modal__head">
           <h2 className="modal__title" id={titleId}>
             {title}
           </h2>
-          <button type="button" className="btn btn--icon" onClick={onClose} aria-label="Close dialog">
+          <Button variant="icon" onClick={onClose} aria-label="Close dialog">
             ✕
-          </button>
+          </Button>
         </div>
         <div className="modal__body">{children}</div>
         {footer ? <div className="modal__foot">{footer}</div> : null}

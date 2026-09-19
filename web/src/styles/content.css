@@ -229,22 +229,138 @@
   margin-bottom: 4px;
 }
 
+/*
+ * Obsidian's callout set, with each type's accent and a small icon. The icon is a
+ * mask over currentColor, so it takes the type's colour in both themes without a
+ * second SVG. Aliases follow Obsidian: `summary`/`tldr` are abstracts, `hint`/
+ * `important` are tips, `check`/`done` are successes, `help`/`faq` are questions,
+ * `caution`/`attention` are warnings, `fail`/`missing` are failures, `cite` is a
+ * quote. Anything unlisted keeps the note styling.
+ */
+.prose .callout-title {
+  display: flex;
+  align-items: center;
+  gap: 0.45em;
+  color: var(--callout-fg, var(--accent-fg));
+}
+
+.prose .callout-title::before {
+  content: '';
+  flex: none;
+  width: 1.05em;
+  height: 1.05em;
+  background: currentColor;
+  mask: var(--callout-icon) center / contain no-repeat;
+  -webkit-mask: var(--callout-icon) center / contain no-repeat;
+}
+
+.prose .callout {
+  --callout-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 20h9'/%3E%3Cpath d='M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z'/%3E%3C/svg%3E");
+}
+
+.prose .callout[data-callout='info'],
+.prose .callout[data-callout='todo'] {
+  --callout-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='9'/%3E%3Cpath d='M12 8h.01M12 12v4'/%3E%3C/svg%3E");
+}
+
+.prose .callout[data-callout='todo'] {
+  --callout-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='9'/%3E%3Cpath d='m8.5 12 2.5 2.5 4.5-5'/%3E%3C/svg%3E");
+}
+
+.prose .callout[data-callout='abstract'],
+.prose .callout[data-callout='summary'],
+.prose .callout[data-callout='tldr'],
+.prose .callout[data-callout='example'] {
+  --callout-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01'/%3E%3C/svg%3E");
+}
+
+.prose .callout[data-callout='abstract'],
+.prose .callout[data-callout='summary'],
+.prose .callout[data-callout='tldr'],
+.prose .callout[data-callout='tip'],
+.prose .callout[data-callout='hint'],
+.prose .callout[data-callout='important'] {
+  --callout-fg: var(--teal);
+  border-left-color: var(--teal);
+  background: var(--teal-subtle);
+}
+
+.prose .callout[data-callout='tip'],
+.prose .callout[data-callout='hint'],
+.prose .callout[data-callout='important'] {
+  --callout-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M9 18h6M10 21h4'/%3E%3Cpath d='M12 3a6 6 0 0 0-4 10.5c.8.8 1 1.5 1 2.5h6c0-1 .2-1.7 1-2.5A6 6 0 0 0 12 3Z'/%3E%3C/svg%3E");
+}
+
+.prose .callout[data-callout='success'],
+.prose .callout[data-callout='check'],
+.prose .callout[data-callout='done'] {
+  --callout-fg: var(--success);
+  --callout-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m5 12.5 4.5 4.5L19 7.5'/%3E%3C/svg%3E");
+  border-left-color: var(--success);
+  background: var(--success-subtle);
+}
+
+.prose .callout[data-callout='question'],
+.prose .callout[data-callout='help'],
+.prose .callout[data-callout='faq'],
 .prose .callout[data-callout='warning'],
-.prose .callout[data-callout='caution'] {
+.prose .callout[data-callout='caution'],
+.prose .callout[data-callout='attention'] {
+  --callout-fg: var(--warning);
   border-left-color: var(--warning);
   background: var(--warning-subtle);
 }
 
+.prose .callout[data-callout='question'],
+.prose .callout[data-callout='help'],
+.prose .callout[data-callout='faq'] {
+  --callout-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='9'/%3E%3Cpath d='M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.7.4-1 1-1 1.7M12 17h.01'/%3E%3C/svg%3E");
+}
+
+.prose .callout[data-callout='warning'],
+.prose .callout[data-callout='caution'],
+.prose .callout[data-callout='attention'] {
+  --callout-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 3 2.5 20h19L12 3Z'/%3E%3Cpath d='M12 10v4M12 17h.01'/%3E%3C/svg%3E");
+}
+
+.prose .callout[data-callout='failure'],
+.prose .callout[data-callout='fail'],
+.prose .callout[data-callout='missing'],
 .prose .callout[data-callout='danger'],
-.prose .callout[data-callout='error'] {
+.prose .callout[data-callout='error'],
+.prose .callout[data-callout='bug'] {
+  --callout-fg: var(--danger);
   border-left-color: var(--danger);
   background: var(--danger-subtle);
 }
 
-.prose .callout[data-callout='tip'],
-.prose .callout[data-callout='success'] {
-  border-left-color: var(--success);
-  background: var(--success-subtle);
+.prose .callout[data-callout='failure'],
+.prose .callout[data-callout='fail'],
+.prose .callout[data-callout='missing'] {
+  --callout-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 6l12 12M18 6 6 18'/%3E%3C/svg%3E");
+}
+
+.prose .callout[data-callout='danger'],
+.prose .callout[data-callout='error'] {
+  --callout-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M13 2 4 14h7l-1 8 9-12h-7l1-8Z'/%3E%3C/svg%3E");
+}
+
+.prose .callout[data-callout='bug'] {
+  --callout-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M8 9a4 4 0 0 1 8 0v6a4 4 0 0 1-8 0Z'/%3E%3Cpath d='M12 19v2M4 13h4M16 13h4M5 7l3 2M19 7l-3 2M5 19l3-2M19 19l-3-2M9 5l1.5-2M15 5l-1.5-2'/%3E%3C/svg%3E");
+}
+
+.prose .callout[data-callout='example'] {
+  --callout-fg: var(--violet);
+  border-left-color: var(--violet);
+  background: var(--violet-subtle);
+}
+
+.prose .callout[data-callout='quote'],
+.prose .callout[data-callout='cite'] {
+  --callout-fg: var(--fg-muted);
+  --callout-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='black'%3E%3Cpath d='M7 6C4.8 6 3 7.8 3 10v8h7v-7H6c0-1.2.9-2 2-2V6H7Zm10 0c-2.2 0-4 1.8-4 4v8h7v-7h-4c0-1.2.9-2 2-2V6h-1Z'/%3E%3C/svg%3E");
+  border-left-color: var(--border-strong);
+  background: var(--bg-subtle);
 }
 
 /* Footnotes */

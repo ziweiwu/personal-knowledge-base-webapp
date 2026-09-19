@@ -156,26 +156,26 @@ export function SearchPalette({ rootId, rootName, onClose }: SearchPaletteProps)
         />
 
         {loading ? (
-          <div className="state" style={{ minHeight: 96 }}>
+          <div className="state state--compact">
             <Spinner label="Searching" />
           </div>
         ) : null}
 
         {error ? (
-          <div className="state" style={{ minHeight: 96 }} role="alert">
+          <div className="state state--compact" role="alert">
             <p className="state__title">{describeError(error).title}</p>
             <p className="state__detail">{describeError(error).detail}</p>
           </div>
         ) : null}
 
         {showEmpty ? (
-          <div className="state" style={{ minHeight: 96 }}>
+          <div className="state state--compact">
             <p className="state__detail">No matches for “{trimmed}”.</p>
           </div>
         ) : null}
 
         {!trimmed && !loading ? (
-          <div className="state" style={{ minHeight: 96 }}>
+          <div className="state state--compact">
             <p className="state__detail">Type to search titles and contents of {rootName}.</p>
           </div>
         ) : null}

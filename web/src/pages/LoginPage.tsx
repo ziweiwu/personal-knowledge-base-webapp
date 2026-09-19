@@ -2,8 +2,9 @@ import { useEffect, useId, useState, type FormEvent, type InputHTMLAttributes } 
 import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { ApiRequestError } from '../api/client';
 import { ThemeToggle } from '../components/layout/ThemeToggle';
-import { Spinner } from '../components/ui/States';
+import { FormError, Spinner } from '../components/ui/States';
 import { useAuth } from '../state/auth-context';
+import { Button } from '../components/ui/Button';
 
 /**
  * Never distinguishes "no such account" from "wrong password": that difference
@@ -72,21 +73,10 @@ function CredentialField({ id, label, value, onValueChange, ...inputProps }: Cre
 
 function LoginHeading() {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-      <h1 className="login__brand" style={{ flex: 1 }}>
-        kbviewer
-      </h1>
+    <div className="login__head">
+      <h1 className="login__brand">kbviewer</h1>
       <ThemeToggle />
     </div>
-  );
-}
-
-function FormError({ id, message }: { id: string; message: string | null }) {
-  if (!message) return null;
-  return (
-    <p className="form-error" id={id} role="alert">
-      {message}
-    </p>
   );
 }
 
@@ -142,9 +132,9 @@ function LoginForm({ from }: { from: string }) {
         aria-describedby={describedBy}
       />
 
-      <button type="submit" className="btn btn--primary btn--block" disabled={submitting}>
+      <Button type="submit" variant="primary" block disabled={submitting}>
         {submitting ? <Spinner label="Signing in" /> : 'Sign in'}
-      </button>
+      </Button>
     </form>
   );
 }

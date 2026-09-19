@@ -5,6 +5,7 @@ import { HomePage } from './pages/HomePage';
 import { LoginPage } from './pages/LoginPage';
 import { NotFoundPage } from './pages/NotFoundPage';
 import { RootsProvider } from './state/RootsProvider';
+import { ToastProvider } from './state/ToastProvider';
 import { useAuth } from './state/auth-context';
 
 /**
@@ -28,16 +29,18 @@ function RequireAuth() {
 
 export function App() {
   return (
-    <Routes>
-      <Route path="/login" element={<LoginPage />} />
-      <Route element={<RequireAuth />}>
-        <Route path="/" element={<HomePage />} />
-        <Route path="/n/:rootId/*" element={<VaultLayout mode="doc" />} />
-        <Route path="/f/:rootId" element={<VaultLayout mode="folder" />} />
-        <Route path="/f/:rootId/*" element={<VaultLayout mode="folder" />} />
-        <Route path="/t/:rootId/*" element={<VaultLayout mode="tag" />} />
-      </Route>
-      <Route path="*" element={<NotFoundPage />} />
-    </Routes>
+    <ToastProvider>
+      <Routes>
+        <Route path="/login" element={<LoginPage />} />
+        <Route element={<RequireAuth />}>
+          <Route path="/" element={<HomePage />} />
+          <Route path="/n/:rootId/*" element={<VaultLayout mode="doc" />} />
+          <Route path="/f/:rootId" element={<VaultLayout mode="folder" />} />
+          <Route path="/f/:rootId/*" element={<VaultLayout mode="folder" />} />
+          <Route path="/t/:rootId/*" element={<VaultLayout mode="tag" />} />
+        </Route>
+        <Route path="*" element={<NotFoundPage />} />
+      </Routes>
+    </ToastProvider>
   );
 }

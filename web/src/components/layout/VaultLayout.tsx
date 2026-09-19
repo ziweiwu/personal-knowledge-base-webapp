@@ -17,6 +17,7 @@ import { SearchPalette } from '../search/SearchPalette';
 import { Breadcrumbs } from './Breadcrumbs';
 import { Sidebar } from './Sidebar';
 import { ThemeToggle } from './ThemeToggle';
+import { Button } from '../ui/Button';
 
 export type VaultMode = 'doc' | 'folder' | 'tag';
 
@@ -161,9 +162,9 @@ function VaultShell({ mode, path }: { mode: VaultMode; path: string }) {
       </a>
 
       <header className="topbar">
-        <button
-          type="button"
-          className="btn btn--icon only-mobile"
+        <Button
+          variant="icon"
+          className="only-mobile"
           ref={menuButtonRef}
           onClick={() => setDrawerOpen((open) => !open)}
           aria-label={drawerOpen ? 'Close document list' : 'Open document list'}
@@ -171,7 +172,7 @@ function VaultShell({ mode, path }: { mode: VaultMode; path: string }) {
           aria-controls="sidebar-drawer"
         >
           <span aria-hidden="true">☰</span>
-        </button>
+        </Button>
 
         {/* The toolbar outranks the scrim so its toggle can close the drawer again;
             everything else in it is page chrome and is neutralised alongside <main>. */}
@@ -196,9 +197,8 @@ function VaultShell({ mode, path }: { mode: VaultMode; path: string }) {
         </button>
 
         {canFocus ? (
-          <button
-            type="button"
-            className="btn btn--icon"
+          <Button
+            variant="icon"
             onClick={focus.toggle}
             aria-pressed={focus.focused}
             aria-keyshortcuts="F"
@@ -206,7 +206,7 @@ function VaultShell({ mode, path }: { mode: VaultMode; path: string }) {
           >
             <span aria-hidden="true">⤢</span>
             <span className="sr-only">Focus reading mode</span>
-          </button>
+          </Button>
         ) : null}
 
         <span className="only-mobile" inert={behindDrawer}>
