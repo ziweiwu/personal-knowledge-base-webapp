@@ -13,6 +13,9 @@ use crate::auth::store::AuthStore;
 use crate::render::cache::RenderCache;
 use crate::render::variants::VariantCache;
 
+/// Held by a write route from its precondition check to the write that relies on it.
+pub type WriteGuard<'a> = std::sync::MutexGuard<'a, ()>;
+
 pub struct AppState {
     pub config: Config,
     /// One index per root, swapped wholesale when the watcher sees a change. Readers take
@@ -37,14 +40,16 @@ pub struct AppState {
     /// no longer matches and is correctly reported as external.
     recent_writes: DashMap<(String, String), RecentWrite>,
 
-    /// One write at a time.
+    /// One write at a time per root.
     ///
     /// Every write route checks something — the mtime precondition, that a path is free —
     /// and then acts on it. Two requests arriving together on different worker threads
     /// both passed the check and both wrote, so one edit vanished with a 200. Writes are
     /// human-paced and finish in milliseconds, so serialising them costs nothing; the
     /// routes hold the guard across no `.await`, so the executor is never blocked on it.
-    write_gate: std::sync::Mutex<()>,
+    /// Keyed like `indexes`: the guard covers the reindex walk too, and two vaults have
+    /// no reason to wait on each other's.
+    write_gates: HashMap<String, std::sync::Mutex<()>>,
 }
 
 #[derive(Clone)]
@@ -108,6 +113,11 @@ impl AppState {
             .collect();
 
         let (changes, _) = tokio::sync::broadcast::channel(CHANGE_CHANNEL_CAPACITY);
+        let write_gates = config
+            .roots
+            .iter()
+            .map(|root| (root.id.clone(), std::sync::Mutex::new(())))
+            .collect();
         Arc::new(Self {
             config,
             indexes,
@@ -116,7 +126,7 @@ impl AppState {
             auth,
             changes,
             recent_writes: DashMap::new(),
-            write_gate: std::sync::Mutex::new(()),
+            write_gates,
         })
     }
 
@@ -133,11 +143,15 @@ impl AppState {
     /// `origin` identifies the client that asked for the change, or `None` when the change
     /// came from outside this server (Obsidian, a sync client, an editor).
     /// Hold the returned guard from the precondition check to the write that relies on it.
-    pub fn serialise_writes(&self) -> std::sync::MutexGuard<'_, ()> {
+    /// `None` only for a root that does not exist, which the caller has already refused.
+    pub fn serialise_writes(&self, root_id: &str) -> Option<WriteGuard> {
         // A panic while writing does not make the gate itself unusable.
-        self.write_gate
+        let guard = self
+            .write_gates
+            .get(root_id)?
             .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        Some(guard)
     }
 
     pub fn reindex(&self, root_id: &str, paths: Vec<String>, origin: Option<String>) {

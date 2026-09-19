@@ -8,7 +8,7 @@
 //!      whole folder.
 
 use crate::error::{AppError, AppResult};
-use crate::state::AppState;
+use crate::state::{AppState, WriteGuard};
 use axum::body::Bytes;
 use axum::extract::{Path, Query, State};
 use axum::http::HeaderMap;
@@ -48,6 +48,13 @@ fn origin_of(headers: &HeaderMap) -> Option<String> {
         .and_then(|value| value.to_str().ok())
         .map(|value| value.chars().take(MAX_ORIGIN_CHARS).collect::<String>())
         .filter(|value| !value.is_empty())
+}
+
+/// The root's write gate; see `AppState::serialise_writes`.
+fn one_writer<'a>(state: &'a AppState, root_id: &str) -> AppResult<WriteGuard<'a>> {
+    state
+        .serialise_writes(root_id)
+        .ok_or(AppError::NotFound("folder".into()))
 }
 
 fn writable_root<'a>(
@@ -158,7 +165,7 @@ pub async fn save(
     }
 
     reject_uneditable(&state, &root_id, &path)?;
-    let _one_writer = state.serialise_writes();
+    let _one_writer = one_writer(&state, &root_id)?;
 
     let absolute = resolve_in_root(&root.path, &path)?;
     let current = mtime_ms(&absolute);
@@ -166,7 +173,11 @@ pub async fn save(
     // The precondition. Without it, whoever saves last wins and the other edit is gone
     // with no trace and no warning.
     if current != body.base_mtime_ms {
-        let disk_content = std::fs::read_to_string(&absolute).unwrap_or_default();
+        // Lossy on purpose: a file another writer just turned into non-UTF-8 bytes must
+        // still surface as a conflict the user can see, not as an empty "disk version".
+        let disk_content = std::fs::read(&absolute)
+            .map(|bytes| String::from_utf8_lossy(&bytes).into_owned())
+            .unwrap_or_default();
         return Err(AppError::Conflict(Box::new(SaveConflict {
             path: path.clone(),
             your_content: body.content,
@@ -223,7 +234,7 @@ pub async fn toggle_task(
 ) -> AppResult<Json<DocumentMeta>> {
     let root = writable_root(&state, &root_id)?;
     reject_unless_markdown(&state, &root_id, &path)?;
-    let _one_writer = state.serialise_writes();
+    let _one_writer = one_writer(&state, &root_id)?;
 
     let absolute = resolve_in_root(&root.path, &path)?;
     // The same precondition a full save carries: a checkbox is a smaller edit, not a
@@ -293,7 +304,7 @@ pub async fn create(
     let root = writable_root(&state, &root_id)?;
     reject_excluded(&path)?;
     let absolute = resolve_in_root(&root.path, &path)?;
-    let _one_writer = state.serialise_writes();
+    let _one_writer = one_writer(&state, &root_id)?;
 
     if absolute.exists() {
         return Err(AppError::AlreadyExists(path));
@@ -311,7 +322,7 @@ pub async fn create_folder(
     let root = writable_root(&state, &root_id)?;
     reject_excluded(&path)?;
     let absolute = resolve_in_root(&root.path, &path)?;
-    let _one_writer = state.serialise_writes();
+    let _one_writer = one_writer(&state, &root_id)?;
 
     if absolute.exists() {
         return Err(AppError::AlreadyExists(path));
@@ -336,7 +347,7 @@ pub async fn delete(
     // the way every other write does.
     reject_excluded(&path)?;
     let absolute = resolve_in_root(&root.path, &path)?;
-    let _one_writer = state.serialise_writes();
+    let _one_writer = one_writer(&state, &root_id)?;
     if !absolute.exists() {
         return Err(AppError::NotFound("document".into()));
     }
@@ -397,7 +408,7 @@ pub async fn upload(
     }
 
     let absolute = resolve_in_root(&root.path, &path)?;
-    let _one_writer = state.serialise_writes();
+    let _one_writer = one_writer(&state, &root_id)?;
     if absolute.exists() {
         return Err(AppError::AlreadyExists(path));
     }
@@ -425,7 +436,7 @@ pub async fn rename(
     reject_move_into_itself(&body)?;
     let from_absolute = resolve_in_root(&root.path, &body.from)?;
     let to_absolute = resolve_in_root(&root.path, &body.to)?;
-    let _one_writer = state.serialise_writes();
+    let _one_writer = one_writer(&state, &root_id)?;
 
     if !from_absolute.exists() {
         return Err(AppError::NotFound("document".into()));

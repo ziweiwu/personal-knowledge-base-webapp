@@ -107,9 +107,7 @@ fn render_kind(
     index: &Index,
     document: &Document,
 ) -> CachedRender {
-    if document.content.is_none()
-        && (document.kind.is_editable() || document.kind == DocumentKind::Markdown)
-    {
+    if document.content.is_none() && document.kind.is_editable() {
         return CachedRender {
             html: String::new(),
             headings: Vec::new(),
