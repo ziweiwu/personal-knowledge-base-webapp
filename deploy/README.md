@@ -145,6 +145,12 @@ forward unattended; pin a version tag if you do not want that.
   creates an empty directory and kbviewer starts normally on an empty folder. There
   is no error to notice. Check the path exists — and, for a vault, that it contains
   `.obsidian` — before starting, not after.
+- **The `.obsidian` folder.** Synology Drive and most sync clients skip dot-folders, so
+  a vault synced to the NAS arrives without it, and kbviewer then treats the folder as
+  plain markdown: every `[[link]]`, embed and callout renders as literal text while the
+  page otherwise looks healthy. The startup log says `wikilinks=false` for that root and
+  warns when notes still use `[[` syntax. Set `"wikilinks": true` on the root in the
+  config to force Obsidian mode regardless of the directory.
 - **The UID:GID.** The image sets no `USER` — that belongs to the deployment, not
   the image — so a compose file with no `user:` key runs the container as **root**
   and writes root-owned files into your documents folder. Set `user:` to

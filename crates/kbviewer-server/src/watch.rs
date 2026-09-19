@@ -60,7 +60,9 @@ fn reindex_changed_paths(
     if paths.is_empty() {
         return;
     }
-    tracing::debug!(root = %root_id, count = paths.len(), "reindexing after change");
+    // Info, not debug: one line per edit burst is cheap, and a stream of them with nobody
+    // editing is the only visible sign of a rebuild feeding itself.
+    tracing::info!(root = %root_id, count = paths.len(), "reindexing after change");
     // `origin: None` marks this as an external change, which is what tells the client it
     // did not cause it and should refresh.
     state.reindex(root_id, paths, None);
