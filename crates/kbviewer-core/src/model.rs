@@ -18,6 +18,13 @@ pub struct RootInfo {
     /// True when wikilinks, backlinks, callouts and tags are active for this root.
     pub obsidian_mode: bool,
     pub read_only: bool,
+    /// Everything the index holds for this root, attachments included.
+    #[ts(type = "number")]
+    pub documents: usize,
+    /// The newest mtime in the root, so a landing page can say when it last changed.
+    /// `None` for a root with nothing in it.
+    #[ts(type = "number | null")]
+    pub last_modified_ms: Option<i64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]

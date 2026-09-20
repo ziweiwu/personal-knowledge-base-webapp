@@ -269,6 +269,19 @@ async fn a_session_unlocks_the_api() {
     assert!(body.contains("\"obsidianMode\":true"), "got {body}");
 }
 
+/// The landing page shows a card per root; its numbers come from the index, not a walk.
+#[tokio::test]
+async fn roots_report_their_size_and_last_change() {
+    let harness = harness("rootstats");
+    let cookie = harness.login().await;
+    let (status, body) = harness.get_authed(&cookie, "/api/roots").await;
+    assert_eq!(status, StatusCode::OK);
+    let roots: serde_json::Value = serde_json::from_str(&body).unwrap();
+    let root = &roots[0];
+    assert!(root["documents"].as_u64().unwrap() > 0, "got {body}");
+    assert!(root["lastModifiedMs"].as_i64().unwrap() > 0, "got {body}");
+}
+
 #[tokio::test]
 async fn logging_out_invalidates_the_session() {
     let harness = harness("logout");

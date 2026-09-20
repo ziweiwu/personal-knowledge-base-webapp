@@ -14,6 +14,7 @@ setup('sign in once and save the session', async ({ page }) => {
   await page.getByLabel('Password').fill(PASSWORD);
   await page.getByRole('button', { name: 'Sign in' }).click();
 
-  await expect(page.locator('.app-shell')).toBeVisible();
+  // Signed in lands on the home page, which lists the collections.
+  await expect(page.getByRole('region', { name: 'Collections' })).toBeVisible();
   await page.context().storageState({ path: STORAGE_STATE });
 });

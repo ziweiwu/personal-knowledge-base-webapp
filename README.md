@@ -18,6 +18,9 @@ phone over Tailscale, behind a password.
 - **Edit on demand**: view first, edit when you want to, with conflict detection against
   changes made in Obsidian.
 - **Live**: edit a note on your desktop and the browser on your phone updates.
+- **Findable**: a home page of collections and recently opened notes, pins, search across
+  every collection from one palette, arrow keys in the file tree, hover previews on
+  wikilinks, and find-in-page that works in focus mode.
 
 ## Requirements
 

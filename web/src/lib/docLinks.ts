@@ -53,3 +53,11 @@ export function resolveInternalRoute(rootId: string, fromDocPath: string, href: 
   if (!path) return null;
   return `${docRoute(rootId, path)}${fragment}`;
 }
+
+/** The document a `/n/` route points at, or null for a folder, tag or external route. */
+export function docRouteTarget(route: string): { rootId: string; path: string } | null {
+  const match = /^\/n\/([^/?#]+)\/?([^?#]*)/.exec(route);
+  if (!match) return null;
+  const path = match[2].split('/').filter(Boolean).map(decodeOrPassThrough).join('/');
+  return { rootId: decodeOrPassThrough(match[1]), path };
+}

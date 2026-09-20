@@ -243,8 +243,9 @@ because `u64`/`i64` otherwise map to `bigint`, which `JSON.parse` never produces
 
 ### View preferences
 
-Sort, tree expansion and theme persist in `localStorage` through
-`web/src/lib/persist.ts`. Every access is wrapped: storage *throws* in Safari private
+Sort, tree expansion, theme, search scope, recently opened notes, pins and the last
+route per root persist in `localStorage` through `web/src/lib/persist.ts`
+(recents live in `web/src/lib/recents.ts`). Every access is wrapped: storage *throws* in Safari private
 browsing, and a lost preference must never become a blank page.
 
 A folder's name filter is stored **per folder**, never globally — one folder's filter

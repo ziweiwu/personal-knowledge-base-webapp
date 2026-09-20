@@ -10,6 +10,7 @@ import { FileActionsProvider } from '../files/FileActionsProvider';
 import { useRoots } from '../../state/roots-context';
 import { VaultProvider } from '../../state/VaultProvider';
 import { useVault } from '../../state/vault-context';
+import { rememberLastRoute } from '../../lib/recents';
 import { DocumentPage } from '../../pages/DocumentPage';
 import { FolderPage } from '../../pages/FolderPage';
 import { TagPage } from '../../pages/TagPage';
@@ -72,6 +73,11 @@ function VaultShell({ mode, path }: { mode: VaultMode; path: string }) {
   const mainRef = useRef<HTMLElement>(null);
 
   useScrollRestoration(mainRef);
+
+  // Remembered per root so the picker and the home page can return here later.
+  useEffect(() => {
+    rememberLastRoute(rootId, `${location.pathname}${location.search}${location.hash}`);
+  }, [rootId, location]);
 
   const closeDrawer = useCallback(() => setDrawerOpen(false), []);
 

@@ -173,8 +173,16 @@ addFile({
 });
 
 const roots: RootInfo[] = [
-  { id: 'kb', name: 'Knowledge Base', obsidianMode: true, readOnly: false },
-  { id: 'papers', name: 'Papers (read only)', obsidianMode: false, readOnly: true },
+  { id: 'kb', name: 'Knowledge Base', obsidianMode: true, readOnly: false, documents: 7, lastModifiedMs: NOW - 90_000 },
+  {
+    id: 'papers',
+    name: 'Papers (read only)',
+    obsidianMode: false,
+    readOnly: true,
+    documents: 0,
+    // A freshly configured empty root: the card must cope with no timestamp at all.
+    lastModifiedMs: null,
+  },
 ];
 
 function buildTree(): TreeNode[] {

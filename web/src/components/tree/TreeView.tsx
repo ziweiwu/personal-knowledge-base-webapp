@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, type KeyboardEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { docRoute, folderRoute } from '../../api/paths';
 import type { TreeNode } from '../../api/types';
@@ -36,6 +36,67 @@ function ancestorsOf(path: string): string[] {
     result.push(current);
   }
   return result;
+}
+
+/** What the keyboard asked for on a row: move focus to another row, or open/close this one. */
+type TreeKeyAction = { focus: number } | { open: boolean } | null;
+
+/**
+ * The rendered rows, in document order, which is also visual order since a collapsed
+ * folder renders no children. Reading the DOM instead of the model keeps this in step
+ * with sorting and expansion for free.
+ */
+function treeRows(container: HTMLElement): HTMLElement[] {
+  return Array.from(container.querySelectorAll<HTMLElement>('[data-tree-row]'));
+}
+
+function rowDepth(row: HTMLElement): number {
+  return Number(row.dataset.depth);
+}
+
+function nearestAncestorRow(rows: HTMLElement[], index: number): number | null {
+  const depth = rowDepth(rows[index]);
+  for (let candidate = index - 1; candidate >= 0; candidate -= 1) {
+    if (rowDepth(rows[candidate]) < depth) return candidate;
+  }
+  return null;
+}
+
+/**
+ * Up and down walk the visible rows; right opens a folder or steps into it; left closes a
+ * folder or steps out to its parent. Home and End match the context menu. A leaf has no
+ * children, so right does nothing there rather than jumping to an unrelated sibling.
+ */
+function resolveTreeKey(key: string, rows: HTMLElement[], index: number): TreeKeyAction {
+  const row = rows[index];
+  const isDir = row.dataset.dir === 'true';
+  const isOpen = row.dataset.open === 'true';
+  const last = rows.length - 1;
+  switch (key) {
+    case 'ArrowDown':
+      return index < last ? { focus: index + 1 } : null;
+    case 'ArrowUp':
+      return index > 0 ? { focus: index - 1 } : null;
+    case 'Home':
+      return { focus: 0 };
+    case 'End':
+      return { focus: last };
+    case 'ArrowRight':
+      if (!isDir) return null;
+      if (!isOpen) return { open: true };
+      return index < last && rowDepth(rows[index + 1]) > rowDepth(row) ? { focus: index + 1 } : null;
+    case 'ArrowLeft': {
+      if (isDir && isOpen) return { open: false };
+      const parent = nearestAncestorRow(rows, index);
+      return parent === null ? null : { focus: parent };
+    }
+    default:
+      return null;
+  }
+}
+
+function focusRow(row: HTMLElement): void {
+  row.querySelector<HTMLElement>('.tree__link')?.focus();
 }
 
 function sortNodes(nodes: TreeNode[]): TreeNode[] {
@@ -86,6 +147,34 @@ export function TreeView({ activePath, onNavigate }: TreeViewProps) {
     });
   }, []);
 
+  const setOpen = useCallback((path: string, open: boolean) => {
+    setExpanded((current) => {
+      if (current.has(path) === open) return current;
+      const next = new Set(current);
+      if (open) next.add(path);
+      else next.delete(path);
+      return next;
+    });
+  }, []);
+
+  // One listener on the outer list serves every row, however deep. A key pressed inside
+  // the context menu bubbles here through the portal, but its target sits in no row, so
+  // it is left to the menu.
+  const onKeyDown = useCallback(
+    (event: KeyboardEvent<HTMLUListElement>) => {
+      if (event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey) return;
+      const row = (event.target as HTMLElement).closest<HTMLElement>('[data-tree-row]');
+      if (!row) return;
+      const rows = treeRows(event.currentTarget);
+      const action = resolveTreeKey(event.key, rows, rows.indexOf(row));
+      if (!action) return;
+      event.preventDefault();
+      if ('focus' in action) focusRow(rows[action.focus]);
+      else setOpen(row.dataset.path ?? '', action.open);
+    },
+    [setOpen],
+  );
+
   const sorted = useMemo(() => (tree ? sortNodes(tree) : null), [tree]);
 
   if (treeError) return <ErrorState error={treeError} onRetry={reloadTree} />;
@@ -95,7 +184,7 @@ export function TreeView({ activePath, onNavigate }: TreeViewProps) {
   }
 
   return (
-    <ul className="tree">
+    <ul className="tree" onKeyDown={onKeyDown}>
       {sorted.map((node) => (
         <TreeBranch
           key={node.path}
@@ -151,7 +240,15 @@ function TreeBranch({ node, depth, rootId, activePath, expanded, onToggle, onNav
 
   return (
     <li>
-      <div className={`tree__row${isActive ? ' tree__row--selected' : ''}`} style={{ paddingLeft: depth * INDENT_PER_DEPTH_PX }}>
+      <div
+        className={`tree__row${isActive ? ' tree__row--selected' : ''}`}
+        style={{ paddingLeft: depth * INDENT_PER_DEPTH_PX }}
+        data-tree-row
+        data-path={node.path}
+        data-depth={depth}
+        data-dir={node.isDir}
+        data-open={node.isDir ? isOpen : undefined}
+      >
         <button
           type="button"
           className={`tree__twisty${node.isDir ? '' : ' tree__twisty--leaf'}`}

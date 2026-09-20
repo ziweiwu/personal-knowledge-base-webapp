@@ -26,15 +26,16 @@ test.describe('authentication', () => {
     await expect(page.getByLabel('Password')).toBeVisible();
   });
 
-  test('signing in reaches the documents and survives a reload', async ({ page }) => {
+  test('signing in reaches the collections and survives a reload', async ({ page }) => {
     await page.goto('/');
     await page.getByLabel('Email').fill(EMAIL);
     await page.getByLabel('Password').fill(PASSWORD);
     await page.getByRole('button', { name: 'Sign in' }).click();
-    await expect(page.locator('.app-shell')).toBeVisible();
+    const collections = page.getByRole('region', { name: 'Collections' });
+    await expect(collections).toBeVisible();
 
     await page.reload();
-    await expect(page.locator('.app-shell')).toBeVisible();
+    await expect(collections).toBeVisible();
     await expect(page.getByLabel('Password')).toHaveCount(0);
   });
 });

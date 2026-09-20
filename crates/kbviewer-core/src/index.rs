@@ -98,6 +98,11 @@ impl Index {
         }
     }
 
+    /// The newest mtime across the root, or `None` when it holds nothing.
+    pub fn last_modified_ms(&self) -> Option<i64> {
+        self.documents.values().map(|doc| doc.mtime_ms).max()
+    }
+
     pub fn get(&self, path: &str) -> Option<&Document> {
         self.documents.get(path)
     }

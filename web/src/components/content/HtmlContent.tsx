@@ -1,9 +1,12 @@
-import { useEffect, useLayoutEffect, useRef, type MouseEvent } from 'react';
+import { useContext, useEffect, useLayoutEffect, useRef, type MouseEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { hasMermaid, renderMermaid } from '../../lib/mermaid';
 import { isExternalHref, resolveAssetUrl, resolveInternalRoute } from '../../lib/docLinks';
 import { useTheme } from '../../state/theme-context';
 import { useToast } from '../../state/toast-context';
+import { FindBar } from './FindBar';
+import { FindContext } from './find-context';
+import { LinkPreview } from './LinkPreview';
 
 /**
  * Called when a task-list checkbox is ticked. Returns whether the write succeeded, so the
@@ -112,6 +115,7 @@ export function HtmlContent({ html, rootId, docPath, onToggleTask }: HtmlContent
   /** Checkboxes whose write has not come back yet, and the state each one asked for. */
   const inFlight = useRef(new WeakMap<HTMLInputElement, boolean>());
   const toast = useToast();
+  const find = useContext(FindContext);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -183,5 +187,11 @@ export function HtmlContent({ html, rootId, docPath, onToggleTask }: HtmlContent
     void navigate(route);
   };
 
-  return <div className="prose" ref={containerRef} onClick={onClick} />;
+  return (
+    <>
+      {find?.open ? <FindBar containerRef={containerRef} html={html} onClose={find.close} /> : null}
+      <div className="prose" ref={containerRef} onClick={onClick} />
+      <LinkPreview containerRef={containerRef} rootId={rootId} docPath={docPath} />
+    </>
+  );
 }

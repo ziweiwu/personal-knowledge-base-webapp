@@ -5,10 +5,15 @@ import { useAuth } from '../../state/auth-context';
 import { useFileActions } from '../../state/file-actions-context';
 import { useRoots } from '../../state/roots-context';
 import { useVault } from '../../state/vault-context';
+import { lastRoute } from '../../lib/recents';
+import { RecentList } from '../home/RecentList';
 import { TreeView } from '../tree/TreeView';
 import { ThemeToggle } from './ThemeToggle';
 import { Button } from '../ui/Button';
 import { Select } from '../ui/Select';
+
+/** Pinned notes plus a few recents; the tree below is the full list. */
+const SIDEBAR_RECENTS_LIMIT = 6;
 
 const CONNECTION_LABELS = {
   connecting: 'Connecting to live updates',
@@ -41,7 +46,8 @@ export function Sidebar({ activePath, currentDirectory, onNavigate }: SidebarPro
           id="root-picker"
           grow
           value={rootId}
-          onChange={(event) => void navigate(folderRoute(event.target.value, ''))}
+          // Switching back to a root lands where the user left it, not on its listing.
+          onChange={(event) => void navigate(lastRoute(event.target.value) ?? folderRoute(event.target.value, ''))}
         >
           {roots.length === 0 ? <option value={rootId}>{root?.name ?? rootId}</option> : null}
           {roots.map((candidate) => (
@@ -74,6 +80,14 @@ export function Sidebar({ activePath, currentDirectory, onNavigate }: SidebarPro
       </div>
 
       <div className="sidebar__scroll">
+        <RecentList
+          rootId={rootId}
+          activePath={activePath}
+          onNavigate={onNavigate}
+          headingId="sidebar-recents"
+          heading="Recent"
+          limit={SIDEBAR_RECENTS_LIMIT}
+        />
         <TreeView key={rootId} activePath={activePath} onNavigate={onNavigate} />
       </div>
 
