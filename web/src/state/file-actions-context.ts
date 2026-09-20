@@ -4,6 +4,7 @@ export interface FileActions {
   newNote: (directoryPath: string) => void;
   newFolder: (directoryPath: string) => void;
   rename: (path: string, isDir: boolean) => void;
+  move: (path: string, isDir: boolean) => void;
   remove: (path: string, isDir: boolean) => void;
   upload: (directoryPath: string) => void;
 }

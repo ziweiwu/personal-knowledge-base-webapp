@@ -70,6 +70,8 @@ export type RenameResult = { from: string, to: string,
  */
 updated: Array<string>, };
 
+export type RestoreRequest = { rootId: string, trashPath: string, };
+
 export type RootInfo = { id: string, name: string, 
 /**
  * True when wikilinks, backlinks, callouts and tags are active for this root.
@@ -121,5 +123,23 @@ line: number, checked: boolean,
  * The `mtimeMs` the client last read, exactly as a save carries it.
  */
 baseMtimeMs: number, };
+
+/**
+ * One file sitting in a root's `.trash/`, ready to be put back.
+ */
+export type TrashEntry = { 
+/**
+ * Path inside `.trash/`, including any `(n)` suffix a repeat delete added.
+ */
+trashPath: string, 
+/**
+ * Where a restore puts it: the original layout with the collision suffix removed.
+ */
+originalPath: string, name: string, size: number, 
+/**
+ * A move keeps the file's mtime, so this is when the note was last edited — the
+ * closest thing to a delete time the filesystem keeps.
+ */
+mtimeMs: number, };
 
 export type TreeNode = { name: string, path: string, isDir: boolean, kind?: DocumentKind, children?: Array<TreeNode>, };

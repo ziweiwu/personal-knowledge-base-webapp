@@ -42,7 +42,7 @@ pub const MAX_UPLOAD_BYTES: usize = 64 * 1024 * 1024;
 /// recent writes, so it is truncated rather than trusted.
 const MAX_ORIGIN_CHARS: usize = 64;
 
-fn origin_of(headers: &HeaderMap) -> Option<String> {
+pub(super) fn origin_of(headers: &HeaderMap) -> Option<String> {
     headers
         .get(ORIGIN_HEADER)
         .and_then(|value| value.to_str().ok())
@@ -51,7 +51,7 @@ fn origin_of(headers: &HeaderMap) -> Option<String> {
 }
 
 /// Hold the root's write gate; see `AppState::write_gate`.
-fn one_writer<'a>(state: &'a AppState, root_id: &str) -> AppResult<WriteGuard<'a>> {
+pub(super) fn one_writer<'a>(state: &'a AppState, root_id: &str) -> AppResult<WriteGuard<'a>> {
     let gate = state
         .write_gate(root_id)
         .ok_or(AppError::NotFound("folder".into()))?;
@@ -59,7 +59,7 @@ fn one_writer<'a>(state: &'a AppState, root_id: &str) -> AppResult<WriteGuard<'a
     Ok(gate.lock().unwrap_or_else(|poisoned| poisoned.into_inner()))
 }
 
-fn writable_root<'a>(
+pub(super) fn writable_root<'a>(
     state: &'a AppState,
     root_id: &str,
 ) -> AppResult<&'a kbviewer_core::config::RootConfig> {
@@ -78,7 +78,7 @@ fn writable_root<'a>(
 /// one succeeds on disk and then vanishes: `create` returns 404 for a file it just wrote,
 /// and `create_folder` returns 201 for a folder that never appears. Rejecting up front
 /// makes the refusal explicit instead of silently producing an invisible file.
-fn reject_excluded(path: &str) -> AppResult<()> {
+pub(super) fn reject_excluded(path: &str) -> AppResult<()> {
     if kbviewer_core::paths::is_excluded(FsPath::new(path)) {
         return Err(AppError::BadRequest(
             "that name is reserved: paths beginning with a dot, and .obsidian/.trash/@eaDir, are not shown".into(),
@@ -87,7 +87,7 @@ fn reject_excluded(path: &str) -> AppResult<()> {
     Ok(())
 }
 
-fn mtime_ms(path: &FsPath) -> i64 {
+pub(super) fn mtime_ms(path: &FsPath) -> i64 {
     std::fs::metadata(path)
         .and_then(|m| m.modified())
         .ok()
@@ -504,7 +504,7 @@ fn reject_move_into_itself(request: &RenameRequest) -> AppResult<()> {
     Ok(())
 }
 
-fn move_file(source: &FsPath, destination: &FsPath) -> AppResult<()> {
+pub(super) fn move_file(source: &FsPath, destination: &FsPath) -> AppResult<()> {
     if let Some(parent) = destination.parent() {
         ensure_folder(parent)?;
     }

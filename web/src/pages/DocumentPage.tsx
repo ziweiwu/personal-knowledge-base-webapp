@@ -202,6 +202,7 @@ export function DocumentPage({ rootId, path, onTitleChange }: DocumentPageProps)
           {canEdit ? (
             <>
               <Button onClick={() => actions.rename(path, false)}>Rename</Button>
+              <Button onClick={() => actions.move(path, false)}>Move</Button>
               <Button variant="danger-quiet" onClick={() => actions.remove(path, false)}>
                 Delete
               </Button>

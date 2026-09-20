@@ -1,7 +1,7 @@
 //! Router assembly.
 
 use crate::auth::middleware::require_session;
-use crate::routes::{auth, events, files, read, write};
+use crate::routes::{auth, events, files, read, trash, write};
 use crate::state::AppState;
 use axum::routing::{get, post};
 use axum::Router;
@@ -71,6 +71,8 @@ fn protected_routes() -> Router<Arc<AppState>> {
         )
         .route("/docx-media/{root_id}/{*rest}", get(files::docx_media))
         .route("/rename", post(write::rename))
+        .route("/trash", get(trash::list))
+        .route("/trash/restore", post(trash::restore))
 }
 
 async fn api_not_found() -> crate::error::AppError {

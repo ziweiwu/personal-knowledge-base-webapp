@@ -226,10 +226,12 @@ function TreeBranch({ node, depth, rootId, activePath, expanded, onToggle, onNav
         { id: 'new-folder', label: 'New folder here', icon: '📁', onSelect: () => actions.newFolder(node.path) },
         { id: 'upload', label: 'Upload files here', icon: '⬆️', onSelect: () => actions.upload(node.path) },
         { id: 'rename', label: 'Rename…', icon: '✏️', onSelect: () => actions.rename(node.path, true) },
+        { id: 'move', label: 'Move…', icon: '📂', onSelect: () => actions.move(node.path, true) },
         { id: 'delete', label: 'Delete…', icon: '🗑️', danger: true, onSelect: () => actions.remove(node.path, true) },
       ]
     : [
         { id: 'rename', label: 'Rename…', icon: '✏️', onSelect: () => actions.rename(node.path, false) },
+        { id: 'move', label: 'Move…', icon: '📂', onSelect: () => actions.move(node.path, false) },
         { id: 'delete', label: 'Delete…', icon: '🗑️', danger: true, onSelect: () => actions.remove(node.path, false) },
       ];
 
@@ -289,7 +291,12 @@ function TreeBranch({ node, depth, rootId, activePath, expanded, onToggle, onNav
       </div>
 
       {menuAnchor ? (
-        <ContextMenu items={menuItems} anchor={menuAnchor} label={`Actions for ${node.name}`} onClose={() => setMenuAnchor(null)} />
+        <ContextMenu
+          items={menuItems}
+          anchor={menuAnchor}
+          label={`Actions for ${node.name}`}
+          onClose={() => setMenuAnchor(null)}
+        />
       ) : null}
 
       {node.isDir && isOpen && children.length > 0 ? (

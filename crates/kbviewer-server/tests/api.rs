@@ -35,7 +35,23 @@ struct Harness {
     state: std::sync::Arc<AppState>,
 }
 
+/// Whether the harness root accepts writes. Read-only is the NAS's own configuration for
+/// a folder the app must only ever show, so the refusal path deserves a root of its own.
+#[derive(Clone, Copy)]
+enum RootAccess {
+    Writable,
+    ReadOnly,
+}
+
 fn harness(label: &str) -> Harness {
+    harness_with(label, RootAccess::Writable)
+}
+
+fn read_only_harness(label: &str) -> Harness {
+    harness_with(label, RootAccess::ReadOnly)
+}
+
+fn harness_with(label: &str, access: RootAccess) -> Harness {
     let base = std::env::temp_dir().join(format!("kbviewer-it-{label}"));
     let _ = std::fs::remove_dir_all(&base);
     let root = base.join("vault");
@@ -62,7 +78,12 @@ fn harness(label: &str) -> Harness {
             "host": "127.0.0.1",
             "port": 0,
             "dataDir": data_dir,
-            "roots": [{ "id": "kb", "name": "KB", "path": root }],
+            "roots": [{
+                "id": "kb",
+                "name": "KB",
+                "path": root,
+                "readOnly": matches!(access, RootAccess::ReadOnly),
+            }],
         })
         .to_string(),
     )
@@ -208,6 +229,7 @@ async fn every_api_route_requires_a_session() {
         "/api/file/kb/notes/secret.png",
         "/api/auth/session",
         "/api/events",
+        "/api/trash?root=kb",
     ];
     for uri in routes {
         let (status, _) = harness
@@ -466,6 +488,139 @@ async fn deleting_moves_to_trash_rather_than_destroying() {
     assert!(
         harness.root.join(".trash/notes/Target.md").exists(),
         "a delete over the network must be recoverable"
+    );
+}
+
+impl Harness {
+    async fn delete_authed(&self, cookie: &str, uri: &str) -> StatusCode {
+        let (status, _) = self
+            .send(
+                Request::delete(uri)
+                    .header(header::COOKIE, cookie)
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await;
+        status
+    }
+
+    async fn restore_authed(&self, cookie: &str, trash_path: &str) -> (StatusCode, String) {
+        self.send(
+            Request::post("/api/trash/restore")
+                .header(header::COOKIE, cookie)
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(
+                    serde_json::json!({ "rootId": "kb", "trashPath": trash_path }).to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+    }
+}
+
+/// The other half of INV-12: what delete moved aside can be listed and put back from a
+/// phone, and the index sees it again without a restart.
+#[tokio::test]
+async fn the_trash_lists_what_delete_moved_and_restore_puts_it_back() {
+    let harness = harness("trash-restore");
+    let cookie = harness.login().await;
+    assert_eq!(
+        harness
+            .delete_authed(&cookie, "/api/doc/kb/notes/Target.md")
+            .await,
+        StatusCode::NO_CONTENT
+    );
+
+    let (status, body) = harness.get_authed(&cookie, "/api/trash?root=kb").await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    let listed: serde_json::Value = serde_json::from_str(&body).unwrap();
+    assert_eq!(listed[0]["trashPath"], "notes/Target.md", "{body}");
+    assert_eq!(listed[0]["originalPath"], "notes/Target.md");
+    assert_eq!(listed[0]["name"], "Target.md");
+
+    let (status, body) = harness.restore_authed(&cookie, "notes/Target.md").await;
+    assert_eq!(status, StatusCode::NO_CONTENT, "{body}");
+    assert!(harness.root.join("notes/Target.md").exists());
+    assert!(!harness.root.join(".trash/notes/Target.md").exists());
+
+    let (status, body) = harness.get_authed(&cookie, "/api/trash?root=kb").await;
+    assert_eq!((status, body.as_str()), (StatusCode::OK, "[]"));
+    let (status, _) = harness
+        .get_authed(&cookie, "/api/doc/kb/notes/Target.md")
+        .await;
+    assert_eq!(status, StatusCode::OK, "the restored note must be indexed");
+}
+
+/// A repeat delete is parked as `name (1).md`; restoring it must go back to `name.md`,
+/// and never on top of a note that has since been written there.
+#[tokio::test]
+async fn restoring_removes_the_counter_and_never_overwrites_a_newer_note() {
+    let harness = harness("trash-conflict");
+    let cookie = harness.login().await;
+    harness
+        .delete_authed(&cookie, "/api/doc/kb/notes/Target.md")
+        .await;
+    std::fs::write(harness.root.join("notes/Target.md"), "# Second\n").unwrap();
+    harness
+        .delete_authed(&cookie, "/api/doc/kb/notes/Target.md")
+        .await;
+    assert!(harness.root.join(".trash/notes/Target (1).md").exists());
+
+    std::fs::write(harness.root.join("notes/Target.md"), "# Third\n").unwrap();
+    let (status, body) = harness.restore_authed(&cookie, "notes/Target (1).md").await;
+    assert_eq!(status, StatusCode::CONFLICT, "{body}");
+    assert_eq!(
+        std::fs::read_to_string(harness.root.join("notes/Target.md")).unwrap(),
+        "# Third\n",
+        "a refused restore must leave the newer note alone"
+    );
+
+    std::fs::remove_file(harness.root.join("notes/Target.md")).unwrap();
+    let (status, body) = harness.restore_authed(&cookie, "notes/Target (1).md").await;
+    assert_eq!(status, StatusCode::NO_CONTENT, "{body}");
+    assert_eq!(
+        std::fs::read_to_string(harness.root.join("notes/Target.md")).unwrap(),
+        "# Second\n"
+    );
+}
+
+/// Restore is a write, so it takes the same refusals as every other one: the trash is a
+/// root of its own for the source, and the destination is checked against the real root.
+#[tokio::test]
+async fn restore_cannot_reach_outside_the_trash_or_into_an_excluded_path() {
+    let harness = harness("trash-escape");
+    let cookie = harness.login().await;
+    std::fs::create_dir_all(harness.root.join(".trash")).unwrap();
+    for trash_path in [
+        "../notes/Target.md",
+        "../.obsidian/app.json",
+        ".obsidian/app.json",
+    ] {
+        let (status, body) = harness.restore_authed(&cookie, trash_path).await;
+        assert!(
+            status == StatusCode::NOT_FOUND || status == StatusCode::BAD_REQUEST,
+            "{trash_path} returned {status}: {body}"
+        );
+    }
+    assert!(harness.root.join("notes/Target.md").exists());
+    assert!(harness.root.join(".obsidian/app.json").exists());
+}
+
+/// INV-13 at the route level: the trash is a write surface, so a read-only root has none.
+#[tokio::test]
+async fn a_read_only_root_refuses_the_trash_like_every_other_write() {
+    let harness = read_only_harness("trash-read-only");
+    let cookie = harness.login().await;
+    let (status, body) = harness.get_authed(&cookie, "/api/trash?root=kb").await;
+    assert_eq!(status, StatusCode::FORBIDDEN, "{body}");
+    assert!(body.contains("read_only"), "{body}");
+    let (status, _) = harness.restore_authed(&cookie, "notes/Target.md").await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+    assert_eq!(
+        harness
+            .delete_authed(&cookie, "/api/doc/kb/notes/Target.md")
+            .await,
+        StatusCode::FORBIDDEN
     );
 }
 
@@ -1039,6 +1194,25 @@ async fn task_toggling_requires_a_session() {
                 .header(header::CONTENT_TYPE, "application/json")
                 .body(Body::from(
                     serde_json::json!({ "line": 1, "checked": true, "baseMtimeMs": 0 }).to_string(),
+                ))
+                .unwrap(),
+        )
+        .await;
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
+}
+
+/// Restore is a write into the real root, so it has to sit behind the same gate as every
+/// other one; the GET listing is covered by the every-route check, the POST is not.
+#[tokio::test]
+async fn trash_restore_requires_a_session() {
+    let harness = harness("trashauth");
+    let (status, _) = harness
+        .send(
+            Request::post("/api/trash/restore")
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(
+                    serde_json::json!({ "rootId": "kb", "trashPath": "notes/Target.md" })
+                        .to_string(),
                 ))
                 .unwrap(),
         )

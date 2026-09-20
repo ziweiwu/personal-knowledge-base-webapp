@@ -4,6 +4,7 @@ import { LoadingState } from './components/ui/States';
 import { HomePage } from './pages/HomePage';
 import { LoginPage } from './pages/LoginPage';
 import { NotFoundPage } from './pages/NotFoundPage';
+import { TrashPage } from './pages/TrashPage';
 import { RootsProvider } from './state/RootsProvider';
 import { ToastProvider } from './state/ToastProvider';
 import { useAuth } from './state/auth-context';
@@ -38,6 +39,7 @@ export function App() {
           <Route path="/f/:rootId" element={<VaultLayout mode="folder" />} />
           <Route path="/f/:rootId/*" element={<VaultLayout mode="folder" />} />
           <Route path="/t/:rootId/*" element={<VaultLayout mode="tag" />} />
+          <Route path="/trash/:rootId" element={<TrashPage />} />
         </Route>
         <Route path="*" element={<NotFoundPage />} />
       </Routes>

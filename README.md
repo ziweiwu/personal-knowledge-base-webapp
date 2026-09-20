@@ -21,6 +21,10 @@ phone over Tailscale, behind a password.
 - **Findable**: a home page of collections and recently opened notes, pins, search across
   every collection from one palette, arrow keys in the file tree, hover previews on
   wikilinks, and find-in-page that works in focus mode.
+- **Editable from a phone**: a formatting toolbar with Cmd-B/I/K, wikilink autocomplete
+  after `[[`, autosave ten seconds after you stop typing, a Move action with a folder
+  picker, a Trash view that restores deleted notes, and a conflict dialog that highlights
+  the lines that differ.
 
 ## Requirements
 

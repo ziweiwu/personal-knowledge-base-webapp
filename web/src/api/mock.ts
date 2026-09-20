@@ -364,6 +364,12 @@ function handleRename(request: MockRequest): Response {
   return json({ from: body.from, to: body.to, updated: ['index.md', 'projects/kbviewer.md'] });
 }
 
+/** The mock never deletes for real, so its trash is always empty and a restore is a no-op. */
+function handleTrash(request: MockRequest): Response {
+  if (request.method === 'POST') return new Response(null, { status: HTTP_NO_CONTENT });
+  return json([]);
+}
+
 function createDocument(path: string, existing: MockFile | undefined): Response {
   if (existing) return error(HTTP_CONFLICT, 'exists', 'A file already exists at that path.');
   const name = path.slice(path.lastIndexOf('/') + 1);
@@ -439,6 +445,7 @@ const ROUTES = new Map<string, RouteHandler>([
   ['search', handleSearch],
   ['folder', handleFolder],
   ['rename', handleRename],
+  ['trash', handleTrash],
   ['doc', handleDoc],
   ['raw', handleRaw],
   ['file', handleFile],
@@ -446,7 +453,10 @@ const ROUTES = new Map<string, RouteHandler>([
 
 async function handle(url: string, init: RequestInit): Promise<Response> {
   const parsed = new URL(url, window.location.origin);
-  const segments = parsed.pathname.replace(/^\/api\/?/, '').split('/').filter(Boolean);
+  const segments = parsed.pathname
+    .replace(/^\/api\/?/, '')
+    .split('/')
+    .filter(Boolean);
   const [head, ...rest] = segments;
   const request: MockRequest = {
     method: (init.method ?? 'GET').toUpperCase(),
