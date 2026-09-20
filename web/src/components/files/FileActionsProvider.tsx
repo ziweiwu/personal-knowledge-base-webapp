@@ -6,6 +6,7 @@ import { FileActionsContext } from '../../state/file-actions-context';
 import { useVault } from '../../state/vault-context';
 import { ConfirmDialog } from '../ui/ConfirmDialog';
 import { PromptDialog } from '../ui/PromptDialog';
+import { MoveDialog } from './MoveDialog';
 import { useToast } from '../../state/toast-context';
 import { describeError } from '../../lib/errors';
 
@@ -13,6 +14,7 @@ type Pending =
   | { kind: 'new-note'; directory: string }
   | { kind: 'new-folder'; directory: string }
   | { kind: 'rename'; path: string; isDir: boolean }
+  | { kind: 'move'; path: string; isDir: boolean }
   | { kind: 'delete'; path: string; isDir: boolean };
 
 /** A typed name already carries its own extension; anything else gets `.md`. */
@@ -21,6 +23,12 @@ const HAS_EXTENSION = /\.[a-z0-9]+$/i;
 function errorMessage(cause: unknown): string {
   if (cause instanceof Error) return describeError(cause).detail;
   return String(cause);
+}
+
+/** The tail of a rename or move toast: how many other documents had links rewritten. */
+function linksSummary(updatedCount: number): string {
+  if (updatedCount === 0) return '';
+  return ` — also updated links in ${updatedCount} ${updatedCount === 1 ? 'document' : 'documents'}`;
 }
 
 function fileCount(count: number): string {
@@ -39,7 +47,7 @@ function uploadSummary(uploaded: number, attempted: number, destination: string,
  * tree, the folder listing and the toolbar all share one implementation.
  */
 export function FileActionsProvider({ children }: { children: ReactNode }) {
-  const { rootId, root, reloadTree, notifyLocalChange } = useVault();
+  const { rootId, root, tree, reloadTree, notifyLocalChange } = useVault();
   const navigate = useNavigate();
   const toast = useToast();
 
@@ -59,6 +67,7 @@ export function FileActionsProvider({ children }: { children: ReactNode }) {
       newNote: (directory: string) => start({ kind: 'new-note', directory }),
       newFolder: (directory: string) => start({ kind: 'new-folder', directory }),
       rename: (path: string, isDir: boolean) => start({ kind: 'rename', path, isDir }),
+      move: (path: string, isDir: boolean) => start({ kind: 'move', path, isDir }),
       remove: (path: string, isDir: boolean) => start({ kind: 'delete', path, isDir }),
       upload: (directory: string) => {
         setError(null);
@@ -109,6 +118,19 @@ export function FileActionsProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  /** Rename and move are one server call: the destination is what differs. */
+  const relocate = async (from: string, target: string, routeTo: typeof docRoute, verb: string) => {
+    setBusy(true);
+    try {
+      const result = await renameDocument(rootId, { from, to: target, updateLinks: true });
+      finish(`${verb} to ${result.to}${linksSummary(result.updated.length)}.`);
+      void navigate(routeTo(rootId, result.to));
+    } catch (cause) {
+      setBusy(false);
+      setError(errorMessage(cause));
+    }
+  };
+
   const runRename = async (name: string) => {
     if (pending?.kind !== 'rename') return;
     const target = joinPath(parentPath(pending.path), name);
@@ -116,20 +138,25 @@ export function FileActionsProvider({ children }: { children: ReactNode }) {
       setPending(null);
       return;
     }
-    setBusy(true);
-    try {
-      const result = await renameDocument(rootId, { from: pending.path, to: target, updateLinks: true });
-      const updatedCount = result.updated.length;
-      finish(
-        updatedCount > 0
-          ? `Renamed to ${result.to} — also updated links in ${updatedCount} ${updatedCount === 1 ? 'document' : 'documents'}.`
-          : `Renamed to ${result.to}.`,
-      );
-      void navigate(pending.isDir ? folderRoute(rootId, result.to) : docRoute(rootId, result.to));
-    } catch (cause) {
-      setBusy(false);
-      setError(errorMessage(cause));
+    await relocate(pending.path, target, pending.isDir ? folderRoute : docRoute, 'Renamed');
+  };
+
+  const runMove = async (folder: string) => {
+    if (pending?.kind !== 'move') return;
+    if (folder === parentPath(pending.path)) {
+      setPending(null);
+      return;
     }
+    if (pending.isDir && (folder === pending.path || folder.startsWith(`${pending.path}/`))) {
+      setError('A folder cannot be moved into itself.');
+      return;
+    }
+    await relocate(
+      pending.path,
+      joinPath(folder, baseName(pending.path)),
+      pending.isDir ? folderRoute : docRoute,
+      'Moved',
+    );
   };
 
   const runDelete = async () => {
@@ -137,7 +164,7 @@ export function FileActionsProvider({ children }: { children: ReactNode }) {
     setBusy(true);
     try {
       await deleteDocument(rootId, pending.path);
-      finish(`Moved ${baseName(pending.path)} to .trash/`);
+      finish(`Moved ${baseName(pending.path)} to Trash`);
       void navigate(folderRoute(rootId, parentPath(pending.path)));
     } catch (cause) {
       setBusy(false);
@@ -228,12 +255,25 @@ export function FileActionsProvider({ children }: { children: ReactNode }) {
         />
       ) : null}
 
+      {pending?.kind === 'move' && tree ? (
+        <MoveDialog
+          path={pending.path}
+          isDir={pending.isDir}
+          tree={tree}
+          linksRewritten={Boolean(root?.obsidianMode)}
+          busy={busy}
+          error={error}
+          onSubmit={(folder) => void runMove(folder)}
+          onCancel={() => setPending(null)}
+        />
+      ) : null}
+
       {pending?.kind === 'delete' ? (
         <ConfirmDialog
           title={pending.isDir ? 'Delete folder?' : 'Delete note?'}
-          message={`“${baseName(pending.path)}” will be moved to .trash/ inside this folder.`}
-          detail="Nothing is erased — you can restore it from .trash/ on disk."
-          confirmLabel="Move to .trash/"
+          message={`“${baseName(pending.path)}” will be moved to this collection's Trash.`}
+          detail="Nothing is erased — you can restore it from Trash."
+          confirmLabel="Move to Trash"
           danger
           busy={busy}
           error={error}

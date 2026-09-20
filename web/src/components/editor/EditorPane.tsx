@@ -6,14 +6,11 @@ import { formatDateTime } from '../../lib/format';
 import { useTheme } from '../../state/theme-context';
 import { Banner, ErrorState, LoadingState } from '../ui/States';
 import { describeError } from '../../lib/errors';
-import { CodeMirrorField } from './CodeMirrorField';
+import { CodeMirrorField, type EditorHandle } from './CodeMirrorField';
 import { ConflictDialog } from './ConflictDialog';
+import { FormatToolbar } from './FormatToolbar';
 import { Button } from '../ui/Button';
-
-interface EditorHandle {
-  getValue: () => string;
-  setValue: (next: string) => void;
-}
+import { AUTOSAVE_IDLE_SECONDS, useAutosave } from './useAutosave';
 
 export interface EditorPaneProps {
   rootId: string;
@@ -50,6 +47,9 @@ export function EditorPane({
   const [savedAt, setSavedAt] = useState<number | null>(null);
   const [conflict, setConflict] = useState<SaveConflict | null>(null);
   const [base, setBase] = useState(baseMtimeMs);
+  const [editCount, setEditCount] = useState(0);
+  // A failed save is not retried on a timer; the next keystroke re-arms the autosave.
+  const [autosavePaused, setAutosavePaused] = useState(false);
 
   useEffect(() => onDirtyChange(dirty), [dirty, onDirtyChange]);
 
@@ -122,12 +122,22 @@ export function EditorPane({
     try {
       applySaved(await saveDocument(rootId, path, { content, baseMtimeMs: base }));
     } catch (cause) {
+      setAutosavePaused(true);
       if (cause instanceof SaveConflictError) setConflict(cause.conflict);
       else setSaveError(cause instanceof Error ? describeError(cause).detail : String(cause));
     } finally {
       setSaving(false);
     }
   }, [applySaved, base, path, rootId]);
+
+  const autosaveBlocked = !dirty || saving || autosavePaused || conflict !== null || diskMovedAway;
+  useAutosave({ save: autosaveBlocked ? null : save, editCount });
+
+  const onEdit = () => {
+    setDirty(true);
+    setAutosavePaused(false);
+    setEditCount((count) => count + 1);
+  };
 
   /** "Keep mine": re-save the buffer against the disk mtime we were just handed. */
   const keepMine = async () => {
@@ -191,15 +201,21 @@ export function EditorPane({
           Done
         </Button>
         <span className="editor__status" role="status">
-          {dirty
-            ? 'Unsaved changes'
-            : savedAt
-              ? `Saved ${formatDateTime(savedAt)}`
-              : `Last modified ${formatDateTime(base)}`}
+          {saving
+            ? 'Saving…'
+            : dirty
+              ? 'Unsaved changes'
+              : savedAt
+                ? `Saved ${formatDateTime(savedAt)}`
+                : `Last modified ${formatDateTime(base)}`}
         </span>
         <span className="editor__status editor__status--fixed only-desktop">
           <kbd>⌘S</kbd> to save
         </span>
+        <span className="editor__status editor__status--fixed">
+          Autosaves {AUTOSAVE_IDLE_SECONDS} s after you stop typing
+        </span>
+        {kind === 'markdown' ? <FormatToolbar onRun={(command) => handleRef.current?.run(command)} /> : null}
       </div>
 
       {/* Suppressed while the conflict modal is open: both describe the same change,
@@ -224,9 +240,10 @@ export function EditorPane({
 
       <CodeMirrorField
         initialValue={source.data}
+        rootId={rootId}
         language={kind === 'markdown' ? 'markdown' : 'plain'}
         theme={theme}
-        onChange={() => setDirty(true)}
+        onChange={onEdit}
         onSave={() => void save()}
         onReady={(handle) => {
           handleRef.current = handle;

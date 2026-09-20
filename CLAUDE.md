@@ -139,6 +139,12 @@ query parameter (`/api/tree?root=`, `/api/search?root=`, `/api/rename?root=`). U
 raw bytes to `POST /api/file/{root}/{path…}`, deliberately separate from the JSON
 `POST /api/doc/…` so neither has to infer its body shape from a content type.
 
+Delete never erases: it moves the file to the root's `.trash/`, which the index excludes.
+`GET /api/trash?root=` lists what is there and `POST /api/trash/restore` moves one entry
+back, stripping the ` (n)` counter a repeat delete added and answering 409 if the
+destination is occupied. Move is not a route of its own; it is `/api/rename` with a target
+in another folder, which the server already accepted and rewrote links for.
+
 Ticking a checkbox is `POST /api/task/{root}/{path…}`, deliberately not a save: it names a
 line and a state, so it cannot carry content even if asked. It takes the same
 `baseMtimeMs` precondition and answers a mismatch with the same 409 — as `AppError::Stale`,

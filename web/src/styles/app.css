@@ -1901,3 +1901,266 @@ kbd {
     min-height: var(--tap);
   }
 }
+
+
+/* E3: formatting toolbar. A second row inside the sticky editor bar, so it stays
+   reachable while a phone keyboard is up. Narrow screens scroll it sideways rather
+   than wrapping it into a block that eats the editor. */
+.format-bar {
+  display: flex;
+  flex-basis: 100%;
+  gap: var(--space-1);
+  overflow-x: auto;
+  scrollbar-width: thin;
+  -webkit-overflow-scrolling: touch;
+}
+
+.format-bar .format-bar__tool {
+  flex: 0 0 auto;
+  font-size: var(--text-md);
+  color: var(--fg-muted);
+}
+
+.format-bar .format-bar__tool:hover:not(:disabled),
+.format-bar .format-bar__tool:focus-visible {
+  color: var(--fg);
+}
+
+.format-bar__glyph--bold {
+  font-weight: 700;
+}
+
+.format-bar__glyph--italic {
+  font-style: italic;
+}
+
+.format-bar__glyph--mono {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+}
+
+
+/* ------------------------------------------- editor: wikilink completion -- */
+
+.editor__host .cm-tooltip.cm-tooltip-autocomplete {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-elevated);
+  color: var(--fg);
+  box-shadow: var(--shadow-md);
+  font-family: var(--font-ui);
+  font-size: var(--text-sm);
+  overflow: hidden;
+}
+
+.editor__host .cm-tooltip.cm-tooltip-autocomplete > ul {
+  max-height: 40vh;
+  font-family: inherit;
+}
+
+.editor__host .cm-tooltip.cm-tooltip-autocomplete > ul > li {
+  padding: var(--space-2) var(--space-4);
+  line-height: 1.5;
+}
+
+.editor__host .cm-tooltip.cm-tooltip-autocomplete > ul > li[aria-selected] {
+  background: var(--bg-selected);
+  color: var(--fg);
+}
+
+.editor__host .cm-tooltip.cm-tooltip-autocomplete .cm-completionDetail {
+  margin-left: var(--space-3);
+  color: var(--fg-muted);
+  font-style: normal;
+  font-size: var(--text-xs);
+}
+
+@media (pointer: coarse) {
+  .editor__host .cm-tooltip.cm-tooltip-autocomplete > ul > li {
+    min-height: var(--tap);
+    display: flex;
+    align-items: center;
+  }
+}
+
+
+/* ------------------------------------------------------------- trash page -- */
+
+.trash {
+  max-width: 72ch;
+  margin: 0 auto;
+  padding: var(--space-5) var(--space-4) var(--space-6);
+}
+
+.trash__head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-bottom: var(--space-5);
+}
+
+.trash__back {
+  align-self: flex-start;
+  color: var(--fg-muted);
+  text-decoration: none;
+  min-height: var(--tap);
+  display: inline-flex;
+  align-items: center;
+}
+
+.trash__back:hover,
+.trash__back:focus-visible {
+  color: var(--fg);
+  text-decoration: underline;
+}
+
+.trash__title {
+  margin: 0;
+  font-size: var(--text-xl);
+}
+
+.trash__lede {
+  margin: 0;
+  color: var(--fg-muted);
+  font-size: var(--text-md);
+}
+
+.trash__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-elevated);
+  overflow: hidden;
+}
+
+.trash__row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+}
+
+.trash__row + .trash__row {
+  border-top: 1px solid var(--border);
+}
+
+.trash__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+  flex: 1;
+}
+
+.trash__name {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.trash__meta {
+  color: var(--fg-muted);
+  font-size: var(--text-sm);
+}
+
+@media (max-width: 480px) {
+  .trash__row {
+    flex-wrap: wrap;
+  }
+
+  .trash__row .btn {
+    width: 100%;
+  }
+}
+
+
+/* E6: line diff inside the conflict dialog */
+.conflict__summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  margin: 0 0 var(--space-4);
+  font-size: var(--text-sm);
+  color: var(--fg-muted);
+}
+
+.conflict__line {
+  display: block;
+  padding-left: var(--space-3);
+  border-left: 3px solid transparent;
+}
+
+.conflict__line--changed {
+  border-left-color: var(--warning);
+  background: var(--warning-subtle);
+  color: var(--fg);
+}
+
+.conflict__line:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+
+/* ---------------------------------------------------------------------------
+   Move dialog: folder picker
+   --------------------------------------------------------------------------- */
+
+.move__lead {
+  margin: 0 0 var(--space-4);
+}
+
+.folder-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 40vh;
+  overflow-y: auto;
+  padding: var(--space-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg);
+}
+
+.folder-picker__item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  min-height: var(--tap);
+  padding: var(--space-2) var(--space-3);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--fg);
+  font-size: var(--text-md);
+  text-align: left;
+  cursor: pointer;
+}
+
+.folder-picker__item:hover:not(:disabled) {
+  background: var(--bg-hover);
+}
+
+.folder-picker__item:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.folder-picker__item--checked {
+  background: var(--bg-selected);
+  font-weight: 600;
+}
+
+.folder-picker__item:disabled {
+  color: var(--fg-muted);
+  cursor: not-allowed;
+}
+
+.folder-picker__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

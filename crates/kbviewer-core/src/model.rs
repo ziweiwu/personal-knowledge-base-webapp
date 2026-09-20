@@ -209,6 +209,32 @@ pub struct RenameResult {
     pub updated: Vec<String>,
 }
 
+/// One file sitting in a root's `.trash/`, ready to be put back.
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, export_to = "types.ts")]
+pub struct TrashEntry {
+    /// Path inside `.trash/`, including any `(n)` suffix a repeat delete added.
+    pub trash_path: String,
+    /// Where a restore puts it: the original layout with the collision suffix removed.
+    pub original_path: String,
+    pub name: String,
+    #[ts(type = "number")]
+    pub size: u64,
+    /// A move keeps the file's mtime, so this is when the note was last edited — the
+    /// closest thing to a delete time the filesystem keeps.
+    #[ts(type = "number")]
+    pub mtime_ms: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, export_to = "types.ts")]
+pub struct RestoreRequest {
+    pub root_id: String,
+    pub trash_path: String,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export, export_to = "types.ts")]

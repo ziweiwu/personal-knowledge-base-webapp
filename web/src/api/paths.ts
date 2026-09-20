@@ -52,6 +52,11 @@ export function folderRoute(rootId: string, path: string): string {
   return `/f/${encodeURIComponent(rootId)}${encoded ? `/${encoded}` : ''}`;
 }
 
+/** What delete moved aside for one collection, with a Restore per entry. */
+export function trashRoute(rootId: string): string {
+  return `/trash/${encodeURIComponent(rootId)}`;
+}
+
 /** A tag's listing, the same address the server writes into rendered `#tag` links. */
 export function tagRoute(rootId: string, tag: string): string {
   return `/t/${encodeURIComponent(rootId)}/${encodePath(tag)}`;

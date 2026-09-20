@@ -5,22 +5,18 @@ import type {
   FolderListing,
   RenameRequest,
   RenameResult,
+  RestoreRequest,
   RootInfo,
   SaveConflict,
   SaveRequest,
   SearchHit,
   SessionInfo,
   TaskToggleRequest,
+  TrashEntry,
   TreeNode,
 } from './types';
 import { API_BASE, docUrl, fileUrl, folderUrl, rawUrl, resourceUrl } from './paths';
-import {
-  HTTP_CONFLICT,
-  HTTP_NO_CONTENT,
-  HTTP_NOT_FOUND,
-  HTTP_TOO_MANY_REQUESTS,
-  HTTP_UNAUTHORIZED,
-} from './status';
+import { HTTP_CONFLICT, HTTP_NO_CONTENT, HTTP_NOT_FOUND, HTTP_TOO_MANY_REQUESTS, HTTP_UNAUTHORIZED } from './status';
 
 /**
  * Identifies this browser tab so the SSE stream's `origin` field can be used to
@@ -230,11 +226,7 @@ function looksLikeSaveConflict(value: unknown): value is SaveConflict {
  * Optimistic-concurrency save. A 409 carries both versions, and is surfaced as a
  * `SaveConflictError` so the caller can offer a choice instead of overwriting.
  */
-export async function saveDocument(
-  rootId: string,
-  path: string,
-  payload: SaveRequest,
-): Promise<DocumentMeta> {
+export async function saveDocument(rootId: string, path: string, payload: SaveRequest): Promise<DocumentMeta> {
   try {
     const response = await request(docUrl(rootId, path), { method: 'PUT', json: payload, mutating: true });
     return (await response.json()) as DocumentMeta;
@@ -268,11 +260,7 @@ export async function fetchTagged(rootId: string, tag: string, signal?: AbortSig
  * licence to overwrite someone else's. Returns the document's new meta so the caller can
  * keep its concurrency token current for the next tick.
  */
-export async function toggleTask(
-  rootId: string,
-  path: string,
-  toggle: TaskToggleRequest,
-): Promise<DocumentMeta> {
+export async function toggleTask(rootId: string, path: string, toggle: TaskToggleRequest): Promise<DocumentMeta> {
   const response = await request(resourceUrl('task', rootId, path), {
     method: 'POST',
     json: toggle,
@@ -288,6 +276,16 @@ export async function createFolder(rootId: string, path: string): Promise<void> 
 /** Moves the document to `.trash/` server-side rather than unlinking it. */
 export async function deleteDocument(rootId: string, path: string): Promise<void> {
   await request(docUrl(rootId, path), { method: 'DELETE', mutating: true });
+}
+
+export function fetchTrash(rootId: string, signal?: AbortSignal): Promise<TrashEntry[]> {
+  return getJson<TrashEntry[]>(`${API_BASE}/trash?root=${encodeURIComponent(rootId)}`, signal);
+}
+
+/** Moves a trashed file back to where it was deleted from; 409 if something is there now. */
+export async function restoreFromTrash(rootId: string, trashPath: string): Promise<void> {
+  const payload: RestoreRequest = { rootId, trashPath };
+  await request(`${API_BASE}/trash/restore`, { method: 'POST', json: payload, mutating: true });
 }
 
 export async function renameDocument(rootId: string, payload: RenameRequest): Promise<RenameResult> {

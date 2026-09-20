@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom';
-import { folderRoute } from '../../api/paths';
+import { folderRoute, trashRoute } from '../../api/paths';
 import { useConnectionState } from '../../hooks/useChangeEvents';
 import { useAuth } from '../../state/auth-context';
 import { useFileActions } from '../../state/file-actions-context';
@@ -74,6 +74,14 @@ export function Sidebar({ activePath, currentDirectory, onNavigate }: SidebarPro
               title="New folder"
             >
               <span aria-hidden="true">📁</span>
+            </Button>
+            <Button
+              variant="icon"
+              onClick={() => void navigate(trashRoute(rootId))}
+              aria-label="Open the trash for this collection"
+              title="Trash"
+            >
+              <span aria-hidden="true">🗑</span>
             </Button>
           </>
         ) : null}
