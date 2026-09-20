@@ -59,13 +59,13 @@ pub async fn list(
             continue;
         }
         let trash_path = relative.to_string_lossy().to_string();
-        entries.push(entry_for(item.path(), &trash_path));
+        entries.push(entry_for(&bin, item.path(), &trash_path));
     }
     entries.sort_by_key(|entry| std::cmp::Reverse(entry.mtime_ms));
     Ok(Json(entries))
 }
 
-fn entry_for(absolute: &FsPath, trash_path: &str) -> TrashEntry {
+fn entry_for(bin: &FsPath, absolute: &FsPath, trash_path: &str) -> TrashEntry {
     let name = trash_path
         .rsplit('/')
         .next()
@@ -74,7 +74,7 @@ fn entry_for(absolute: &FsPath, trash_path: &str) -> TrashEntry {
     let size = std::fs::metadata(absolute).map(|m| m.len()).unwrap_or(0);
     TrashEntry {
         trash_path: trash_path.to_string(),
-        original_path: original_path(trash_path),
+        original_path: original_path(bin, trash_path),
         name,
         size,
         mtime_ms: mtime_ms(absolute),
@@ -93,12 +93,12 @@ pub async fn restore(
 ) -> AppResult<StatusCode> {
     let root = writable_root(&state, &body.root_id)?;
     reject_excluded(&body.trash_path)?;
-    let original = original_path(&body.trash_path);
-    reject_excluded(&original)?;
-
+    let bin = root.path.join(TRASH_DIR);
     // `.trash/` is a root of its own here, so a request cannot name a file outside it,
     // and the destination is checked against the real root like every other write.
-    let source = resolve_in_root(&root.path.join(TRASH_DIR), &body.trash_path)?;
+    let source = resolve_in_root(&bin, &body.trash_path)?;
+    let original = original_path(&bin, &body.trash_path);
+    reject_excluded(&original)?;
     let destination = resolve_in_root(&root.path, &original)?;
     let _one_writer = one_writer(&state, &body.root_id)?;
 
@@ -117,10 +117,14 @@ pub async fn restore(
 /// Where a trashed file came from: its path inside `.trash/` with the ` (n)` counter a
 /// repeat delete added to the file name removed.
 ///
+/// The counter is only removed when the un-numbered file is also in the trash, since that
+/// is the only way `trash_destination` ever adds one; a note whose real name ends in
+/// ` (2)` has no such sibling and goes back under the name it was written with.
+///
 /// Only the last component is un-numbered. A deleted *folder* that collided keeps its
 /// counter, because restoring its files one at a time into the un-numbered folder would
 /// silently merge two deletions of different folders.
-fn original_path(trash_path: &str) -> String {
+fn original_path(bin: &FsPath, trash_path: &str) -> String {
     let (dir, name) = match trash_path.rsplit_once('/') {
         Some((dir, name)) => (Some(dir), name),
         None => (None, trash_path),
@@ -134,10 +138,14 @@ fn original_path(trash_path: &str) -> String {
         restored.push('.');
         restored.push_str(extension);
     }
-    match dir {
+    let restored_path = match dir {
         Some(dir) => format!("{dir}/{restored}"),
         None => restored,
+    };
+    if restored_path != trash_path && !bin.join(&restored_path).exists() {
+        return trash_path.to_string();
     }
+    restored_path
 }
 
 fn strip_counter(stem: &str) -> &str {
@@ -158,24 +166,67 @@ fn strip_counter(stem: &str) -> &str {
 #[cfg(test)]
 mod tests {
     use super::original_path;
+    use std::path::Path;
+
+    /// A trash holding the files named, so a counter has the sibling that justifies it.
+    fn trash_with(files: &[&str]) -> tempfile::TempDir {
+        let bin = tempfile::tempdir().unwrap();
+        for file in files {
+            let path = bin.path().join(file);
+            std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+            std::fs::write(path, "").unwrap();
+        }
+        bin
+    }
 
     #[test]
     fn a_counter_added_by_a_repeat_delete_is_removed() {
-        assert_eq!(original_path("notes/Target (1).md"), "notes/Target.md");
-        assert_eq!(original_path("Target (12).md"), "Target.md");
-        assert_eq!(original_path("Target (overflow).md"), "Target.md");
+        let bin = trash_with(&["notes/Target.md", "Target.md"]);
+        assert_eq!(
+            original_path(bin.path(), "notes/Target (1).md"),
+            "notes/Target.md"
+        );
+        assert_eq!(original_path(bin.path(), "Target (12).md"), "Target.md");
+        assert_eq!(
+            original_path(bin.path(), "Target (overflow).md"),
+            "Target.md"
+        );
     }
 
     #[test]
     fn a_first_deletion_and_a_name_with_brackets_are_left_alone() {
-        assert_eq!(original_path("notes/Target.md"), "notes/Target.md");
-        assert_eq!(original_path("Meeting (draft).md"), "Meeting (draft).md");
-        assert_eq!(original_path("Meeting ().md"), "Meeting ().md");
-        assert_eq!(original_path("notes/README"), "notes/README");
+        let bin = trash_with(&["Meeting.md"]);
+        assert_eq!(
+            original_path(bin.path(), "notes/Target.md"),
+            "notes/Target.md"
+        );
+        assert_eq!(
+            original_path(bin.path(), "Meeting (draft).md"),
+            "Meeting (draft).md"
+        );
+        assert_eq!(original_path(bin.path(), "Meeting ().md"), "Meeting ().md");
+        assert_eq!(original_path(bin.path(), "notes/README"), "notes/README");
+    }
+
+    #[test]
+    fn a_name_that_genuinely_ends_in_a_number_keeps_it() {
+        let bin = trash_with(&["Chapter (2).md"]);
+        assert_eq!(
+            original_path(bin.path(), "Chapter (2).md"),
+            "Chapter (2).md"
+        );
+        assert_eq!(
+            original_path(Path::new("/nonexistent"), "Chapter (2).md"),
+            "Chapter (2).md"
+        );
     }
 
     #[test]
     fn a_folder_that_collided_keeps_its_counter() {
-        assert_eq!(original_path("notes (1)/a.md"), "notes (1)/a.md");
+        let bin = trash_with(&["notes/a.md", "notes (1)/a.md"]);
+        assert_eq!(
+            original_path(bin.path(), "notes (1)/a.md"),
+            "notes (1)/a.md"
+        );
     }
 }

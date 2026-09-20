@@ -1,7 +1,7 @@
-import { useMemo } from 'react';
+import { useEffect, useState } from 'react';
 import type { SaveConflict } from '../../api/types';
 import { formatDateTime } from '../../lib/format';
-import { type DiffLine, type LineDiff, diffLines } from '../../lib/lineDiff';
+import { type DiffLine, type LineDiff, diffLines, splitLines } from '../../lib/lineDiff';
 import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
 import { FormError } from '../ui/States';
@@ -68,12 +68,24 @@ function jumpTo(id: string): void {
   line.focus();
 }
 
-function DiffSummary({ diff }: { diff: LineDiff }) {
+/** The buffer's pane when it has a change; otherwise the change can only be on disk. */
+function firstChangeTarget(diff: LineDiff): string {
+  return firstChangedIndex(diff.left) >= 0 ? 'conflict-first-change-mine' : 'conflict-first-change-disk';
+}
+
+function DiffSummary({ diff }: { diff: LineDiff | null }) {
+  if (!diff) {
+    return (
+      <p className="conflict__summary" role="status">
+        <span>Comparing…</span>
+      </p>
+    );
+  }
   return (
     <p className="conflict__summary" role="status">
       <span>{describeDiff(diff)}</span>
       {diff.changed > 0 ? (
-        <Button variant="ghost" onClick={() => jumpTo('conflict-first-change-mine')}>
+        <Button variant="ghost" onClick={() => jumpTo(firstChangeTarget(diff))}>
           Jump to first change
         </Button>
       ) : null}
@@ -81,12 +93,37 @@ function DiffSummary({ diff }: { diff: LineDiff }) {
   );
 }
 
+interface ComputedDiff {
+  conflict: SaveConflict;
+  diff: LineDiff;
+}
+
+/**
+ * The diff is computed after the dialog has painted, so a big note shows both versions at
+ * once and the comparison fills in, rather than the dialog appearing only when it is done.
+ */
+function useDeferredDiff(conflict: SaveConflict): LineDiff | null {
+  const [computed, setComputed] = useState<ComputedDiff | null>(null);
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setComputed({ conflict, diff: diffLines(conflict.yourContent, conflict.diskContent) });
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [conflict]);
+  return computed?.conflict === conflict ? computed.diff : null;
+}
+
+/** Before the diff is in, each side is shown as it is, with nothing marked. */
+function plainLines(text: string): DiffLine[] {
+  return splitLines(text).map((line) => ({ text: line, kind: 'same' }));
+}
+
 /**
  * Shown on HTTP 409. Both versions are on screen and neither is applied until
  * the user picks one — Obsidian may well have the same note open.
  */
 export function ConflictDialog({ conflict, busy, error, onKeepMine, onTakeTheirs, onCancel }: ConflictDialogProps) {
-  const diff = useMemo(() => diffLines(conflict.yourContent, conflict.diskContent), [conflict]);
+  const diff = useDeferredDiff(conflict);
   return (
     <Modal
       title="This file changed on disk"
@@ -118,13 +155,13 @@ export function ConflictDialog({ conflict, busy, error, onKeepMine, onTakeTheirs
           id="conflict-first-change-mine"
           title="Your version"
           subtitle="the buffer in this editor"
-          lines={diff.left}
+          lines={diff ? diff.left : plainLines(conflict.yourContent)}
         />
         <Pane
           id="conflict-first-change-disk"
           title="On disk"
           subtitle={`modified ${formatDateTime(conflict.diskMtimeMs)}`}
-          lines={diff.right}
+          lines={diff ? diff.right : plainLines(conflict.diskContent)}
         />
       </div>
     </Modal>

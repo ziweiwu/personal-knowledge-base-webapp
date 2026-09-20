@@ -23,10 +23,10 @@ export interface LineDiff {
   tooLarge: boolean;
 }
 
-/** The LCS table is quadratic (32 MB at this size); past it, plain panes beat a stalled dialog. */
-export const MAX_DIFF_LINES = 4000;
+/** The LCS table is quadratic (8 MB at this size); past it, plain panes beat a stalled dialog. */
+export const MAX_DIFF_LINES = 2000;
 
-function splitLines(text: string): string[] {
+export function splitLines(text: string): string[] {
   const lines = text.split('\n');
   // A trailing newline is a line ending, not an extra empty line.
   if (lines.length > 1 && lines[lines.length - 1] === '') lines.pop();

@@ -60,6 +60,18 @@ test.describe('wikilink completion', () => {
     await expect(editor).toContainText('[[projects/kbview/notes/Meeting Notes]]');
   });
 
+  test('the Wikilink toolbar button opens the note picker inside the empty link', async ({ page }) => {
+    const editor = await openEditorAtEnd(page, 'vault', 'index.md');
+    await page.keyboard.type('\nSee ');
+    await page.getByRole('button', { name: /^wikilink$/i }).click();
+
+    const option = page.locator('.cm-tooltip-autocomplete li', { hasText: 'Glossary' });
+    await expect(option).toBeVisible();
+    await option.click();
+
+    await expect(editor).toContainText('See [[Glossary]]');
+  });
+
   test('a plain text file gets no wikilink completion', async ({ page }) => {
     await openEditorAtEnd(page, 'shapes', 'notes.txt');
     await page.keyboard.type('\n[[Glo');

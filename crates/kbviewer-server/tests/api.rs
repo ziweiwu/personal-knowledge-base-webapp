@@ -1201,6 +1201,25 @@ async fn task_toggling_requires_a_session() {
     assert_eq!(status, StatusCode::UNAUTHORIZED);
 }
 
+/// Restore is a write into the real root, so it has to sit behind the same gate as every
+/// other one; the GET listing is covered by the every-route check, the POST is not.
+#[tokio::test]
+async fn trash_restore_requires_a_session() {
+    let harness = harness("trashauth");
+    let (status, _) = harness
+        .send(
+            Request::post("/api/trash/restore")
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(
+                    serde_json::json!({ "rootId": "kb", "trashPath": "notes/Target.md" })
+                        .to_string(),
+                ))
+                .unwrap(),
+        )
+        .await;
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
+}
+
 fn json_post(uri: &str, cookie: &str, body: serde_json::Value) -> Request<Body> {
     Request::post(uri)
         .header(header::COOKIE, cookie)

@@ -11,6 +11,11 @@ interface AutosaveOptions {
    * last attempt failed and no edit has happened since.
    */
   save: (() => void) | null;
+  /**
+   * The save to run as the page is hidden or unloading, null under the same conditions.
+   * It must issue a request that outlives the page; a plain one is cancelled with it.
+   */
+  flush: (() => void) | null;
   /** Grows with every edit; each change restarts the idle window. */
   editCount: number;
 }
@@ -20,32 +25,34 @@ interface AutosaveOptions {
  * once when the page is hidden or unloading — the case mobile Safari never reports through
  * `beforeunload`, so a backgrounded tab used to be the one way to lose text.
  */
-export function useAutosave({ save, editCount }: AutosaveOptions): void {
-  const latestSave = useRef(save);
+export function useAutosave({ save, flush, editCount }: AutosaveOptions): void {
+  const latest = useRef({ save, flush });
   useEffect(() => {
-    latestSave.current = save;
-  }, [save]);
+    latest.current = { save, flush };
+  }, [save, flush]);
 
   const armed = save !== null;
   useEffect(() => {
     if (!armed) return;
     let fired = false;
-    const fire = () => {
+    const once = (run: () => void) => {
       if (fired) return;
       fired = true;
       window.clearTimeout(timer);
-      latestSave.current?.();
+      run();
     };
-    const timer = window.setTimeout(fire, AUTOSAVE_IDLE_MS);
+    const onIdle = () => once(() => latest.current.save?.());
+    const onLeave = () => once(() => (latest.current.flush ?? latest.current.save)?.());
+    const timer = window.setTimeout(onIdle, AUTOSAVE_IDLE_MS);
     const onVisibilityChange = () => {
-      if (document.visibilityState === 'hidden') fire();
+      if (document.visibilityState === 'hidden') onLeave();
     };
     document.addEventListener('visibilitychange', onVisibilityChange);
-    window.addEventListener('pagehide', fire);
+    window.addEventListener('pagehide', onLeave);
     return () => {
       window.clearTimeout(timer);
       document.removeEventListener('visibilitychange', onVisibilityChange);
-      window.removeEventListener('pagehide', fire);
+      window.removeEventListener('pagehide', onLeave);
     };
   }, [armed, editCount]);
 }

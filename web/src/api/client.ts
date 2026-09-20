@@ -123,6 +123,8 @@ interface RequestOptions {
   signal?: AbortSignal;
   /** Mutating calls tag themselves so the SSE echo can be filtered out. */
   mutating?: boolean;
+  /** Lets the request outlive the page, for a save fired as the tab is hidden or closed. */
+  keepalive?: boolean;
 }
 
 async function request(url: string, options: RequestOptions = {}): Promise<Response> {
@@ -142,6 +144,7 @@ async function request(url: string, options: RequestOptions = {}): Promise<Respo
     credentials: 'same-origin',
     ...(body === undefined ? {} : { body }),
     ...(options.signal ? { signal: options.signal } : {}),
+    ...(options.keepalive ? { keepalive: true } : {}),
   };
 
   const response = await transport(url, init);
@@ -227,8 +230,20 @@ function looksLikeSaveConflict(value: unknown): value is SaveConflict {
  * `SaveConflictError` so the caller can offer a choice instead of overwriting.
  */
 export async function saveDocument(rootId: string, path: string, payload: SaveRequest): Promise<DocumentMeta> {
+  return putDocument(docUrl(rootId, path), { method: 'PUT', json: payload, mutating: true });
+}
+
+/**
+ * The same save with `keepalive`, for the autosave that fires as the tab is hidden or
+ * unloaded: an ordinary fetch is cancelled with the page, and the buffer with it.
+ */
+export async function saveDocumentOnUnload(rootId: string, path: string, payload: SaveRequest): Promise<DocumentMeta> {
+  return putDocument(docUrl(rootId, path), { method: 'PUT', json: payload, mutating: true, keepalive: true });
+}
+
+async function putDocument(url: string, options: RequestOptions): Promise<DocumentMeta> {
   try {
-    const response = await request(docUrl(rootId, path), { method: 'PUT', json: payload, mutating: true });
+    const response = await request(url, options);
     return (await response.json()) as DocumentMeta;
   } catch (error) {
     if (error instanceof ApiRequestError && error.isConflict && looksLikeSaveConflict(error.body)) {

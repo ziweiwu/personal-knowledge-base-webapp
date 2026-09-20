@@ -1,5 +1,6 @@
 import { EditorSelection, type ChangeSpec, type EditorState, type SelectionRange } from '@codemirror/state';
 import type { EditorView } from '@codemirror/view';
+import { startCompletion } from '@codemirror/autocomplete';
 
 /** A CodeMirror command: applies to the view and reports whether it did anything. */
 export type FormatCommand = (view: EditorView) => boolean;
@@ -68,7 +69,16 @@ function toggleWrap(marks: WrapMarks): FormatCommand {
 export const toggleBold = toggleWrap({ open: '**', close: '**' });
 export const toggleItalic = toggleWrap({ open: '*', close: '*' });
 export const toggleInlineCode = toggleWrap({ open: '`', close: '`' });
-export const toggleWikilink = toggleWrap({ open: '[[', close: ']]' });
+const WIKILINK_OPEN = '[[';
+const wrapWikilink = toggleWrap({ open: WIKILINK_OPEN, close: ']]' });
+
+/** An empty `[[]]` is a link still waiting for its target, so the note picker opens at once. */
+export const toggleWikilink: FormatCommand = (view) => {
+  wrapWikilink(view);
+  const { head } = view.state.selection.main;
+  if (view.state.sliceDoc(head - WIKILINK_OPEN.length, head) === WIKILINK_OPEN) startCompletion(view);
+  return true;
+};
 
 /**
  * `[selection](url)` with the cursor parked where the url goes. With nothing selected the
@@ -96,7 +106,9 @@ function selectedLineNumbers(state: EditorState): number[] {
   const numbers = new Set<number>();
   for (const range of state.selection.ranges) {
     const first = state.doc.lineAt(range.from).number;
-    const last = state.doc.lineAt(range.to).number;
+    // A selection that ends exactly at a line start (a whole-line drag) does not include that line.
+    const endsAtLineStart = range.to > range.from && state.doc.lineAt(range.to).from === range.to;
+    const last = state.doc.lineAt(endsAtLineStart ? range.to - 1 : range.to).number;
     for (let line = first; line <= last; line += 1) numbers.add(line);
   }
   return [...numbers].sort((left, right) => left - right);

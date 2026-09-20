@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { SaveConflictError, fetchDocument, fetchRaw, saveDocument } from '../../api/client';
+import { SaveConflictError, fetchDocument, fetchRaw, saveDocument, saveDocumentOnUnload } from '../../api/client';
 import type { DocumentMeta, SaveConflict } from '../../api/types';
 import { useAsyncResource } from '../../hooks/useAsyncResource';
 import { formatDateTime } from '../../lib/format';
@@ -114,24 +114,33 @@ export function EditorPane({
     [onSaved],
   );
 
-  const save = useCallback(async () => {
-    const content = handleRef.current?.getValue();
-    if (content === undefined) return;
-    setSaving(true);
-    setSaveError(null);
-    try {
-      applySaved(await saveDocument(rootId, path, { content, baseMtimeMs: base }));
-    } catch (cause) {
-      setAutosavePaused(true);
-      if (cause instanceof SaveConflictError) setConflict(cause.conflict);
-      else setSaveError(cause instanceof Error ? describeError(cause).detail : String(cause));
-    } finally {
-      setSaving(false);
-    }
-  }, [applySaved, base, path, rootId]);
+  const saveWith = useCallback(
+    async (put: typeof saveDocument) => {
+      const content = handleRef.current?.getValue();
+      if (content === undefined) return;
+      setSaving(true);
+      setSaveError(null);
+      try {
+        applySaved(await put(rootId, path, { content, baseMtimeMs: base }));
+      } catch (cause) {
+        setAutosavePaused(true);
+        if (cause instanceof SaveConflictError) setConflict(cause.conflict);
+        else setSaveError(cause instanceof Error ? describeError(cause).detail : String(cause));
+      } finally {
+        setSaving(false);
+      }
+    },
+    [applySaved, base, path, rootId],
+  );
+  const save = useCallback(() => saveWith(saveDocument), [saveWith]);
+  const saveOnHide = useCallback(() => saveWith(saveDocumentOnUnload), [saveWith]);
 
   const autosaveBlocked = !dirty || saving || autosavePaused || conflict !== null || diskMovedAway;
-  useAutosave({ save: autosaveBlocked ? null : save, editCount });
+  useAutosave({
+    save: autosaveBlocked ? null : save,
+    flush: autosaveBlocked ? null : saveOnHide,
+    editCount,
+  });
 
   const onEdit = () => {
     setDirty(true);

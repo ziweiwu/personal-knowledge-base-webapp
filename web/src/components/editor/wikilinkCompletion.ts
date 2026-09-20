@@ -28,7 +28,15 @@ const SCORE_TITLE_CONTAINS = 2;
 const SCORE_PATH_CONTAINS = 1;
 const SCORE_NONE = 0;
 
-const titlesByRoot = new Map<string, Promise<NoteTitle[]>>();
+/** How long a fetched title list is trusted before a note created elsewhere is worth a refetch. */
+const TITLES_TTL_MS = 15_000;
+
+interface CachedTitles {
+  fetchedAt: number;
+  titles: Promise<NoteTitle[]>;
+}
+
+const titlesByRoot = new Map<string, CachedTitles>();
 
 function collectNotes(nodes: TreeNode[], into: NoteTitle[]): void {
   for (const node of nodes) {
@@ -52,17 +60,19 @@ function disambiguateTitles(notes: NoteTitle[]): NoteTitle[] {
   );
 }
 
-/** The root's notes, fetched once per editor session; a failed fetch is retried next time. */
+/** The root's notes, refetched once the list is old enough; a failed fetch is retried next time. */
 export function noteTitles(rootId: string): Promise<NoteTitle[]> {
   const known = titlesByRoot.get(rootId);
-  if (known) return known;
+  if (known && Date.now() - known.fetchedAt < TITLES_TTL_MS) return known.titles;
   const pending = fetchTree(rootId).then((tree) => {
     const notes: NoteTitle[] = [];
     collectNotes(tree, notes);
     return disambiguateTitles(notes);
   });
-  pending.catch(() => titlesByRoot.delete(rootId));
-  titlesByRoot.set(rootId, pending);
+  pending.catch(() => {
+    if (titlesByRoot.get(rootId)?.titles === pending) titlesByRoot.delete(rootId);
+  });
+  titlesByRoot.set(rootId, { fetchedAt: Date.now(), titles: pending });
   return pending;
 }
 

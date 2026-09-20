@@ -4,8 +4,10 @@ import { openDoc, readRootFile } from './helpers';
 const IDLE_MS = 10_000;
 const HALF_IDLE_MS = 5_000;
 
-async function openEditor(page: Page): Promise<void> {
-  await openDoc(page, 'shapes', 'notes.txt');
+/** A note of the test's own, so nothing another spec reads is mutated by the save. */
+async function openEditor(page: Page, name: string): Promise<void> {
+  await page.request.post(`/api/doc/shapes/${name}`, { data: { content: 'plain line\n', baseMtimeMs: 0 } });
+  await openDoc(page, 'shapes', name);
   await page.getByRole('button', { name: /edit/i }).click();
   const editor = page.locator('.cm-content');
   await expect(editor).toBeVisible();
@@ -20,20 +22,20 @@ async function openEditor(page: Page): Promise<void> {
 test.describe('autosave', () => {
   test('a buffer left idle is saved without pressing Save', async ({ page }) => {
     await page.clock.install();
-    await openEditor(page);
+    await openEditor(page, 'idle-playground.md');
     await page.keyboard.type('\nAutosaved by the e2e suite.');
     await expect(page.getByRole('status').filter({ hasText: 'Unsaved changes' })).toBeVisible();
-    expect(readRootFile('content-shapes', 'notes.txt')).not.toContain('Autosaved by the e2e suite');
+    expect(readRootFile('content-shapes', 'idle-playground.md')).not.toContain('Autosaved by the e2e suite');
 
     await page.clock.runFor(IDLE_MS + 1);
 
     await expect(page.getByRole('status').filter({ hasText: /^Saved/ })).toBeVisible();
-    await expect.poll(() => readRootFile('content-shapes', 'notes.txt')).toContain('Autosaved by the e2e suite');
+    await expect.poll(() => readRootFile('content-shapes', 'idle-playground.md')).toContain('Autosaved by the e2e suite');
   });
 
   test('typing keeps restarting the idle window, so a busy buffer is not saved mid-thought', async ({ page }) => {
     await page.clock.install();
-    await openEditor(page);
+    await openEditor(page, 'bursts-playground.md');
     await page.keyboard.type('\nFirst burst.');
     await page.clock.runFor(HALF_IDLE_MS);
     await page.keyboard.type(' Second burst.');
@@ -41,9 +43,11 @@ test.describe('autosave', () => {
 
     // Ten seconds have passed since the first keystroke, but only five since the last.
     await expect(page.getByRole('status').filter({ hasText: 'Unsaved changes' })).toBeVisible();
-    expect(readRootFile('content-shapes', 'notes.txt')).not.toContain('Second burst');
+    expect(readRootFile('content-shapes', 'bursts-playground.md')).not.toContain('Second burst');
 
     await page.clock.runFor(HALF_IDLE_MS + 1);
-    await expect.poll(() => readRootFile('content-shapes', 'notes.txt')).toContain('First burst. Second burst.');
+    await expect
+      .poll(() => readRootFile('content-shapes', 'bursts-playground.md'))
+      .toContain('First burst. Second burst.');
   });
 });
