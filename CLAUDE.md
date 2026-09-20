@@ -271,7 +271,9 @@ render through `StateFrame` in `web/src/components/ui/States.tsx`, which takes a
 act on, so a raw status code never reaches the screen.
 
 Below 900px the inline table of contents becomes a floating button that opens a bottom
-sheet (`web/src/components/content/TocSheet.tsx`), built on the same inert/focus-trap/scroll-lock hooks as `Modal`.
+sheet (`web/src/components/content/TocSheet.tsx`); it and `Modal` are both dressings of
+`DialogShell` in `web/src/components/ui/`, which owns the portal, scrim, focus trap,
+Escape and scroll lock, so a dialog fix lands once.
 The reading-progress bar is mounted only on the document route and hidden by CSS while the
 editor is open (`.app-shell:has(.editor)`); `:has()` is supported by every browser the app
 targets, but a browser without it shows the bar over the editor rather than breaking.

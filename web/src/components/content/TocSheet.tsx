@@ -1,11 +1,7 @@
-import { useEffect, useId, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
+import { useEffect, useRef, useState } from 'react';
 import type { Heading } from '../../api/types';
-import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
-import { useEscapeKey } from '../../hooks/useEscapeKey';
-import { useFocusTrap } from '../../hooks/useFocusTrap';
-import { useInertBackground } from '../../hooks/useInertBackground';
 import { Button } from '../ui/Button';
+import { DialogShell } from '../ui/DialogShell';
 import { TocList } from './TocList';
 
 interface TocSheetButtonProps {
@@ -52,38 +48,19 @@ interface TocSheetProps extends TocSheetButtonProps {
 }
 
 function TocSheet({ headings, shallowest, currentSlug, onClose }: TocSheetProps) {
-  const panelRef = useRef<HTMLDivElement>(null);
-  const titleId = useId();
-
-  // Same order as Modal: the background is focusable again before the trap hands focus back.
-  useInertBackground();
-  useFocusTrap(panelRef);
-  useEscapeKey(onClose);
-  useBodyScrollLock('locked');
-
-  return createPortal(
-    <div
-      className="toc-sheet-scrim"
-      onMouseDown={(event) => {
-        if (event.target === event.currentTarget) onClose();
-      }}
+  return (
+    <DialogShell
+      title="Contents"
+      closeLabel="Close contents"
+      onClose={onClose}
+      onBackdrop={onClose}
+      block="toc-sheet"
+      handle={<div className="toc-sheet__handle" aria-hidden="true" />}
     >
-      <div className="toc-sheet" role="dialog" aria-modal="true" aria-labelledby={titleId} ref={panelRef}>
-        <div className="toc-sheet__handle" aria-hidden="true" />
-        <div className="toc-sheet__head">
-          <h2 className="toc-sheet__title" id={titleId}>
-            Contents
-          </h2>
-          <Button variant="icon" onClick={onClose} aria-label="Close contents">
-            ✕
-          </Button>
-        </div>
-        <nav className="toc toc--sheet" aria-label="Table of contents">
-          <TocList headings={headings} shallowest={shallowest} currentSlug={currentSlug} onNavigate={onClose} />
-        </nav>
-      </div>
-    </div>,
-    document.body,
+      <nav className="toc toc--sheet" aria-label="Table of contents">
+        <TocList headings={headings} shallowest={shallowest} currentSlug={currentSlug} onNavigate={onClose} />
+      </nav>
+    </DialogShell>
   );
 }
 

@@ -8,7 +8,12 @@ const ROOT_ROUTE_PREFIXES = ['n', 'f', 't', 'trash'];
 function rootIdFrom(pathname: string): string | null {
   const [prefix, rootId] = pathname.split('/').filter(Boolean);
   if (!prefix || !rootId || !ROOT_ROUTE_PREFIXES.includes(prefix)) return null;
-  return decodeURIComponent(rootId);
+  try {
+    return decodeURIComponent(rootId);
+  } catch {
+    // A bad percent-escape is exactly the kind of address this page exists to answer.
+    return rootId;
+  }
 }
 
 export function NotFoundPage() {

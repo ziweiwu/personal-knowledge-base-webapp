@@ -439,15 +439,19 @@
 
 /* ---------------------------------------------------------------- modal -- */
 
-.modal-scrim {
+/* Every dialog's scrim; the block classes below only say where the panel sits on it. */
+.dialog-scrim {
   position: fixed;
   inset: 0;
   z-index: 90;
   display: flex;
+  background: var(--bg-overlay);
+}
+
+.modal-scrim {
   align-items: center;
   justify-content: center;
   padding: var(--space-5);
-  background: var(--bg-overlay);
 }
 
 .modal {
@@ -2332,12 +2336,7 @@ kbd {
 }
 
 .toc-sheet-scrim {
-  position: fixed;
-  inset: 0;
-  z-index: 90;
-  display: flex;
   align-items: flex-end;
-  background: var(--bg-overlay);
 }
 
 .toc-sheet {

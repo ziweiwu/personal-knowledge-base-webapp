@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { describeError, type ErrorKind } from '../../lib/errors';
+import { describeError } from '../../lib/errors';
 import { Button } from './Button';
 import { Icon } from './Icon';
 
@@ -71,22 +71,20 @@ export function EmptyState({ title, detail, tone = 'neutral', glyph, children }:
 export function NotFoundState({
   title,
   detail,
+  role = 'status',
   children,
 }: {
   title: string;
   detail?: ReactNode;
+  /** `alert` when the thing being read vanished, so a screen reader hears it at once. */
+  role?: 'alert' | 'status';
   children?: ReactNode;
 }) {
   return (
-    <StateFrame tone="neutral" glyph={<Icon name="compass" size="lg" />} title={title} detail={detail} role="status">
+    <StateFrame tone="neutral" glyph={<Icon name="compass" size="lg" />} title={title} detail={detail} role={role}>
       {children}
     </StateFrame>
   );
-}
-
-/** A failure that only needs patience or a retry reads as a warning; the rest as danger. */
-function toneForFailure(kind: ErrorKind): StateTone {
-  return kind === 'network' || kind === 'rate-limited' ? 'warning' : 'danger';
 }
 
 interface ErrorStateProps {
@@ -97,17 +95,17 @@ interface ErrorStateProps {
 }
 
 export function ErrorState({ error, onRetry, tone, glyph }: ErrorStateProps) {
-  const { kind, title, detail } = describeError(error);
+  const { kind, title, detail, severity } = describeError(error);
   const retry = onRetry ? <Button onClick={onRetry}>Try again</Button> : null;
   if (kind === 'not-found' && !tone) {
     return (
-      <NotFoundState title={title} detail={detail}>
+      <NotFoundState title={title} detail={detail} role="alert">
         {retry}
       </NotFoundState>
     );
   }
   return (
-    <StateFrame tone={tone ?? toneForFailure(kind)} glyph={glyph} title={title} detail={detail} role="alert">
+    <StateFrame tone={tone ?? severity} glyph={glyph} title={title} detail={detail} role="alert">
       {retry}
     </StateFrame>
   );

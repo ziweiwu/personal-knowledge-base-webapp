@@ -28,8 +28,8 @@ const TOOLS: Tool[] = [
   { label: 'Link', glyph: '[ ]( )', glyphClass: 'format-bar__glyph--mono', shortcut: 'Mod-K', command: insertLink },
   { label: 'Wikilink', glyph: '[[ ]]', glyphClass: 'format-bar__glyph--mono', command: toggleWikilink },
   { label: 'Heading', glyph: 'H', glyphClass: 'format-bar__glyph--bold', command: cycleHeading },
-  { label: 'Checkbox', glyph: <Icon name="check-square" size="md" />, shortcut: 'Mod-Shift-C', command: toggleTask },
-  { label: 'List', glyph: <Icon name="list" size="md" />, command: toggleBullet },
+  { label: 'Checkbox', glyph: <Icon name="check-square" />, shortcut: 'Mod-Shift-C', command: toggleTask },
+  { label: 'List', glyph: <Icon name="list" />, command: toggleBullet },
 ];
 
 const KEY_STEP: Record<string, number> = { ArrowRight: 1, ArrowLeft: -1 };
