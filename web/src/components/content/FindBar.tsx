@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type KeyboardEvent, type RefObject } from 'react';
 import { clearHighlights, focusMatch, highlightMatches } from '../../lib/findInPage';
 import { Button } from '../ui/Button';
+import { wrapIndex } from '../../lib/wrapIndex';
 
 interface FindBarProps {
   /** The prose container to search. */
@@ -8,10 +9,6 @@ interface FindBarProps {
   /** The markup the container currently holds; a change means the marks are gone too. */
   html: string;
   onClose: () => void;
-}
-
-function wrapIndex(index: number, count: number): number {
-  return count === 0 ? 0 : (index + count) % count;
 }
 
 export function FindBar({ containerRef, html, onClose }: FindBarProps) {

@@ -67,6 +67,11 @@ export function DocumentPage({ rootId, path, onTitleChange }: DocumentPageProps)
   const [findOpen, setFindOpen] = useState(false);
   const find = useMemo(() => ({ open: findOpen, close: () => setFindOpen(false) }), [findOpen]);
   const openFind = useCallback(() => setFindOpen(true), []);
+  // The find bar belongs to the rendered prose; leaving it open would resurface it after editing.
+  const startEditing = useCallback(() => {
+    setFindOpen(false);
+    setEditing(true);
+  }, []);
   const findable = !editing && Boolean(payload?.html);
   useFindShortcut(findable ? openFind : null);
 
@@ -187,7 +192,7 @@ export function DocumentPage({ rootId, path, onTitleChange }: DocumentPageProps)
 
         <div className="editor__bar doc__actions">
           {editable ? (
-            <Button onClick={() => setEditing(true)}>
+            <Button onClick={startEditing}>
               {/* Decorative: its siblings carry no icon, and announcing "pencil Edit"
                   makes this one button read differently from the rest of the row. */}
               <span aria-hidden="true">✏️</span>
