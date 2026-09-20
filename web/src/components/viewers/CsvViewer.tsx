@@ -4,6 +4,7 @@ import { useAsyncResource } from '../../hooks/useAsyncResource';
 import { parseCsv, tableFromHtml, type CsvTable } from '../../lib/csv';
 import { ErrorState, LoadingState } from '../ui/States';
 import type { ViewerProps } from './viewer-types';
+import { Icon } from '../ui/Icon';
 
 type SortDirection = 'asc' | 'desc';
 
@@ -52,9 +53,13 @@ function SortableTable({ table }: { table: CsvTable }) {
                   >
                     <button type="button" className="csv-table__sort" onClick={() => toggle(column)}>
                       {header || `Column ${column + 1}`}
-                      <span aria-hidden="true">{active ? (sort.direction === 'asc' ? '▲' : '▼') : '↕'}</span>
+                      <Icon
+                        name={active ? (sort.direction === 'asc' ? 'chevron-up' : 'chevron-down') : 'arrows-vertical'}
+                      />
                       <span className="sr-only">
-                        {active ? `sorted ${sort.direction === 'asc' ? 'ascending' : 'descending'}` : ', sort by this column'}
+                        {active
+                          ? `sorted ${sort.direction === 'asc' ? 'ascending' : 'descending'}`
+                          : ', sort by this column'}
                       </span>
                     </button>
                   </th>

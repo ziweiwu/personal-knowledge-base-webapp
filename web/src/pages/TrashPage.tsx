@@ -10,6 +10,7 @@ import { describeError } from '../lib/errors';
 import { formatDateTime, formatSize } from '../lib/format';
 import { useRoots } from '../state/roots-context';
 import { useToast } from '../state/toast-context';
+import { Icon } from '../components/ui/Icon';
 
 interface RowProps {
   entry: TrashEntry;
@@ -64,7 +65,7 @@ function TrashHeader({ rootId, rootName }: { rootId: string; rootName: string })
   return (
     <header className="trash__head">
       <Link to={folderRoute(rootId, '')} className="trash__back">
-        ← {rootName}
+        <Icon name="arrow-left" /> {rootName}
       </Link>
       <h1 className="trash__title">Trash</h1>
       <p className="trash__lede">
@@ -99,6 +100,7 @@ export function TrashPage() {
       <TrashHeader rootId={rootId} rootName={rootName} />
       {root?.readOnly ? (
         <EmptyState
+          tone="info"
           title="This collection is read-only"
           detail="Nothing can be deleted from it, so its trash stays empty."
         >

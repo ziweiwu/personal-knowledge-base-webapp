@@ -11,6 +11,7 @@ import { TreeView } from '../tree/TreeView';
 import { ThemeToggle } from './ThemeToggle';
 import { Button } from '../ui/Button';
 import { Select } from '../ui/Select';
+import { Icon } from '../ui/Icon';
 
 /** Pinned notes plus a few recents; the tree below is the full list. */
 const SIDEBAR_RECENTS_LIMIT = 6;
@@ -65,7 +66,7 @@ export function Sidebar({ activePath, currentDirectory, onNavigate }: SidebarPro
               aria-label="New note in the current folder"
               title="New note"
             >
-              <span aria-hidden="true">✚</span>
+              <Icon name="file-plus" size="md" />
             </Button>
             <Button
               variant="icon"
@@ -73,7 +74,7 @@ export function Sidebar({ activePath, currentDirectory, onNavigate }: SidebarPro
               aria-label="New folder in the current folder"
               title="New folder"
             >
-              <span aria-hidden="true">📁</span>
+              <Icon name="folder-plus" size="md" />
             </Button>
             <Button
               variant="icon"
@@ -81,7 +82,7 @@ export function Sidebar({ activePath, currentDirectory, onNavigate }: SidebarPro
               aria-label="Open the trash for this collection"
               title="Trash"
             >
-              <span aria-hidden="true">🗑</span>
+              <Icon name="trash" size="md" />
             </Button>
           </>
         ) : null}

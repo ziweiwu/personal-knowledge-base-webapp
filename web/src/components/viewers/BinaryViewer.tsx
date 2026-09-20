@@ -1,6 +1,7 @@
 import { fileUrl } from '../../api/paths';
 import { formatDateTime, formatSize, kindLabel } from '../../lib/format';
 import type { ViewerProps } from './viewer-types';
+import { Icon } from '../ui/Icon';
 
 export function BinaryViewer({ payload, rootId }: ViewerProps) {
   const { meta } = payload;
@@ -10,7 +11,7 @@ export function BinaryViewer({ payload, rootId }: ViewerProps) {
     <div className="doc__inner">
       <div className="download-card">
         <span className="download-card__glyph" aria-hidden="true">
-          📦
+          <Icon name="archive" />
         </span>
         <p className="download-card__name">{meta.name}</p>
         <p className="download-card__meta">

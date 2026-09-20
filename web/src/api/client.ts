@@ -72,6 +72,14 @@ export class SaveConflictError extends ApiRequestError {
   }
 }
 
+/** A fetch that never reached the server: DNS, a dropped connection, the NAS asleep. */
+export class NetworkError extends Error {
+  constructor() {
+    super('The server could not be reached.');
+    this.name = 'NetworkError';
+  }
+}
+
 type Transport = (input: string, init?: RequestInit) => Promise<Response>;
 
 let transport: Transport = (input, init) => fetch(input, init);
@@ -147,7 +155,11 @@ async function request(url: string, options: RequestOptions = {}): Promise<Respo
     ...(options.keepalive ? { keepalive: true } : {}),
   };
 
-  const response = await transport(url, init);
+  const response = await transport(url, init).catch((cause: unknown) => {
+    // fetch rejects with a TypeError only when no response came back at all.
+    if (cause instanceof TypeError) throw new NetworkError();
+    throw cause;
+  });
   if (response.ok) return response;
 
   if (response.status === HTTP_UNAUTHORIZED) {

@@ -2,11 +2,12 @@ import { useCallback, useEffect, useMemo, useState, type KeyboardEvent } from 'r
 import { Link } from 'react-router-dom';
 import { docRoute, folderRoute } from '../../api/paths';
 import type { TreeNode } from '../../api/types';
-import { kindIcon, kindLabel } from '../../lib/format';
+import { kindIconName, kindLabel } from '../../lib/format';
 import { useFileActions } from '../../state/file-actions-context';
 import { useVault } from '../../state/vault-context';
 import { ContextMenu, type MenuItem } from '../ui/ContextMenu';
 import { EmptyState, ErrorState, LoadingState } from '../ui/States';
+import { Icon } from '../ui/Icon';
 
 /** One step of tree indentation, matched to the row padding in app.css. */
 const INDENT_PER_DEPTH_PX = 12;
@@ -222,17 +223,34 @@ function TreeBranch({ node, depth, rootId, activePath, expanded, onToggle, onNav
 
   const menuItems: MenuItem[] = node.isDir
     ? [
-        { id: 'new-note', label: 'New note here', icon: '📝', onSelect: () => actions.newNote(node.path) },
-        { id: 'new-folder', label: 'New folder here', icon: '📁', onSelect: () => actions.newFolder(node.path) },
-        { id: 'upload', label: 'Upload files here', icon: '⬆️', onSelect: () => actions.upload(node.path) },
-        { id: 'rename', label: 'Rename…', icon: '✏️', onSelect: () => actions.rename(node.path, true) },
-        { id: 'move', label: 'Move…', icon: '📂', onSelect: () => actions.move(node.path, true) },
-        { id: 'delete', label: 'Delete…', icon: '🗑️', danger: true, onSelect: () => actions.remove(node.path, true) },
+        { id: 'new-note', label: 'New note here', icon: 'file-plus', onSelect: () => actions.newNote(node.path) },
+        {
+          id: 'new-folder',
+          label: 'New folder here',
+          icon: 'folder-plus',
+          onSelect: () => actions.newFolder(node.path),
+        },
+        { id: 'upload', label: 'Upload files here', icon: 'upload', onSelect: () => actions.upload(node.path) },
+        { id: 'rename', label: 'Rename…', icon: 'rename', onSelect: () => actions.rename(node.path, true) },
+        { id: 'move', label: 'Move…', icon: 'folder-move', onSelect: () => actions.move(node.path, true) },
+        {
+          id: 'delete',
+          label: 'Delete…',
+          icon: 'trash',
+          danger: true,
+          onSelect: () => actions.remove(node.path, true),
+        },
       ]
     : [
-        { id: 'rename', label: 'Rename…', icon: '✏️', onSelect: () => actions.rename(node.path, false) },
-        { id: 'move', label: 'Move…', icon: '📂', onSelect: () => actions.move(node.path, false) },
-        { id: 'delete', label: 'Delete…', icon: '🗑️', danger: true, onSelect: () => actions.remove(node.path, false) },
+        { id: 'rename', label: 'Rename…', icon: 'rename', onSelect: () => actions.rename(node.path, false) },
+        { id: 'move', label: 'Move…', icon: 'folder-move', onSelect: () => actions.move(node.path, false) },
+        {
+          id: 'delete',
+          label: 'Delete…',
+          icon: 'trash',
+          danger: true,
+          onSelect: () => actions.remove(node.path, false),
+        },
       ];
 
   const openMenu = (event: React.MouseEvent<HTMLButtonElement>) => {
@@ -260,7 +278,7 @@ function TreeBranch({ node, depth, rootId, activePath, expanded, onToggle, onNav
           tabIndex={node.isDir ? 0 : -1}
           aria-hidden={node.isDir ? undefined : true}
         >
-          <span aria-hidden="true">{isOpen ? '▼' : '▶'}</span>
+          <Icon name={isOpen ? 'chevron-down' : 'chevron-right'} />
         </button>
 
         <Link
@@ -270,7 +288,7 @@ function TreeBranch({ node, depth, rootId, activePath, expanded, onToggle, onNav
           onClick={onNavigate}
         >
           <span className="kind-icon" aria-hidden="true">
-            {kindIcon(node.isDir ? 'folder' : node.kind)}
+            <Icon name={kindIconName(node.isDir ? 'folder' : node.kind)} />
           </span>
           <span className="tree__label">{node.name}</span>
           <span className="sr-only">{kindLabel(node.isDir ? 'folder' : node.kind)}</span>
@@ -285,7 +303,7 @@ function TreeBranch({ node, depth, rootId, activePath, expanded, onToggle, onNav
             aria-expanded={menuAnchor !== null}
             aria-label={`Actions for ${node.name}`}
           >
-            <span aria-hidden="true">⋯</span>
+            <Icon name="more" />
           </button>
         ) : null}
       </div>

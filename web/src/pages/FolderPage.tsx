@@ -8,12 +8,13 @@ import { HtmlContent } from '../components/content/HtmlContent';
 import { Banner, EmptyState, ErrorState, LoadingState } from '../components/ui/States';
 import { useAsyncResource } from '../hooks/useAsyncResource';
 import { useChangeEvents } from '../hooks/useChangeEvents';
-import { formatRelative, formatSize, kindIcon, kindLabel } from '../lib/format';
+import { formatRelative, formatSize, kindIconName, kindLabel } from '../lib/format';
 import { readStored, readStoredOneOf, writeStored } from '../lib/persist';
 import { useFileActions } from '../state/file-actions-context';
 import { useVault } from '../state/vault-context';
 import { Button } from '../components/ui/Button';
 import { Select } from '../components/ui/Select';
+import { Icon } from '../components/ui/Icon';
 
 type SortKey = 'name' | 'modified' | 'size';
 
@@ -185,7 +186,7 @@ export function FolderPage({ rootId, path, onTitleChange }: FolderPageProps) {
                   to={entry.isDir ? folderRoute(rootId, entry.path) : docRoute(rootId, entry.path)}
                 >
                   <span className="kind-icon" aria-hidden="true">
-                    {kindIcon(entry.isDir ? 'folder' : entry.kind)}
+                    <Icon name={kindIconName(entry.isDir ? 'folder' : entry.kind)} />
                   </span>
                   <span className="entries__name">
                     {entry.name}

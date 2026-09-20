@@ -25,6 +25,10 @@ phone over Tailscale, behind a password.
   after `[[`, autosave ten seconds after you stop typing, a Move action with a folder
   picker, a Trash view that restores deleted notes, and a conflict dialog that highlights
   the lines that differ.
+- **Looks like one app**: a single stroke icon set instead of emoji, empty and error
+  screens that say what happened and what to do next, a login page that names the
+  collections it guards, a reading-progress bar on long notes, and on a phone a table of
+  contents that opens as a bottom sheet.
 
 ## Requirements
 

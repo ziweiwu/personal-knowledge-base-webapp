@@ -1,5 +1,6 @@
 import { useId, useMemo, type KeyboardEvent } from 'react';
 import type { TreeNode } from '../../api/types';
+import { Icon } from '../ui/Icon';
 
 export interface FolderOption {
   path: string;
@@ -84,7 +85,7 @@ export function FolderPicker({ tree, value, onChange, blocked = null, disabled, 
             onClick={() => onChange(option.path)}
           >
             <span className="kind-icon" aria-hidden="true">
-              📁
+              <Icon name="folder" />
             </span>
             <span className="folder-picker__name">{option.name}</span>
           </button>

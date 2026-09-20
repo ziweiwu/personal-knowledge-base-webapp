@@ -259,6 +259,25 @@ silently hiding another folder's contents is the failure mode that keying it thi
 prevents. A restored filter also shows "N of M" and a Clear button, so it can never look
 like the folder is simply empty.
 
+### Shared frontend pieces
+
+Every icon comes from `web/src/components/ui/Icon.tsx`, one table of 24px stroke paths
+addressed by name; `kindIconName` in `web/src/lib/format.ts` maps a document kind to one.
+Do not paste an inline `<svg>` or an emoji into a component — the set exists so a new
+screen cannot introduce a second visual language. Empty, error and not-found screens all
+render through `StateFrame` in `web/src/components/ui/States.tsx`, which takes a tone
+(neutral, info, warning, danger) and picks the icon and colour from it; `describeError` in
+`web/src/lib/errors.ts` turns an `ApiRequestError` into the title and detail a person can
+act on, so a raw status code never reaches the screen.
+
+Below 900px the inline table of contents becomes a floating button that opens a bottom
+sheet (`web/src/components/content/TocSheet.tsx`); it and `Modal` are both dressings of
+`DialogShell` in `web/src/components/ui/`, which owns the portal, scrim, focus trap,
+Escape and scroll lock, so a dialog fix lands once.
+The reading-progress bar is mounted only on the document route and hidden by CSS while the
+editor is open (`.app-shell:has(.editor)`); `:has()` is supported by every browser the app
+targets, but a browser without it shows the bar over the editor rather than breaking.
+
 ## QA
 
 `INVARIANTS.md` lists the properties the app must hold, numbered `INV-n` and never

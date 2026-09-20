@@ -1,6 +1,38 @@
 import type { ReactNode } from 'react';
 import { describeError } from '../../lib/errors';
 import { Button } from './Button';
+import { Icon } from './Icon';
+
+export type StateTone = 'neutral' | 'info' | 'warning' | 'danger';
+
+/** Tray, bulb, triangle, circle: nothing here yet, a hint, attention needed, a failure. */
+const TONE_GLYPH: Record<StateTone, ReactNode> = {
+  neutral: <Icon name="inbox" size="lg" />,
+  info: <Icon name="bulb" size="lg" />,
+  warning: <Icon name="warning" size="lg" />,
+  danger: <Icon name="alert-circle" size="lg" />,
+};
+
+interface StateFrameProps {
+  tone: StateTone;
+  glyph?: ReactNode;
+  title: string;
+  detail?: ReactNode;
+  role?: 'alert' | 'status';
+  children?: ReactNode;
+}
+
+/** The one layout every empty, error and not-found screen shares; tone and glyph tell them apart. */
+function StateFrame({ tone, glyph, title, detail, role, children }: StateFrameProps) {
+  return (
+    <div className={`state state--${tone}`} role={role} data-tone={tone}>
+      <span className="state__glyph">{glyph ?? TONE_GLYPH[tone]}</span>
+      <p className="state__title">{title}</p>
+      {detail ? <p className="state__detail">{detail}</p> : null}
+      {children}
+    </div>
+  );
+}
 
 export function Spinner({ label = 'Loading' }: { label?: string }) {
   return (
@@ -12,31 +44,70 @@ export function Spinner({ label = 'Loading' }: { label?: string }) {
 
 export function LoadingState({ label = 'Loading…' }: { label?: string }) {
   return (
-    <div className="state">
+    <div className="state state--loading">
       <Spinner label={label} />
       <p className="state__detail">{label}</p>
     </div>
   );
 }
 
-export function EmptyState({ title, detail, children }: { title: string; detail?: string; children?: ReactNode }) {
+interface EmptyStateProps {
+  title: string;
+  detail?: ReactNode;
+  tone?: StateTone;
+  glyph?: ReactNode;
+  children?: ReactNode;
+}
+
+export function EmptyState({ title, detail, tone = 'neutral', glyph, children }: EmptyStateProps) {
   return (
-    <div className="state">
-      <p className="state__title">{title}</p>
-      {detail ? <p className="state__detail">{detail}</p> : null}
+    <StateFrame tone={tone} glyph={glyph} title={title} detail={detail}>
       {children}
-    </div>
+    </StateFrame>
   );
 }
 
-export function ErrorState({ error, onRetry }: { error: Error; onRetry?: () => void }) {
-  const { title, detail } = describeError(error);
+/** Where the address pointed does not exist. Neutral: the app is fine, the path is not. */
+export function NotFoundState({
+  title,
+  detail,
+  role = 'status',
+  children,
+}: {
+  title: string;
+  detail?: ReactNode;
+  /** `alert` when the thing being read vanished, so a screen reader hears it at once. */
+  role?: 'alert' | 'status';
+  children?: ReactNode;
+}) {
   return (
-    <div className="state" role="alert">
-      <p className="state__title">{title}</p>
-      <p className="state__detail">{detail}</p>
-      {onRetry ? <Button onClick={onRetry}>Try again</Button> : null}
-    </div>
+    <StateFrame tone="neutral" glyph={<Icon name="compass" size="lg" />} title={title} detail={detail} role={role}>
+      {children}
+    </StateFrame>
+  );
+}
+
+interface ErrorStateProps {
+  error: Error;
+  onRetry?: () => void;
+  tone?: StateTone;
+  glyph?: ReactNode;
+}
+
+export function ErrorState({ error, onRetry, tone, glyph }: ErrorStateProps) {
+  const { kind, title, detail, severity } = describeError(error);
+  const retry = onRetry ? <Button onClick={onRetry}>Try again</Button> : null;
+  if (kind === 'not-found' && !tone) {
+    return (
+      <NotFoundState title={title} detail={detail} role="alert">
+        {retry}
+      </NotFoundState>
+    );
+  }
+  return (
+    <StateFrame tone={tone ?? severity} glyph={glyph} title={title} detail={detail} role="alert">
+      {retry}
+    </StateFrame>
   );
 }
 
@@ -66,7 +137,7 @@ export function Banner({ tone = 'info', children, actions, onDismiss }: BannerPr
       {actions ? <div className="banner__actions">{actions}</div> : null}
       {onDismiss ? (
         <Button variant="ghost" onClick={onDismiss} aria-label="Dismiss message">
-          ✕
+          <Icon name="close" />
         </Button>
       ) : null}
     </div>

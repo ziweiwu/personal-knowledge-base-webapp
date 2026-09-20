@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom';
 import { docRoute } from '../../api/paths';
 import { isPinned, listRecents, togglePin, useRecents, type RecentNote } from '../../lib/recents';
 import { Button } from '../ui/Button';
+import { ICON_FILLED, Icon } from '../ui/Icon';
 
 interface RecentListProps {
   /** Limit to one root (the sidebar) or show every root (the home page). */
@@ -27,7 +28,7 @@ function PinToggle({ note }: { note: RecentNote }) {
       title={pinned ? 'Unpin' : 'Pin'}
       onClick={() => togglePin(note)}
     >
-      <span aria-hidden="true">📌</span>
+      <Icon name="pin" className={pinned ? ICON_FILLED : undefined} />
     </Button>
   );
 }
