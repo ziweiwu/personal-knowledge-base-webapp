@@ -19,11 +19,16 @@ pub async fn roots(State(state): State<Arc<AppState>>) -> Json<Vec<RootInfo>> {
             .config
             .roots
             .iter()
-            .map(|root| RootInfo {
-                id: root.id.clone(),
-                name: root.name.clone(),
-                obsidian_mode: root.uses_wikilinks(),
-                read_only: root.read_only,
+            .map(|root| {
+                let index = state.index(&root.id);
+                RootInfo {
+                    id: root.id.clone(),
+                    name: root.name.clone(),
+                    obsidian_mode: root.uses_wikilinks(),
+                    read_only: root.read_only,
+                    documents: index.as_ref().map_or(0, |index| index.documents.len()),
+                    last_modified_ms: index.as_ref().and_then(|index| index.last_modified_ms()),
+                }
             })
             .collect(),
     )

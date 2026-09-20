@@ -74,7 +74,16 @@ export type RootInfo = { id: string, name: string,
 /**
  * True when wikilinks, backlinks, callouts and tags are active for this root.
  */
-obsidianMode: boolean, readOnly: boolean, };
+obsidianMode: boolean, readOnly: boolean, 
+/**
+ * Everything the index holds for this root, attachments included.
+ */
+documents: number, 
+/**
+ * The newest mtime in the root, so a landing page can say when it last changed.
+ * `None` for a root with nothing in it.
+ */
+lastModifiedMs: number | null, };
 
 /**
  * Returned with HTTP 409 when a save would overwrite a change made elsewhere —

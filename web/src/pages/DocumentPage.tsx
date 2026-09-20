@@ -1,4 +1,4 @@
-import { Fragment, Suspense, lazy, useCallback, useEffect, useRef, useState } from 'react';
+import { Fragment, Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { fetchDocument } from '../api/client';
 import { eventTouches } from '../api/events';
 import { Link } from 'react-router-dom';
@@ -7,11 +7,14 @@ import type { ChangeEvent, DocumentMeta } from '../api/types';
 import { DocumentBody } from '../components/viewers/registry';
 import { toggleTask } from '../api/client';
 import { Banner, ErrorState, LoadingState } from '../components/ui/States';
+import { useFindShortcut } from '../hooks/useFindShortcut';
+import { FindContext } from '../components/content/find-context';
 import { useAsyncResource } from '../hooks/useAsyncResource';
 import { useChangeEvents } from '../hooks/useChangeEvents';
 import { formatDateTime, formatSize, kindLabel } from '../lib/format';
 import { useFileActions } from '../state/file-actions-context';
 import { useVault } from '../state/vault-context';
+import { recordOpen } from '../lib/recents';
 import { Button } from '../components/ui/Button';
 
 /**
@@ -61,6 +64,11 @@ export function DocumentPage({ rootId, path, onTitleChange }: DocumentPageProps)
   const [editing, setEditing] = useState(false);
   const [editorDirty, setEditorDirty] = useState(false);
   const [changedOnDisk, setChangedOnDisk] = useState(false);
+  const [findOpen, setFindOpen] = useState(false);
+  const find = useMemo(() => ({ open: findOpen, close: () => setFindOpen(false) }), [findOpen]);
+  const openFind = useCallback(() => setFindOpen(true), []);
+  const findable = !editing && Boolean(payload?.html);
+  useFindShortcut(findable ? openFind : null);
 
   // Opening a different document always starts in read mode.
   const documentKey = `${rootId}/${path}`;
@@ -70,11 +78,18 @@ export function DocumentPage({ rootId, path, onTitleChange }: DocumentPageProps)
     setEditing(false);
     setEditorDirty(false);
     setChangedOnDisk(false);
+    setFindOpen(false);
   }
 
   useEffect(() => {
     onTitleChange(payload?.meta.title || baseName(path));
   }, [payload?.meta.title, path, onTitleChange]);
+
+  // Only a document that actually loaded counts as opened; a 404 is not worth resuming.
+  const loadedTitle = payload ? payload.meta.title || baseName(path) : null;
+  useEffect(() => {
+    if (loadedTitle !== null) recordOpen(rootId, path, loadedTitle);
+  }, [rootId, path, loadedTitle]);
 
   const { reload } = resource;
   const onChange = useCallback(
@@ -187,6 +202,7 @@ export function DocumentPage({ rootId, path, onTitleChange }: DocumentPageProps)
               </Button>
             </>
           ) : null}
+          {findable ? <Button onClick={openFind}>Find</Button> : null}
           <Button onClick={() => window.print()}>Print</Button>
         </div>
 
@@ -198,7 +214,9 @@ export function DocumentPage({ rootId, path, onTitleChange }: DocumentPageProps)
         ) : null}
       </div>
 
-      <DocumentBody payload={payload} rootId={rootId} onToggleTask={editable ? onToggleTask : undefined} />
+      <FindContext value={find}>
+        <DocumentBody payload={payload} rootId={rootId} onToggleTask={editable ? onToggleTask : undefined} />
+      </FindContext>
     </article>
   );
 }
