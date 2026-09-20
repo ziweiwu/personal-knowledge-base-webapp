@@ -4,7 +4,7 @@ import type { RootInfo } from '../api/types';
 import { RecentList } from '../components/home/RecentList';
 import { ThemeToggle } from '../components/layout/ThemeToggle';
 import { Button } from '../components/ui/Button';
-import { ErrorState, LoadingState } from '../components/ui/States';
+import { EmptyState, ErrorState, LoadingState } from '../components/ui/States';
 import { formatRelative } from '../lib/format';
 import { lastRoute } from '../lib/recents';
 import { useAuth } from '../state/auth-context';
@@ -28,12 +28,15 @@ function RootCard({ root }: { root: RootInfo }) {
 
 function NoRoots() {
   return (
-    <div className="state">
-      <p className="state__title">No folders configured</p>
-      <p className="state__detail">
-        Add at least one entry to the <code>roots</code> array in kbviewer.config.json and restart the server.
-      </p>
-    </div>
+    <EmptyState
+      tone="info"
+      title="No folders configured"
+      detail={
+        <>
+          Add at least one entry to the <code>roots</code> array in kbviewer.config.json and restart the server.
+        </>
+      }
+    />
   );
 }
 

@@ -1,4 +1,4 @@
-import { useRef, useState, type KeyboardEvent, type MouseEvent } from 'react';
+import { useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react';
 import { Button } from '../ui/Button';
 import {
   cycleHeading,
@@ -11,10 +11,11 @@ import {
   toggleWikilink,
   type FormatCommand,
 } from './formatting';
+import { Icon } from '../ui/Icon';
 
 interface Tool {
   label: string;
-  glyph: string;
+  glyph: ReactNode;
   glyphClass?: string;
   shortcut?: string;
   command: FormatCommand;
@@ -27,8 +28,8 @@ const TOOLS: Tool[] = [
   { label: 'Link', glyph: '[ ]( )', glyphClass: 'format-bar__glyph--mono', shortcut: 'Mod-K', command: insertLink },
   { label: 'Wikilink', glyph: '[[ ]]', glyphClass: 'format-bar__glyph--mono', command: toggleWikilink },
   { label: 'Heading', glyph: 'H', glyphClass: 'format-bar__glyph--bold', command: cycleHeading },
-  { label: 'Checkbox', glyph: '☐', shortcut: 'Mod-Shift-C', command: toggleTask },
-  { label: 'List', glyph: '•', command: toggleBullet },
+  { label: 'Checkbox', glyph: <Icon name="check-square" size="md" />, shortcut: 'Mod-Shift-C', command: toggleTask },
+  { label: 'List', glyph: <Icon name="list" size="md" />, command: toggleBullet },
 ];
 
 const KEY_STEP: Record<string, number> = { ArrowRight: 1, ArrowLeft: -1 };

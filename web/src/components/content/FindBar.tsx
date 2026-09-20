@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type KeyboardEvent, type RefObject } from 
 import { clearHighlights, focusMatch, highlightMatches } from '../../lib/findInPage';
 import { Button } from '../ui/Button';
 import { wrapIndex } from '../../lib/wrapIndex';
+import { Icon } from '../ui/Icon';
 
 interface FindBarProps {
   /** The prose container to search. */
@@ -73,13 +74,13 @@ export function FindBar({ containerRef, html, onClose }: FindBarProps) {
         {status}
       </span>
       <Button variant="ghost" onClick={() => step(-1)} disabled={count === 0} aria-label="Previous match">
-        ↑
+        <Icon name="arrow-up" />
       </Button>
       <Button variant="ghost" onClick={() => step(1)} disabled={count === 0} aria-label="Next match">
-        ↓
+        <Icon name="arrow-down" />
       </Button>
       <Button variant="ghost" onClick={close} aria-label="Close find">
-        ✕
+        <Icon name="close" />
       </Button>
     </div>
   );

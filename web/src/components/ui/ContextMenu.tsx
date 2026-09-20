@@ -1,11 +1,12 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useEscapeKey } from '../../hooks/useEscapeKey';
+import { Icon, type IconName } from './Icon';
 
 export interface MenuItem {
   id: string;
   label: string;
-  icon?: string;
+  icon?: IconName;
   danger?: boolean;
   onSelect: () => void;
 }
@@ -95,7 +96,7 @@ export function ContextMenu({ items, anchor, label, onClose }: ContextMenuProps)
             item.onSelect();
           }}
         >
-          {item.icon ? <span aria-hidden="true">{item.icon}</span> : null}
+          {item.icon ? <Icon name={item.icon} /> : null}
           {item.label}
         </button>
       ))}

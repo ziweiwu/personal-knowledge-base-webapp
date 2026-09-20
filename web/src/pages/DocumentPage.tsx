@@ -16,6 +16,7 @@ import { useFileActions } from '../state/file-actions-context';
 import { useVault } from '../state/vault-context';
 import { recordOpen } from '../lib/recents';
 import { Button } from '../components/ui/Button';
+import { Icon } from '../components/ui/Icon';
 
 /**
  * CodeMirror and everything under `components/editor` load only when the user
@@ -195,7 +196,7 @@ export function DocumentPage({ rootId, path, onTitleChange }: DocumentPageProps)
             <Button onClick={startEditing}>
               {/* Decorative: its siblings carry no icon, and announcing "pencil Edit"
                   makes this one button read differently from the rest of the row. */}
-              <span aria-hidden="true">✏️</span>
+              <Icon name="edit" />
               Edit
             </Button>
           ) : null}

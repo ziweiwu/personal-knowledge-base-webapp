@@ -16,9 +16,11 @@ import { FolderPage } from '../../pages/FolderPage';
 import { TagPage } from '../../pages/TagPage';
 import { SearchPalette } from '../search/SearchPalette';
 import { Breadcrumbs } from './Breadcrumbs';
+import { ReadingProgress } from './ReadingProgress';
 import { Sidebar } from './Sidebar';
 import { ThemeToggle } from './ThemeToggle';
 import { Button } from '../ui/Button';
+import { Icon } from '../ui/Icon';
 
 export type VaultMode = 'doc' | 'folder' | 'tag';
 
@@ -177,7 +179,7 @@ function VaultShell({ mode, path }: { mode: VaultMode; path: string }) {
           aria-expanded={drawerOpen}
           aria-controls="sidebar-drawer"
         >
-          <span aria-hidden="true">☰</span>
+          <Icon name="menu" size="md" />
         </Button>
 
         {/* The toolbar outranks the scrim so its toggle can close the drawer again;
@@ -194,7 +196,7 @@ function VaultShell({ mode, path }: { mode: VaultMode; path: string }) {
           aria-keyshortcuts="Meta+K Control+K"
           inert={behindDrawer}
         >
-          <span aria-hidden="true">🔎</span>
+          <Icon name="search" />
           <span className="search-trigger__label only-desktop">Search</span>
           <kbd className="only-desktop" aria-hidden="true">
             ⌘K
@@ -210,7 +212,7 @@ function VaultShell({ mode, path }: { mode: VaultMode; path: string }) {
             aria-keyshortcuts="F"
             inert={behindDrawer}
           >
-            <span aria-hidden="true">⤢</span>
+            <Icon name="expand" size="md" />
             <span className="sr-only">Focus reading mode</span>
           </Button>
         ) : null}
@@ -218,6 +220,8 @@ function VaultShell({ mode, path }: { mode: VaultMode; path: string }) {
         <span className="only-mobile" inert={behindDrawer}>
           <ThemeToggle />
         </span>
+
+        {canFocus ? <ReadingProgress containerRef={mainRef} /> : null}
       </header>
 
       <div className="app-body">
@@ -253,7 +257,7 @@ function VaultShell({ mode, path }: { mode: VaultMode; path: string }) {
           way out at all — there is no Escape key on a phone. */}
       {focus.focused ? (
         <button type="button" className="focus-exit" onClick={focus.exit} aria-keyshortcuts="Escape">
-          <span aria-hidden="true">✕</span>
+          <Icon name="close" size="md" />
           <span className="sr-only">Exit focus reading mode</span>
         </button>
       ) : null}

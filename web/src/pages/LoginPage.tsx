@@ -99,6 +99,8 @@ function LoginForm({ from }: { from: string }) {
   return (
     <form className="login__card" onSubmit={(event) => void onSubmit(event)} noValidate>
       <LoginHeading />
+      <p className="login__purpose">Your Obsidian vault, readable and editable from any browser.</p>
+      <p className="login__traits">Wikilinks · Search · Edits</p>
       <p className="login__sub">Sign in to browse your documents.</p>
       <FormError id={errorId} message={error} />
 
@@ -152,7 +154,11 @@ export function LoginPage() {
 
   return (
     <div className="login">
-      <LoginForm from={from} />
+      <div className="login-scene" aria-hidden="true" />
+      <div className="login__stack">
+        <LoginForm from={from} />
+        <p className="login__foot">Self-hosted · nothing leaves your NAS</p>
+      </div>
     </div>
   );
 }

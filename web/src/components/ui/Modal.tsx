@@ -5,6 +5,7 @@ import { useEscapeKey } from '../../hooks/useEscapeKey';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
 import { useInertBackground } from '../../hooks/useInertBackground';
 import { Button } from './Button';
+import { Icon } from './Icon';
 
 interface ModalProps {
   title: string;
@@ -46,7 +47,7 @@ export function Modal({ title, onClose, children, footer, wide, dismissOnBackdro
             {title}
           </h2>
           <Button variant="icon" onClick={onClose} aria-label="Close dialog">
-            ✕
+            <Icon name="close" size="md" />
           </Button>
         </div>
         <div className="modal__body">{children}</div>

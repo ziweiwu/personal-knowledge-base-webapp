@@ -1,4 +1,5 @@
 import type { DocumentKind } from '../api/types';
+import type { IconName } from '../components/ui/Icon';
 
 const UNITS = ['B', 'KB', 'MB', 'GB', 'TB'];
 const BYTES_PER_UNIT = 1024;
@@ -51,15 +52,15 @@ export function formatRelative(mtimeMs: number): string {
 /** A folder is not a `DocumentKind`, but it sits in the same column of the UI. */
 export type EntryKind = DocumentKind | 'folder';
 
-const KIND_ICONS: Record<EntryKind, string> = {
-  folder: '📁',
-  markdown: '📝',
-  docx: '📄',
-  pdf: '📕',
-  image: '🖼️',
-  csv: '📊',
-  text: '📃',
-  binary: '📦',
+const KIND_ICONS: Record<EntryKind, IconName> = {
+  folder: 'folder',
+  markdown: 'note',
+  docx: 'document',
+  pdf: 'pdf',
+  image: 'image',
+  csv: 'table',
+  text: 'text',
+  binary: 'archive',
 };
 
 const KIND_LABELS: Record<EntryKind, string> = {
@@ -73,8 +74,8 @@ const KIND_LABELS: Record<EntryKind, string> = {
   binary: 'File',
 };
 
-export function kindIcon(kind: EntryKind | undefined): string {
-  return kind ? KIND_ICONS[kind] : '📄';
+export function kindIconName(kind: EntryKind | undefined): IconName {
+  return kind ? KIND_ICONS[kind] : 'unknown';
 }
 
 export function kindLabel(kind: EntryKind | undefined): string {

@@ -2164,3 +2164,289 @@ kbd {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+
+/* ---------------------------------------------------- P3: login scene -- */
+/* The only screen a visitor sees before signing in. Two accent washes and a
+   dotted grid drawn from tokens, so the page reads as designed in every theme
+   without a single literal colour; the card sits above on the elevated surface. */
+
+.login {
+  position: relative;
+  isolation: isolate;
+  background: var(--bg);
+}
+
+.login-scene {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-image:
+    radial-gradient(60% 50% at 15% 10%, color-mix(in oklab, var(--teal) 14%, transparent), transparent 70%),
+    radial-gradient(55% 45% at 85% 90%, color-mix(in oklab, var(--violet) 14%, transparent), transparent 70%),
+    radial-gradient(color-mix(in oklab, var(--fg-muted) 22%, transparent) 1px, transparent 1px);
+  background-size:
+    100% 100%,
+    100% 100%,
+    var(--space-6) var(--space-6);
+  mask-image: radial-gradient(120% 90% at 50% 45%, black 40%, transparent 100%);
+}
+
+.login__stack {
+  width: 100%;
+  max-width: 380px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.login__stack > .login__card {
+  padding: var(--space-6) var(--space-5);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--bg-elevated);
+  box-shadow: var(--shadow-lg);
+}
+
+.login__purpose {
+  font-size: var(--text-md);
+  line-height: 1.4;
+  text-wrap: balance;
+}
+
+.login__traits {
+  margin-top: calc(-1 * var(--space-3));
+  font-size: var(--text-sm);
+  letter-spacing: 0.02em;
+  color: var(--fg-muted);
+}
+
+.login__foot {
+  text-align: center;
+  font-size: var(--text-sm);
+  color: var(--fg-muted);
+}
+
+
+/* ------------------------------------------- P2: states that look different -- */
+/* One frame for empty, error and not-found; the glyph and its tint say which. */
+
+.state__glyph {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: var(--bg-subtle);
+  color: var(--fg-muted);
+}
+
+.state--info .state__glyph {
+  background: var(--accent-subtle);
+  color: var(--accent);
+}
+
+.state--warning .state__glyph {
+  background: var(--warning-subtle);
+  color: var(--warning);
+}
+
+.state--danger .state__glyph {
+  background: var(--danger-subtle);
+  color: var(--danger);
+}
+
+.state--danger .state__title {
+  color: var(--danger);
+}
+
+.state--warning .state__title {
+  color: var(--warning);
+}
+
+.state:not(.state--loading) .state__title {
+  font-size: var(--text-lg);
+}
+
+.state__path {
+  font-size: var(--text-md);
+  word-break: break-all;
+}
+
+.state__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--space-3);
+  margin-top: var(--space-3);
+}
+
+
+/* ------------------------------------------- P4: reading progress line -- */
+
+/* Pinned inside the sticky topbar so the bar keeps its height. The fill scales instead of
+   resizing, which is a compositor-only change while the pane scrolls. It goes with the
+   topbar in focus mode, and away while the editor is open, since the pane then scrolls a
+   buffer rather than the prose being read. */
+.reading-progress {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 2px;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.reading-progress__fill {
+  height: 100%;
+  background: var(--accent);
+  transform-origin: left;
+  transform: scaleX(0);
+  will-change: transform;
+  transition: transform 80ms linear;
+}
+
+.app-shell:has(.editor) .reading-progress {
+  display: none;
+}
+
+/* ---------------------------------------------- P5: table of contents sheet -- */
+
+/* The phone's contents button: floats above the reading area, clear of the home bar. */
+.toc-fab {
+  position: fixed;
+  z-index: 70;
+  right: calc(var(--space-4) + env(safe-area-inset-right));
+  bottom: calc(var(--space-4) + env(safe-area-inset-bottom));
+  min-height: var(--tap);
+  border-radius: 999px;
+  padding-inline: var(--space-5);
+  box-shadow: var(--shadow-md);
+}
+
+.app-shell--focus .toc-fab {
+  display: none;
+}
+
+.toc-sheet-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  display: flex;
+  align-items: flex-end;
+  background: var(--bg-overlay);
+}
+
+.toc-sheet {
+  width: 100%;
+  max-height: 70vh;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border-strong);
+  border-bottom: 0;
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  background: var(--bg-elevated);
+  box-shadow: var(--shadow-lg);
+  padding-bottom: env(safe-area-inset-bottom);
+  animation: toc-sheet-rise 0.16s ease-out;
+}
+
+@keyframes toc-sheet-rise {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .toc-sheet {
+    animation: none;
+  }
+}
+
+.toc-sheet__handle {
+  width: 36px;
+  height: 4px;
+  margin: var(--space-3) auto 0;
+  border-radius: 999px;
+  background: var(--border-strong);
+}
+
+.toc-sheet__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-2) var(--space-4) 0 var(--space-5);
+}
+
+.toc-sheet__title {
+  margin: 0;
+  font-size: var(--text-lg);
+}
+
+/* Inside the sheet the list is the whole surface, so the rail's rule and width go. */
+.toc.toc--sheet {
+  width: auto;
+  position: static;
+  max-height: none;
+  min-height: 0;
+  overflow: auto;
+  border-left: 0;
+  padding: var(--space-2) var(--space-5) var(--space-4);
+  font-size: var(--text-md);
+}
+
+.toc--sheet .toc__link {
+  min-height: var(--tap);
+  display: flex;
+  align-items: center;
+}
+
+.toc__link--current {
+  color: var(--accent-fg);
+  font-weight: 600;
+}
+
+@media (min-width: 900px) {
+  .toc-fab {
+    display: none;
+  }
+}
+
+@media print {
+  .toc-fab {
+    display: none !important;
+  }
+}
+
+/* P1: inline SVG icons. Drawn in currentColor so they follow the theme and the text
+   beside them; two sizes only, so nothing in the chrome invents a third. */
+.icon {
+  --icon-size: 1rem;
+  width: var(--icon-size);
+  height: var(--icon-size);
+  vertical-align: -0.125em;
+  flex-shrink: 0;
+}
+
+.icon--md {
+  --icon-size: 1.25rem;
+}
+
+.icon--lg {
+  --icon-size: 1.75rem;
+}
+
+.icon--filled {
+  fill: currentColor;
+}
+
+.kind-icon > .icon {
+  display: block;
+  margin-inline: auto;
+}

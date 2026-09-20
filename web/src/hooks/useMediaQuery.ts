@@ -16,6 +16,9 @@ export function useMediaQuery(query: string): boolean {
 
 export const DESKTOP_QUERY = '(min-width: 900px)';
 
+/** Below the drawer breakpoint: the sidebar overlays and the table of contents becomes a sheet. */
+export const PHONE_QUERY = '(max-width: 899px)';
+
 export function useIsDesktop(): boolean {
   return useMediaQuery(DESKTOP_QUERY);
 }

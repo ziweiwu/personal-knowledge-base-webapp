@@ -9,13 +9,14 @@ import { useEscapeKey } from '../../hooks/useEscapeKey';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
 import { useInertBackground } from '../../hooks/useInertBackground';
 import { describeError } from '../../lib/errors';
-import { kindIcon } from '../../lib/format';
+import { kindIconName } from '../../lib/format';
 import { readStoredOneOf, writeStored } from '../../lib/persist';
 import { parseSnippet } from '../../lib/snippet';
 import { useRoots } from '../../state/roots-context';
 import { Button } from '../ui/Button';
 import { Spinner } from '../ui/States';
 import { wrapIndex } from '../../lib/wrapIndex';
+import { Icon } from '../ui/Icon';
 
 const DEBOUNCE_MS = 180;
 
@@ -172,7 +173,7 @@ function HitRow({ scoped, active, optionId, onHover, onOpen }: HitRowProps) {
         onClick={onOpen}
       >
         <span className="kind-icon" aria-hidden="true">
-          {kindIcon(hit.kind)}
+          <Icon name={kindIconName(hit.kind)} />
         </span>
         <span className="palette__hit-main">
           <span className="palette__hit-title">{hit.title || hit.path}</span>

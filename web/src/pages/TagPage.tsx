@@ -3,8 +3,9 @@ import { Link } from 'react-router-dom';
 import { fetchTagged } from '../api/client';
 import { docRoute } from '../api/paths';
 import { useAsyncResource } from '../hooks/useAsyncResource';
-import { formatRelative, formatSize, kindIcon, kindLabel } from '../lib/format';
+import { formatRelative, formatSize, kindIconName, kindLabel } from '../lib/format';
 import { EmptyState, ErrorState, LoadingState } from '../components/ui/States';
+import { Icon } from '../components/ui/Icon';
 
 interface Props {
   rootId: string;
@@ -36,10 +37,7 @@ export function TagPage({ rootId, tag, onTitleChange }: Props) {
       <div className="doc__inner">
         <h1 className="doc__title">#{tag}</h1>
         {documents.length === 0 ? (
-          <EmptyState
-            title={`Nothing is tagged #${tag}`}
-            detail="No document in this collection carries that tag."
-          />
+          <EmptyState title={`Nothing is tagged #${tag}`} detail="No document in this collection carries that tag." />
         ) : (
           <>
             <h2 className="folder__section-title" id="tagged-documents">
@@ -50,7 +48,7 @@ export function TagPage({ rootId, tag, onTitleChange }: Props) {
                 <li className="entries__item" key={document.path}>
                   <Link className="entries__link" to={docRoute(rootId, document.path)}>
                     <span className="kind-icon" aria-hidden="true">
-                      {kindIcon(document.kind)}
+                      <Icon name={kindIconName(document.kind)} />
                     </span>
                     <span className="entries__name">
                       {document.title}
