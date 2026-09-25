@@ -275,6 +275,7 @@ export function DocumentPage({ rootId, path, onTitleChange }: DocumentPageProps)
                 title="Backlinks"
                 refs={payload.backlinks}
                 rootId={rootId}
+                subject={{ path: meta.path, title: meta.title }}
                 emptyLabel="No other document links here yet."
               />
               <LinkRefs title="Links from this note" refs={payload.outlinks} rootId={rootId} />

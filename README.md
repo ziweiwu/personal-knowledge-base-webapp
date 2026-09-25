@@ -5,7 +5,8 @@ vault, a plain folder of markdown, or a pile of PDFs and Word files — reachabl
 phone over Tailscale, behind a password.
 
 - **Markdown** with the Obsidian dialect: wikilinks, embeds and transclusion, callouts,
-  tags, backlinks, GFM tables, maths, mermaid diagrams. Task-list checkboxes are live —
+  tags, backlinks that quote the line they link from, GFM tables, maths, mermaid diagrams
+  in the app's own palette. Task-list checkboxes are live —
   ticking one in the browser writes the single character back to the file.
 - **Sized for the device**: a phone screenshot is several megabytes of PNG shown in a
   column a few hundred pixels wide. Images are re-encoded and resized on demand, cached,

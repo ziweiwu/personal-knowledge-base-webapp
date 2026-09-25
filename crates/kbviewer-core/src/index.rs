@@ -118,11 +118,51 @@ impl Index {
             .count()
     }
 
+    /// Every note linking to `path`, each carrying the line its link appears on.
     pub fn backlinks(&self, path: &str) -> Vec<LinkRef> {
         self.backlinks
             .get(path)
-            .map(|paths| paths.iter().filter_map(|p| self.link_ref(p)).collect())
+            .map(|sources| {
+                sources
+                    .iter()
+                    .filter_map(|source| {
+                        let mut link = self.link_ref(source)?;
+                        link.context = self
+                            .documents
+                            .get(source)
+                            .and_then(|document| self.link_context(document, path));
+                        Some(link)
+                    })
+                    .collect()
+            })
             .unwrap_or_default()
+    }
+
+    /// The line in `source` where it links to `target`: the first wikilink resolving
+    /// there when the root uses them, otherwise the first markdown link that does.
+    fn link_context(&self, source: &Document, target: &str) -> Option<String> {
+        let content = linkable_markdown(source)?;
+        let resolves_here = |resolved: Option<String>| resolved.as_deref() == Some(target);
+        let wikilink = self
+            .wikilinks
+            .then(|| {
+                scan_wikilinks(content).into_iter().find(|link| {
+                    !link.target.is_empty()
+                        && resolves_here(self.resolver.resolve(&source.path, &link.target))
+                })
+            })
+            .flatten();
+        let (start, end) = match wikilink {
+            Some(link) => (link.start, link.end),
+            None => {
+                let url = markdown_link_urls(content)
+                    .into_iter()
+                    .find(|url| resolves_here(self.resolver.resolve_relative(&source.path, url)))?;
+                let start = content.find(&url)?;
+                (start, start + url.len())
+            }
+        };
+        Some(crate::context::line_around(content, start, end))
     }
 
     pub fn outlinks(&self, path: &str) -> Vec<LinkRef> {
@@ -136,6 +176,7 @@ impl Index {
         self.documents.get(path).map(|d| LinkRef {
             path: d.path.clone(),
             title: d.title.clone(),
+            context: None,
         })
     }
 
@@ -515,5 +556,46 @@ mod tests {
         let index = Index::build(&root);
         assert!(!index.wikilinks, "no .obsidian/ means detection says off");
         assert_eq!(index.notes_with_wikilink_syntax(), 1);
+    }
+
+    /// The snippet is the linking note's own line, so the reader sees why it links
+    /// here. An outlink carries none: the reader is already on that line.
+    #[test]
+    fn a_backlink_carries_the_line_it_appears_on() {
+        let root = fixture_root(
+            "backlink-context",
+            &[
+                ("target.md", "# Target\n"),
+                (
+                    "source.md",
+                    "# Source\n\nSome words first.\n\n   Then a mention of [[target|the target]] mid-sentence.\n",
+                ),
+                ("relative.md", "# Relative\n\nA plain [markdown link](./target.md) counts too.\n"),
+            ],
+            Some(true),
+        );
+        let index = Index::build(&root);
+
+        let backlinks = index.backlinks("target.md");
+        let context_of = |path: &str| {
+            backlinks
+                .iter()
+                .find(|link| link.path == path)
+                .unwrap()
+                .context
+                .clone()
+        };
+        assert_eq!(
+            context_of("source.md").as_deref(),
+            Some("Then a mention of [[target|the target]] mid-sentence.")
+        );
+        assert_eq!(
+            context_of("relative.md").as_deref(),
+            Some("A plain [markdown link](./target.md) counts too.")
+        );
+
+        let outlinks = index.outlinks("source.md");
+        assert_eq!(outlinks.len(), 1);
+        assert_eq!(outlinks[0].context, None);
     }
 }
