@@ -8,6 +8,9 @@ import { DocumentBody } from '../components/viewers/registry';
 import { toggleTask } from '../api/client';
 import { Banner, ErrorState, LoadingState } from '../components/ui/States';
 import { useFindShortcut } from '../hooks/useFindShortcut';
+import { useIsWide } from '../hooks/useMediaQuery';
+import { LinkRefs } from '../components/content/LinkRefs';
+import { hasTableOfContents } from '../lib/headings';
 import { FindContext } from '../components/content/find-context';
 import { useAsyncResource } from '../hooks/useAsyncResource';
 import { useChangeEvents } from '../hooks/useChangeEvents';
@@ -54,6 +57,7 @@ function Frontmatter({ fields }: { fields?: { [key: string]: string } }) {
 export function DocumentPage({ rootId, path, onTitleChange }: DocumentPageProps) {
   const { canEdit, root } = useVault();
   const actions = useFileActions();
+  const wide = useIsWide();
 
   const load = useCallback((signal: AbortSignal) => fetchDocument(rootId, path, signal), [rootId, path]);
   const resource = useAsyncResource(load);
@@ -158,6 +162,23 @@ export function DocumentPage({ rootId, path, onTitleChange }: DocumentPageProps)
   const title = meta.title || meta.name;
   const firstHeading = payload.headings[0];
   const bodyCarriesTitle = firstHeading?.depth === 1 && firstHeading.text.trim() === title.trim();
+  // Only rendered text has links to list; a PDF or an image has neither.
+  const linksListed = meta.kind === 'markdown' || meta.kind === 'docx';
+  // Wide enough, the tags step out of the header into the right margin, beside the links.
+  const tags =
+    meta.tags && meta.tags.length > 0 ? (
+      <p className="doc__tags">
+        {meta.tags.map((tag) => (
+          <Link className="tag" key={tag} to={tagRoute(rootId, tag)}>
+            #{tag}
+          </Link>
+        ))}
+      </p>
+    ) : null;
+  const tagsInMargin = wide ? tags : null;
+  const docClass = ['doc', 'doc--reading', hasTableOfContents(payload.headings) && 'doc--with-toc']
+    .filter(Boolean)
+    .join(' ');
 
   const menuItems: MenuItem[] = [];
   if (canEdit) {
@@ -200,8 +221,8 @@ export function DocumentPage({ rootId, path, onTitleChange }: DocumentPageProps)
   }
 
   return (
-    <article className="doc">
-      <div className="doc__inner">
+    <article className={docClass}>
+      <header className="doc__inner doc__head">
         {/* The document's own markdown almost always opens with its title as an `h1`.
             Emitting another here gives every page two `h1`s and a broken outline, so the
             page-chrome title is a `p`. When the note's first heading already is the
@@ -213,15 +234,7 @@ export function DocumentPage({ rootId, path, onTitleChange }: DocumentPageProps)
           <span>Modified {formatDateTime(meta.mtimeMs)}</span>
           {root?.readOnly ? <span className="badge">Read-only</span> : null}
         </p>
-        {meta.tags && meta.tags.length > 0 ? (
-          <p className="doc__tags">
-            {meta.tags.map((tag) => (
-              <Link className="tag" key={tag} to={tagRoute(rootId, tag)}>
-                #{tag}
-              </Link>
-            ))}
-          </p>
-        ) : null}
+        {wide ? null : tags}
         <Frontmatter fields={payload.frontmatter} />
 
         <div className="editor__bar doc__actions">
@@ -246,11 +259,23 @@ export function DocumentPage({ rootId, path, onTitleChange }: DocumentPageProps)
             This document changed on disk.
           </Banner>
         ) : null}
-      </div>
+      </header>
 
       <FindContext value={find}>
         <DocumentBody payload={payload} rootId={rootId} onToggleTask={editable ? onToggleTask : undefined} />
       </FindContext>
+
+      {tagsInMargin || linksListed ? (
+        <aside className="doc__inner doc__margin" aria-label="Tags and links">
+          {tagsInMargin}
+          {linksListed ? (
+            <>
+              <LinkRefs title="Backlinks" refs={payload.backlinks} rootId={rootId} emptyLabel="No other document links here yet." />
+              <LinkRefs title="Links from this note" refs={payload.outlinks} rootId={rootId} />
+            </>
+          ) : null}
+        </aside>
+      ) : null}
     </article>
   );
 }

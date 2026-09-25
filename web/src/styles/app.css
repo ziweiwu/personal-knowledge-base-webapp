@@ -5,6 +5,9 @@
   flex-direction: column;
   height: 100%;
   min-width: 0;
+  position: relative;
+  /* The strip's full height, notch included; the pane, the drawer and the margins clear it. */
+  --strip-h: calc(var(--topbar-h) + env(safe-area-inset-top));
 }
 
 .app-body {
@@ -20,15 +23,26 @@
   overflow-y: auto;
   overflow-x: hidden;
   overscroll-behavior-y: contain;
+  /*
+   * The strip floats over the pane's top edge rather than sitting above it, so it can
+   * slide away on a compositor-only transform instead of reflowing the page. The pane
+   * reserves the room at the top and tells scrollIntoView about it.
+   */
+  padding-top: var(--strip-h);
+  scroll-padding-top: var(--strip-h);
 }
 
 /* --------------------------------------------------------------- topbar -- */
 
+/* A 44px strip: the way to the drawer and the search, and the trail back out. */
 .topbar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
   display: flex;
   align-items: center;
   gap: var(--space-3);
-  height: var(--topbar-h);
   /*
    * `viewport-fit=cover` puts the page under the notch. In landscape the inset lands on
    * the left or right — whichever way the phone is held — and the hamburger and search
@@ -36,27 +50,54 @@
    */
   padding: 0 calc(var(--space-3) + env(safe-area-inset-right)) 0 calc(var(--space-3) + env(safe-area-inset-left));
   padding-top: env(safe-area-inset-top);
-  height: calc(var(--topbar-h) + env(safe-area-inset-top));
+  height: var(--strip-h);
   border-bottom: 1px solid var(--border);
   background: var(--bg-elevated);
-  position: sticky;
-  top: 0;
   /* Above the drawer scrim (50) so the toggle that opened the drawer can also close it. */
   z-index: 70;
-  flex: none;
+  transition: transform 0.2s ease;
+}
+
+/* Out of the way while the reader scrolls down. Keyboard focus landing on a control in
+   it brings it back, so tabbing never reaches an invisible button. */
+.app-shell--strip-hidden .topbar:not(:focus-within) {
+  transform: translateY(-100%);
+}
+
+/* On a document the reading-progress line hugs the strip's bottom edge; leave it peeking
+   so the line stays on screen while the rest of the strip is away. */
+.app-shell--strip-hidden .topbar:has(.reading-progress):not(:focus-within) {
+  transform: translateY(calc(-100% + 3px));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .topbar {
+    transition: none;
+  }
 }
 
 .topbar__title {
   flex: 1;
   min-width: 0;
-  font-size: var(--text-base);
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+  font-size: var(--text-md);
   font-weight: 600;
   white-space: nowrap;
+  overflow: hidden;
+}
+
+.topbar__name {
+  flex: none;
+  max-width: 50%;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 .topbar__crumbs {
+  flex: 1;
+  min-width: 0;
   display: block;
   font-size: var(--text-xs);
   font-weight: 400;
@@ -66,8 +107,8 @@
   text-overflow: ellipsis;
   direction: rtl;
   text-align: left;
-  /* Room for the padded hit boxes below; the two lines still fit --topbar-h. */
-  line-height: 26px;
+  /* Room for the padded hit boxes below; one line still fits --topbar-h. */
+  line-height: 24px;
 }
 
 /* WCAG 2.5.8: the crumb text alone measured 13px tall, and on a phone these are
@@ -209,14 +250,41 @@
 
 /* -------------------------------------------------------------- sidebar -- */
 
+/*
+ * The document list is a drawer at every width, summoned from the strip and gone again
+ * once it has taken the reader somewhere. It hangs below the strip rather than under it,
+ * so the toggle that opened it is still the toggle that closes it.
+ */
 .sidebar {
-  width: var(--sidebar-w);
-  flex: none;
+  position: fixed;
+  top: var(--strip-h);
+  bottom: 0;
+  left: 0;
+  z-index: 60;
+  width: min(86vw, var(--sidebar-w));
   display: flex;
   flex-direction: column;
   min-height: 0;
   border-right: 1px solid var(--border);
   background: var(--bg-subtle);
+  box-shadow: var(--shadow-lg);
+  transform: translateX(-102%);
+  transition: transform 0.18s ease;
+  padding-left: env(safe-area-inset-left);
+}
+
+.sidebar--open {
+  transform: translateX(0);
+}
+
+.sidebar[aria-hidden='true'] {
+  visibility: hidden;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sidebar {
+    transition: none;
+  }
 }
 
 .sidebar__head {
@@ -253,29 +321,6 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-/* Drawer behaviour: on narrow screens the sidebar overlays instead of squeezing. */
-@media (max-width: 899px) {
-  .sidebar {
-    position: fixed;
-    inset: 0 auto 0 0;
-    z-index: 60;
-    width: min(86vw, var(--sidebar-w));
-    box-shadow: var(--shadow-lg);
-    transform: translateX(-102%);
-    transition: transform 0.18s ease;
-    padding-top: env(safe-area-inset-top);
-    padding-left: env(safe-area-inset-left);
-  }
-
-  .sidebar--open {
-    transform: translateX(0);
-  }
-
-  .sidebar[aria-hidden='true'] {
-    visibility: hidden;
-  }
 }
 
 /*
@@ -662,15 +707,74 @@
   min-width: 0;
 }
 
-.doc--with-toc .doc__inner {
-  margin: 0;
+.doc__layout {
+  min-width: 0;
 }
 
-.doc__layout {
+/* Tags and links: under the text on a narrow screen, beside it in the right margin. */
+.doc__margin {
   display: flex;
-  gap: 32px;
-  align-items: flex-start;
-  min-width: 0;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+/*
+ * margin / measure / margin. The title and text keep the reading column in the middle;
+ * the contents sit in the left margin and the tags and links in the right, both sticky
+ * so they stay at hand down a long note. Below this width the margins are gone: the
+ * contents fold into the text and the links go under it.
+ */
+@media (min-width: 1100px) {
+  .doc--reading {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, var(--measure)) minmax(0, 1fr);
+    column-gap: calc(var(--space-6) + var(--space-5));
+    row-gap: var(--space-5);
+    align-items: start;
+  }
+
+  .doc--reading > *,
+  .doc--reading .doc__layout > .doc__inner {
+    grid-column: 2;
+  }
+
+  /* The viewer's wrapper dissolves so its contents and text place themselves on the grid. */
+  .doc--reading .doc__layout {
+    display: contents;
+  }
+
+  .doc--reading .doc__layout > .doc__inner {
+    grid-row: 2;
+  }
+
+  .doc--reading .toc--rail {
+    grid-column: 1;
+    grid-row: 2;
+    justify-self: end;
+    width: min(100%, 220px);
+  }
+
+  .doc--reading .doc__margin {
+    grid-column: 3;
+    grid-row: 2;
+    margin: 0;
+    width: min(100%, 240px);
+    position: sticky;
+    top: calc(var(--strip-h) + var(--space-4));
+    max-height: calc(100vh - var(--strip-h) - var(--space-6));
+    overflow: auto;
+    font-size: var(--text-sm);
+  }
+
+  .doc--reading .doc__margin .doc__tags {
+    margin-bottom: 0;
+  }
+
+  .doc--reading .doc__margin .linkrefs {
+    border-top: 0;
+    padding-top: 0;
+    margin-top: 0;
+  }
 }
 
 .doc__title {
@@ -730,17 +834,17 @@ a.tag:focus-visible {
   background: var(--accent);
 }
 
-/* Table of contents: a right rail on desktop, a collapsible block on mobile. */
+/* Table of contents: a rail in the left margin on a wide screen, a collapsible block
+   between, a sheet on a phone. */
 .toc {
-  flex: none;
-  width: 220px;
-  position: sticky;
-  top: 12px;
-  max-height: calc(100vh - var(--topbar-h) - 40px);
-  overflow: auto;
   font-size: var(--text-sm);
-  border-left: 1px solid var(--border);
-  padding-left: 14px;
+}
+
+.toc--rail {
+  position: sticky;
+  top: calc(var(--strip-h) + var(--space-4));
+  max-height: calc(100vh - var(--strip-h) - var(--space-6));
+  overflow: auto;
 }
 
 .toc__heading {
@@ -785,10 +889,8 @@ a.tag:focus-visible {
 }
 
 .toc-mobile .toc {
-  width: auto;
-  position: static;
   max-height: 40vh;
-  border-left: 0;
+  overflow: auto;
   padding: 0 var(--space-4) var(--space-4);
 }
 
@@ -1354,12 +1456,6 @@ kbd {
   --scroll-surface: var(--bg-subtle);
 }
 
-@media (min-width: 900px) {
-  .only-mobile {
-    display: none !important;
-  }
-}
-
 @media (max-width: 899px) {
   .only-desktop {
     display: none !important;
@@ -1368,6 +1464,12 @@ kbd {
   .doc {
     padding: var(--space-4) calc(var(--space-4) + env(safe-area-inset-right)) var(--doc-tail)
       calc(var(--space-4) + env(safe-area-inset-left));
+  }
+
+  /* The floating contents button sits over the tail, so the tail is at least its height
+     plus breathing room: the last line of a note is never under it once scrolled to the end. */
+  .doc--with-toc {
+    --doc-tail: calc(max(clamp(16px, 10vh, 96px), var(--tap) + 2 * var(--space-4)) + env(safe-area-inset-bottom));
   }
 }
 
@@ -1396,17 +1498,17 @@ kbd {
 }
 
 /*
- * With no topbar above it the document carries the top inset itself, and clears the exit
- * button's corner. Landscape is the case this matters most in: the topbar is 52px of a
- * 390px-tall phone, so giving it back is a seventh of the reading area.
+ * With no strip above it the pane gives back the room it reserved, and the document
+ * carries the top inset itself, clearing the exit button's corner. Landscape is the case
+ * this matters most in: the strip is 44px of a 390px-tall phone.
  */
-.app-shell--focus .doc {
-  padding-top: calc(var(--tap) + var(--space-3) + env(safe-area-inset-top));
+.app-shell--focus .main-pane {
+  padding-top: 0;
+  scroll-padding-top: 0;
 }
 
-/* The rail is gone, so the measure centres on the window rather than hugging its left. */
-.app-shell--focus .doc--with-toc .doc__inner {
-  margin: 0 auto;
+.app-shell--focus .doc {
+  padding-top: calc(var(--tap) + var(--space-3) + env(safe-area-inset-top));
 }
 
 .focus-exit {
@@ -1598,10 +1700,19 @@ kbd {
 
   .main-pane {
     overflow: visible;
+    padding-top: 0;
   }
 
   .doc {
     --doc-tail: 0px;
+  }
+
+  .doc--reading {
+    display: block;
+  }
+
+  .doc__margin {
+    display: none;
   }
 
   .doc__inner,
@@ -2346,6 +2457,19 @@ kbd {
   border-radius: 999px;
   padding-inline: var(--space-5);
   box-shadow: var(--shadow-md);
+  transition: transform 0.2s ease;
+}
+
+/* It leaves with the strip while the reader scrolls down, so nothing floats over the
+   text being read, and comes back with it on the way up. */
+.app-shell--strip-hidden .toc-fab:not(:focus-visible) {
+  transform: translateY(calc(100% + var(--space-6) + env(safe-area-inset-bottom)));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .toc-fab {
+    transition: none;
+  }
 }
 
 .app-shell--focus .toc-fab {
@@ -2405,14 +2529,10 @@ kbd {
   font-size: var(--text-lg);
 }
 
-/* Inside the sheet the list is the whole surface, so the rail's rule and width go. */
+/* Inside the sheet the list is the whole surface. */
 .toc.toc--sheet {
-  width: auto;
-  position: static;
-  max-height: none;
   min-height: 0;
   overflow: auto;
-  border-left: 0;
   padding: var(--space-2) var(--space-5) var(--space-4);
   font-size: var(--text-md);
 }

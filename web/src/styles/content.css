@@ -23,7 +23,8 @@
   line-height: 1.3;
   font-weight: 680;
   letter-spacing: -0.01em;
-  scroll-margin-top: calc(var(--topbar-h) + 16px);
+  /* The pane's scroll-padding already clears the strip; this is the breathing room under it. */
+  scroll-margin-top: 16px;
 }
 
 .prose > h1 + *,

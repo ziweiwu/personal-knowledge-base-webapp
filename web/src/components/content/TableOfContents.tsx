@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { Heading } from '../../api/types';
 import { PHONE_QUERY, useMediaQuery } from '../../hooks/useMediaQuery';
+import { hasTableOfContents } from '../../lib/headings';
 import { TocList } from './TocList';
 import { TocSheetButton } from './TocSheet';
 
@@ -54,7 +55,7 @@ function InlineTableOfContents({ headings, shallowest }: Omit<TocBlockProps, 'va
 }
 
 export function TableOfContents({ headings, variant }: TableOfContentsProps) {
-  if (headings.length < 2) return null;
+  if (!hasTableOfContents(headings)) return null;
   const shallowest = Math.min(...headings.map((heading) => heading.depth));
   if (variant === 'rail') return <TocBlock headings={headings} shallowest={shallowest} variant="rail" />;
   return <InlineTableOfContents headings={headings} shallowest={shallowest} />;

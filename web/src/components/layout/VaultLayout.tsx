@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useLocation, useParams } from 'react-router-dom';
 import { baseName, parentPath } from '../../api/paths';
-import { useIsDesktop } from '../../hooks/useMediaQuery';
+import { useHiddenOnScroll } from '../../hooks/useHiddenOnScroll';
 import { useEscapeKey } from '../../hooks/useEscapeKey';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import { useScrollRestoration } from '../../hooks/useScrollRestoration';
@@ -64,7 +64,6 @@ function VaultShell({ mode, path }: { mode: VaultMode; path: string }) {
   const { rootId, root } = useVault();
   const { roots } = useRoots();
   const location = useLocation();
-  const isDesktop = useIsDesktop();
 
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -75,6 +74,9 @@ function VaultShell({ mode, path }: { mode: VaultMode; path: string }) {
   const mainRef = useRef<HTMLElement>(null);
 
   useScrollRestoration(mainRef);
+  // The strip slides away while the reader scrolls down and returns on the way up; any
+  // layer that opens from it keeps it on screen, since its toggle is the way back out.
+  const stripHidden = useHiddenOnScroll(mainRef) && !drawerOpen && !searchOpen;
 
   // Remembered per root so the picker and the home page can return here later.
   useEffect(() => {
@@ -85,12 +87,11 @@ function VaultShell({ mode, path }: { mode: VaultMode; path: string }) {
 
   // Escape closes the topmost layer: the drawer outranks focus mode, and the search
   // palette binds its own so it is never reached through here while open.
-  const escapeClosesDrawer = drawerOpen && !isDesktop;
   const escapeLeavesFocus = focus.focused && !searchOpen;
-  useEscapeKey(escapeClosesDrawer ? closeDrawer : escapeLeavesFocus ? focus.exit : null);
-  useBodyScrollLock(drawerOpen && !isDesktop ? 'locked' : 'scrollable');
+  useEscapeKey(drawerOpen ? closeDrawer : escapeLeavesFocus ? focus.exit : null);
+  useBodyScrollLock(drawerOpen ? 'locked' : 'scrollable');
 
-  // A navigation on mobile should reveal the document, not leave the drawer open.
+  // The drawer is summoned to go somewhere; arriving there should reveal the page.
   const [shownPath, setShownPath] = useState(location.pathname);
   if (shownPath !== location.pathname) {
     setShownPath(location.pathname);
@@ -157,14 +158,17 @@ function VaultShell({ mode, path }: { mode: VaultMode; path: string }) {
     document.title = title ? `${title} · kbviewer` : 'kbviewer';
   }, [title]);
 
-  const drawerHidden = !isDesktop && !drawerOpen;
   // While the drawer overlays the page, everything behind the scrim must leave
   // the tab order and the accessibility tree — otherwise Tab walks straight
   // through to the breadcrumb and search button the scrim is covering.
-  const behindDrawer = !isDesktop && drawerOpen;
+  const behindDrawer = drawerOpen;
+
+  const shellClass = ['app-shell', focus.focused && 'app-shell--focus', stripHidden && 'app-shell--strip-hidden']
+    .filter(Boolean)
+    .join(' ');
 
   return (
-    <div className={`app-shell${focus.focused ? ' app-shell--focus' : ''}`}>
+    <div className={shellClass}>
       <a className="skip-link" href="#main-content">
         Skip to content
       </a>
@@ -172,20 +176,19 @@ function VaultShell({ mode, path }: { mode: VaultMode; path: string }) {
       <header className="topbar">
         <Button
           variant="icon"
-          className="only-mobile"
           ref={menuButtonRef}
           onClick={() => setDrawerOpen((open) => !open)}
           aria-label={drawerOpen ? 'Close document list' : 'Open document list'}
           aria-expanded={drawerOpen}
           aria-controls="sidebar-drawer"
         >
-          <Icon name="menu" size="md" />
+          <Icon name={drawerOpen ? 'close' : 'menu'} size="md" />
         </Button>
 
         {/* The toolbar outranks the scrim so its toggle can close the drawer again;
             everything else in it is page chrome and is neutralised alongside <main>. */}
         <div className="topbar__title" inert={behindDrawer}>
-          {title}
+          <span className="topbar__name">{title}</span>
           <Breadcrumbs rootId={rootId} rootName={rootName} path={path} mode={mode} />
         </div>
 
@@ -217,7 +220,7 @@ function VaultShell({ mode, path }: { mode: VaultMode; path: string }) {
           </Button>
         ) : null}
 
-        <span className="only-mobile" inert={behindDrawer}>
+        <span inert={behindDrawer}>
           <ThemeToggle />
         </span>
 
@@ -225,7 +228,7 @@ function VaultShell({ mode, path }: { mode: VaultMode; path: string }) {
       </header>
 
       <div className="app-body">
-        {drawerOpen && !isDesktop ? (
+        {drawerOpen ? (
           // Decorative: closing is already reachable by the toolbar toggle and Escape.
           // As a labelled <button> it was a second tab stop announcing the same name as
           // the toggle, which is ambiguous to a screen reader for no added capability.
@@ -236,8 +239,8 @@ function VaultShell({ mode, path }: { mode: VaultMode; path: string }) {
           id="sidebar-drawer"
           className={`sidebar${drawerOpen ? ' sidebar--open' : ''}`}
           aria-label="Documents"
-          aria-hidden={drawerHidden}
-          inert={drawerHidden}
+          aria-hidden={!drawerOpen}
+          inert={!drawerOpen}
         >
           <Sidebar activePath={path} currentDirectory={currentDirectory} onNavigate={closeDrawer} />
         </nav>

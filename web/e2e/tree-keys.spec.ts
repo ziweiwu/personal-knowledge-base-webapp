@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { openDoc } from './helpers';
+import { openDoc, openDrawer } from './helpers';
 
 /**
  * Focus lands on a row's link, so "the focused row" is read back as the active element's
@@ -12,6 +12,7 @@ function focusedText(page: Parameters<typeof openDoc>[0]): Promise<string> {
 
 test('down and up arrows move between tree rows', async ({ page }) => {
   await openDoc(page, 'shapes', 'index.md');
+  await openDrawer(page);
   const links = page.locator('#sidebar-drawer .tree__link');
   await links.first().focus();
   const first = await focusedText(page);
@@ -26,6 +27,7 @@ test('down and up arrows move between tree rows', async ({ page }) => {
 
 test('right arrow opens a folder and steps in; left steps out and closes it', async ({ page }) => {
   await openDoc(page, 'shapes', 'index.md');
+  await openDrawer(page);
   const row = page.locator('#sidebar-drawer .tree__row').filter({ has: page.getByText('deep', { exact: true }) });
   const twisty = row.getByRole('button', { name: /^(expand|collapse) deep$/i });
   if ((await twisty.getAttribute('aria-expanded')) === 'true') await twisty.click();

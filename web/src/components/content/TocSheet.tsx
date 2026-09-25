@@ -16,11 +16,15 @@ interface TocSheetButtonProps {
  */
 const CURRENT_SECTION_MARGIN_PX = 96;
 
-/** Where the pane that scrolls the document starts; the viewport's top when it is the window. */
+/**
+ * Where the visible part of the scrolling pane starts: its top edge plus whatever it keeps
+ * clear for the strip over it. The viewport's top when the window is the scroller.
+ */
 function scrollerTop(element: Element): number {
   for (let node = element.parentElement; node; node = node.parentElement) {
-    const overflow = getComputedStyle(node).overflowY;
-    if (overflow === 'auto' || overflow === 'scroll') return node.getBoundingClientRect().top;
+    const style = getComputedStyle(node);
+    if (style.overflowY !== 'auto' && style.overflowY !== 'scroll') continue;
+    return node.getBoundingClientRect().top + (parseFloat(style.scrollPaddingTop) || 0);
   }
   return 0;
 }

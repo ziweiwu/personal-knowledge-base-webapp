@@ -270,13 +270,29 @@ render through `StateFrame` in `web/src/components/ui/States.tsx`, which takes a
 `web/src/lib/errors.ts` turns an `ApiRequestError` into the title and detail a person can
 act on, so a raw status code never reaches the screen.
 
-Below 900px the inline table of contents becomes a floating button that opens a bottom
-sheet (`web/src/components/content/TocSheet.tsx`); it and `Modal` are both dressings of
-`DialogShell` in `web/src/components/ui/`, which owns the portal, scrim, focus trap,
-Escape and scroll lock, so a dialog fix lands once.
+The shell is a 44px strip over a scrolling `.main-pane`. The strip is absolutely
+positioned and the pane reserves its height as `padding-top` and `scroll-padding-top`, so
+`useHiddenOnScroll` (`web/src/hooks/`) can slide it away on a transform while the reader
+scrolls down without reflowing the page; anything that opens from the strip (drawer,
+search) keeps it on screen, and focus landing in it brings it back. The document list
+(`Sidebar`) is a fixed drawer at every width, hung below the strip and closed by any
+navigation; a test that reaches into the tree opens it with `openDrawer` from
+`web/e2e/helpers.ts` first, and the page behind it is `inert` while it is open.
+
+A document page is `.doc--reading`: at 1100px and up it is a margin / measure / margin
+grid — the contents rail in the left column, the text in the middle, tags and `LinkRefs`
+in a sticky `.doc__margin` on the right (`useIsWide` decides where the tags render). The
+viewer's `.doc__layout` wrapper is `display: contents` there so its children place
+themselves on the grid. Below 1100px the rail hides, the contents become the collapsible
+block above the text and the margin goes under it; below 900px the block becomes a
+floating button that opens a bottom sheet (`web/src/components/content/TocSheet.tsx`),
+which leaves with the strip while scrolling down. `TocSheet` and `Modal` are both
+dressings of `DialogShell` in `web/src/components/ui/`, which owns the portal, scrim,
+focus trap, Escape and scroll lock, so a dialog fix lands once.
 The reading-progress bar is mounted only on the document route and hidden by CSS while the
 editor is open (`.app-shell:has(.editor)`); `:has()` is supported by every browser the app
-targets, but a browser without it shows the bar over the editor rather than breaking.
+targets, but a browser without it shows the bar over the editor rather than breaking. When
+the strip is hidden it peeks 3px so the line stays visible.
 
 ## QA
 
