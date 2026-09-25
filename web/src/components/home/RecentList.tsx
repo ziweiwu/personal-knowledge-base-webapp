@@ -10,6 +10,8 @@ interface RecentListProps {
   activePath?: string;
   /** Names a note's root when the list spans several; also drops roots no longer configured. */
   rootNames?: Map<string, string>;
+  /** One list of everything (the sidebar), or the pinned and the merely recent apart (the home page). */
+  only?: 'pinned' | 'unpinned';
   onNavigate?: () => void;
   headingId: string;
   heading: string;
@@ -57,11 +59,21 @@ function RecentRow({ note, active, rootName, onNavigate }: RecentRowProps) {
   );
 }
 
-export function RecentList({ rootId, activePath, rootNames, onNavigate, headingId, heading, limit }: RecentListProps) {
+export function RecentList({
+  rootId,
+  activePath,
+  rootNames,
+  only,
+  onNavigate,
+  headingId,
+  heading,
+  limit,
+}: RecentListProps) {
   const snapshot = useRecents();
   // A root that was removed from the config has nothing to link to.
   const items = listRecents(snapshot, rootId)
     .filter((note) => !rootNames || rootNames.has(note.rootId))
+    .filter((note) => only === undefined || (only === 'pinned') === isPinned(note.rootId, note.path))
     .slice(0, limit);
   if (items.length === 0) return null;
 

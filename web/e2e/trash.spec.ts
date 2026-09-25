@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { readRootFile } from './helpers';
+import { openDrawer, readRootFile } from './helpers';
 
 const NOTE = 'trash-me.md';
 const CONTENT = '# Trash me\n\nA note the e2e suite deletes and then restores.\n';
@@ -33,6 +33,7 @@ test.describe('trash', () => {
 
   test('the sidebar links to the trash', async ({ page }) => {
     await page.goto('/f/plain');
+    await openDrawer(page);
     await page.getByRole('button', { name: /open the trash/i }).click();
     await expect(page).toHaveURL(/\/trash\/plain$/);
     await expect(page.getByRole('heading', { name: 'Trash' })).toBeVisible();

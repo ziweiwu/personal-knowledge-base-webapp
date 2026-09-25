@@ -56,7 +56,13 @@ export type Heading = { depth: number, text: string, slug: string, };
 /**
  * A reference from one document to another, used for both backlinks and outlinks.
  */
-export type LinkRef = { path: string, title: string, };
+export type LinkRef = { path: string, title: string, 
+/**
+ * For a backlink, the line the link appears on, cut to a readable width around
+ * it, so the reader learns why the other note links here without opening it.
+ * An outlink carries none: the reader is already looking at that line.
+ */
+context: string | null, };
 
 export type RenameRequest = { from: string, to: string, 
 /**

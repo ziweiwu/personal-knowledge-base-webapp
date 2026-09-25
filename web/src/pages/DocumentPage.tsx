@@ -8,6 +8,10 @@ import { DocumentBody } from '../components/viewers/registry';
 import { toggleTask } from '../api/client';
 import { Banner, ErrorState, LoadingState } from '../components/ui/States';
 import { useFindShortcut } from '../hooks/useFindShortcut';
+import { useIsWide } from '../hooks/useMediaQuery';
+import { LinkRefs } from '../components/content/LinkRefs';
+import { hasTableOfContents } from '../lib/headings';
+import { tagTone } from '../lib/tags';
 import { FindContext } from '../components/content/find-context';
 import { useAsyncResource } from '../hooks/useAsyncResource';
 import { useChangeEvents } from '../hooks/useChangeEvents';
@@ -16,7 +20,10 @@ import { useFileActions } from '../state/file-actions-context';
 import { useVault } from '../state/vault-context';
 import { recordOpen } from '../lib/recents';
 import { Button } from '../components/ui/Button';
+import { ContextMenu, type MenuItem } from '../components/ui/ContextMenu';
 import { Icon } from '../components/ui/Icon';
+
+const MENU_OFFSET_PX = 4;
 
 /**
  * CodeMirror and everything under `components/editor` load only when the user
@@ -51,6 +58,7 @@ function Frontmatter({ fields }: { fields?: { [key: string]: string } }) {
 export function DocumentPage({ rootId, path, onTitleChange }: DocumentPageProps) {
   const { canEdit, root } = useVault();
   const actions = useFileActions();
+  const wide = useIsWide();
 
   const load = useCallback((signal: AbortSignal) => fetchDocument(rootId, path, signal), [rootId, path]);
   const resource = useAsyncResource(load);
@@ -75,6 +83,14 @@ export function DocumentPage({ rootId, path, onTitleChange }: DocumentPageProps)
   }, []);
   const findable = !editing && Boolean(payload?.html);
   useFindShortcut(findable ? openFind : null);
+
+  // Everything but Edit lives behind one labelled menu, anchored under its button.
+  const [menuAnchor, setMenuAnchor] = useState<{ x: number; y: number } | null>(null);
+  const openMenu = useCallback((event: React.MouseEvent<HTMLButtonElement>) => {
+    const rect = event.currentTarget.getBoundingClientRect();
+    setMenuAnchor({ x: rect.left, y: rect.bottom + MENU_OFFSET_PX });
+  }, []);
+  const closeMenu = useCallback(() => setMenuAnchor(null), []);
 
   // Opening a different document always starts in read mode.
   const documentKey = `${rootId}/${path}`;
@@ -144,6 +160,44 @@ export function DocumentPage({ rootId, path, onTitleChange }: DocumentPageProps)
 
   const { meta } = payload;
   const editable = canEdit && meta.editable;
+  const title = meta.title || meta.name;
+  const firstHeading = payload.headings[0];
+  const bodyCarriesTitle = firstHeading?.depth === 1 && firstHeading.text.trim() === title.trim();
+  // Only rendered text has links to list; a PDF or an image has neither.
+  const linksListed = meta.kind === 'markdown' || meta.kind === 'docx';
+  // Wide enough, the tags step out of the header into the right margin, beside the links.
+  const tags =
+    meta.tags && meta.tags.length > 0 ? (
+      <p className="doc__tags">
+        {meta.tags.map((tag) => (
+          <Link className={`tag tag--${tagTone(tag)}`} key={tag} to={tagRoute(rootId, tag)}>
+            #{tag}
+          </Link>
+        ))}
+      </p>
+    ) : null;
+  const tagsInMargin = wide ? tags : null;
+  const docClass = ['doc', 'doc--reading', hasTableOfContents(payload.headings) && 'doc--with-toc']
+    .filter(Boolean)
+    .join(' ');
+
+  const menuItems: MenuItem[] = [];
+  if (canEdit) {
+    menuItems.push({ id: 'rename', label: 'Rename', icon: 'rename', onSelect: () => actions.rename(path, false) });
+    menuItems.push({ id: 'move', label: 'Move', icon: 'folder', onSelect: () => actions.move(path, false) });
+  }
+  if (findable) menuItems.push({ id: 'find', label: 'Find', icon: 'search', onSelect: openFind });
+  menuItems.push({ id: 'print', label: 'Print', icon: 'print', onSelect: () => window.print() });
+  if (canEdit) {
+    menuItems.push({
+      id: 'delete',
+      label: 'Delete',
+      icon: 'trash',
+      danger: true,
+      separatorBefore: true,
+      onSelect: () => actions.remove(path, false),
+    });
+  }
 
   if (editing) {
     return (
@@ -168,50 +222,37 @@ export function DocumentPage({ rootId, path, onTitleChange }: DocumentPageProps)
   }
 
   return (
-    <article className="doc">
-      <div className="doc__inner">
+    <article className={docClass}>
+      <header className="doc__inner doc__head">
         {/* The document's own markdown almost always opens with its title as an `h1`.
             Emitting another here gives every page two `h1`s and a broken outline, so the
-            page-chrome title is a `p` styled to look the same. */}
-        <p className="doc__title">{meta.title || meta.name}</p>
+            page-chrome title is a `p`. When the note's first heading already is the
+            title, the `p` steps down to a caption so the words are set large once. */}
+        <p className={bodyCarriesTitle ? 'doc__title doc__title--caption' : 'doc__title'}>{title}</p>
         <p className="doc__meta">
           <span>{kindLabel(meta.kind)}</span>
           <span>{formatSize(meta.size)}</span>
           <span>Modified {formatDateTime(meta.mtimeMs)}</span>
           {root?.readOnly ? <span className="badge">Read-only</span> : null}
         </p>
-        {meta.tags && meta.tags.length > 0 ? (
-          <p className="doc__tags">
-            {meta.tags.map((tag) => (
-              <Link className="tag" key={tag} to={tagRoute(rootId, tag)}>
-                #{tag}
-              </Link>
-            ))}
-          </p>
-        ) : null}
+        {wide ? null : tags}
         <Frontmatter fields={payload.frontmatter} />
 
         <div className="editor__bar doc__actions">
           {editable ? (
-            <Button onClick={startEditing}>
-              {/* Decorative: its siblings carry no icon, and announcing "pencil Edit"
-                  makes this one button read differently from the rest of the row. */}
+            <Button variant="primary" onClick={startEditing}>
               <Icon name="edit" />
               Edit
             </Button>
           ) : null}
-          {canEdit ? (
-            <>
-              <Button onClick={() => actions.rename(path, false)}>Rename</Button>
-              <Button onClick={() => actions.move(path, false)}>Move</Button>
-              <Button variant="danger-quiet" onClick={() => actions.remove(path, false)}>
-                Delete
-              </Button>
-            </>
-          ) : null}
-          {findable ? <Button onClick={openFind}>Find</Button> : null}
-          <Button onClick={() => window.print()}>Print</Button>
+          <Button aria-haspopup="menu" aria-expanded={menuAnchor !== null} onClick={openMenu}>
+            <Icon name="more" />
+            More
+          </Button>
         </div>
+        {menuAnchor ? (
+          <ContextMenu items={menuItems} anchor={menuAnchor} label="Document actions" onClose={closeMenu} />
+        ) : null}
 
         {payload.renderWarning ? <Banner tone="warning">{payload.renderWarning}</Banner> : null}
         {changedOnDisk ? (
@@ -219,11 +260,29 @@ export function DocumentPage({ rootId, path, onTitleChange }: DocumentPageProps)
             This document changed on disk.
           </Banner>
         ) : null}
-      </div>
+      </header>
 
       <FindContext value={find}>
         <DocumentBody payload={payload} rootId={rootId} onToggleTask={editable ? onToggleTask : undefined} />
       </FindContext>
+
+      {tagsInMargin || linksListed ? (
+        <aside className="doc__inner doc__margin" aria-label="Tags and links">
+          {tagsInMargin}
+          {linksListed ? (
+            <>
+              <LinkRefs
+                title="Backlinks"
+                refs={payload.backlinks}
+                rootId={rootId}
+                subject={{ path: meta.path, title: meta.title }}
+                emptyLabel="No other document links here yet."
+              />
+              <LinkRefs title="Links from this note" refs={payload.outlinks} rootId={rootId} />
+            </>
+          ) : null}
+        </aside>
+      ) : null}
     </article>
   );
 }

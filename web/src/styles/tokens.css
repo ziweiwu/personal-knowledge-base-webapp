@@ -5,55 +5,60 @@
  * Three-state theming: `:root` carries light, the prefers-color-scheme block
  * carries dark for the "system" setting, and [data-theme] overrides both when
  * the user has made an explicit choice.
+ *
+ * The palette is warm on purpose: paper in light, ink in dark, one rust accent.
+ * Filled controls put `--fg-on-accent` on `--accent`; in dark the accent is a
+ * light tint and the text on it is dark, so the pair clears AA in both themes
+ * without a second accent token.
  */
 :root {
   color-scheme: light;
 
-  --bg: #ffffff;
-  --bg-subtle: #f6f7f9;
-  --bg-inset: #eceef1;
-  --bg-elevated: #ffffff;
-  --bg-overlay: rgb(15 18 22 / 45%);
-  --bg-hover: rgb(15 18 22 / 5%);
-  --bg-active: rgb(15 18 22 / 9%);
-  --bg-selected: #e4edff;
+  --bg: #faf6ee;
+  --bg-subtle: #f3ecdd;
+  --bg-inset: #ece2ca;
+  --bg-elevated: #fffdf7;
+  --bg-overlay: rgb(42 36 30 / 40%);
+  --bg-hover: rgb(42 36 30 / 6%);
+  --bg-active: rgb(42 36 30 / 10%);
+  --bg-selected: #f1e3ce;
 
-  --fg: #14181d;
-  --fg-muted: #5b6572;
-  --fg-faint: #626c79;
-  --fg-on-accent: #ffffff;
+  --fg: #2a2118;
+  --fg-muted: #6d5e4c;
+  --fg-faint: #8a7c68;
+  --fg-on-accent: #fdf8ee;
 
-  --border: #dfe3e8;
-  --border-strong: #c3c9d2;
+  --border: #e3d7bd;
+  --border-strong: #cdbc98;
 
-  --accent: #2f6feb;
-  --accent-hover: #2158c9;
-  --accent-subtle: #e8f0fe;
-  --accent-fg: #1d4ed8;
+  --accent: #9a4a2e;
+  --accent-hover: #7c3a22;
+  --accent-subtle: #f2e0d1;
+  --accent-fg: #7c3a22;
 
-  --danger: #c0392f;
-  --danger-hover: #9d2b23;
-  --danger-subtle: #fdecea;
+  --danger: #a13327;
+  --danger-hover: #83271d;
+  --danger-subtle: #f6e2dd;
 
-  --warning: #9a6408;
-  --warning-subtle: #fdf3d7;
-  --warning-border: #e7cf95;
+  --warning: #93650d;
+  --warning-subtle: #f6ecd0;
+  --warning-border: #dcc384;
 
-  --success: #1a7f47;
-  --success-subtle: #e6f5ec;
+  --success: #3d7a49;
+  --success-subtle: #e6f0e2;
 
-  --teal: #0f7f8a;
-  --teal-subtle: #e2f4f6;
-  --violet: #6d3fc4;
-  --violet-subtle: #efe8fb;
+  --teal: #1f6f74;
+  --teal-subtle: #dfeeed;
+  --violet: #6a4a9c;
+  --violet-subtle: #ece5f3;
 
-  --code-bg: #f4f5f7;
-  --mark-bg: #fff2a8;
-  --mark-fg: #4a3c00;
+  --code-bg: #efe6d2;
+  --mark-bg: #f3d38b;
+  --mark-fg: #3f2b06;
 
-  --shadow-sm: 0 1px 2px rgb(15 18 22 / 8%);
-  --shadow-md: 0 4px 14px rgb(15 18 22 / 12%);
-  --shadow-lg: 0 18px 48px rgb(15 18 22 / 22%);
+  --shadow-sm: 0 1px 2px rgb(42 33 24 / 10%);
+  --shadow-md: 0 8px 24px rgb(42 33 24 / 14%);
+  --shadow-lg: 0 24px 64px rgb(42 33 24 / 26%);
 
   --focus-ring: 0 0 0 2px var(--bg), 0 0 0 4px var(--accent);
 
@@ -79,16 +84,25 @@
   --text-base: 1rem;
   --text-lg: 1.05rem;
   --text-xl: 1.4rem;
+  --text-2xl: 2.1rem;
 
   --radius-sm: 4px;
   --radius-md: 8px;
   --radius-lg: 14px;
 
   --sidebar-w: 288px;
-  --topbar-h: 52px;
+  --topbar-h: 44px;
 
-  --font-ui: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', sans-serif,
-    'Apple Color Emoji', 'Segoe UI Emoji';
+  /* The reading column. Prose and the document title share it. */
+  --measure: 65ch;
+
+  --font-ui: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', Roboto, 'Helvetica Neue', Arial, 'Noto Sans',
+    sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji';
+  /* System faces only: the app promises no external services, and the devices it is
+     read on ship Charter and Iowan Old Style. The CJK entries keep mixed-script notes
+     on a matching serif rather than falling to the UI sans mid-paragraph. */
+  --font-serif: 'Iowan Old Style', Charter, 'Songti SC', 'Noto Serif CJK SC', 'Noto Serif SC', Georgia,
+    'Times New Roman', serif, 'Apple Color Emoji', 'Segoe UI Emoji';
   --font-mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace;
 
   --tap: 44px;
@@ -98,100 +112,100 @@
   :root:not([data-theme='light']) {
     color-scheme: dark;
 
-    --bg: #14171b;
-    --bg-subtle: #1a1e23;
-    --bg-inset: #22272e;
-    --bg-elevated: #1e2329;
-    --bg-overlay: rgb(0 0 0 / 62%);
+    --bg: #1c1712;
+    --bg-subtle: #221b14;
+    --bg-inset: #2a2118;
+    --bg-elevated: #241d16;
+    --bg-overlay: rgb(0 0 0 / 55%);
     --bg-hover: rgb(255 255 255 / 6%);
-    --bg-active: rgb(255 255 255 / 11%);
-    --bg-selected: #1e3763;
+    --bg-active: rgb(255 255 255 / 10%);
+    --bg-selected: #35281a;
 
-    --fg: #e7ebf0;
-    --fg-muted: #9aa4b1;
-    --fg-faint: #8b95a2;
-    --fg-on-accent: #ffffff;
+    --fg: #ede4d4;
+    --fg-muted: #b3a58e;
+    --fg-faint: #8f8168;
+    --fg-on-accent: #241a10;
 
-    --border: #2c333b;
-    --border-strong: #3d4652;
+    --border: #3a2f22;
+    --border-strong: #4d4130;
 
-    --accent: #4c8bf5;
-    --accent-hover: #6ba0f8;
-    --accent-subtle: #17243c;
-    --accent-fg: #86b2fb;
+    --accent: #e0925f;
+    --accent-hover: #eaab7f;
+    --accent-subtle: #3c2a1c;
+    --accent-fg: #eaab7f;
 
-    --danger: #f0776a;
-    --danger-hover: #f5958a;
-    --danger-subtle: #3a1d1a;
+    --danger: #ef8672;
+    --danger-hover: #f4a191;
+    --danger-subtle: #3c2019;
 
-    --warning: #e0b449;
-    --warning-subtle: #33280f;
-    --warning-border: #5b4818;
+    --warning: #dcb459;
+    --warning-subtle: #362a12;
+    --warning-border: #56431c;
 
-    --success: #56c98a;
-    --success-subtle: #13301f;
+    --success: #79c28c;
+    --success-subtle: #17281a;
 
-    --teal: #4fc3cf;
-    --teal-subtle: #0f2c30;
-    --violet: #b08cf2;
-    --violet-subtle: #251a3d;
+    --teal: #6cc3c8;
+    --teal-subtle: #14302f;
+    --violet: #b79ae6;
+    --violet-subtle: #2a1f3d;
 
-    --code-bg: #1b2026;
-    --mark-bg: #6a5a12;
-    --mark-fg: #ffe98a;
+    --code-bg: #241b12;
+    --mark-bg: #6b4f17;
+    --mark-fg: #ffe5ad;
 
     --shadow-sm: 0 1px 2px rgb(0 0 0 / 40%);
-    --shadow-md: 0 4px 14px rgb(0 0 0 / 46%);
-    --shadow-lg: 0 18px 48px rgb(0 0 0 / 60%);
+    --shadow-md: 0 8px 24px rgb(0 0 0 / 46%);
+    --shadow-lg: 0 24px 64px rgb(0 0 0 / 60%);
   }
 }
 
 :root[data-theme='dark'] {
   color-scheme: dark;
 
-  --bg: #14171b;
-  --bg-subtle: #1a1e23;
-  --bg-inset: #22272e;
-  --bg-elevated: #1e2329;
-  --bg-overlay: rgb(0 0 0 / 62%);
+  --bg: #1c1712;
+  --bg-subtle: #221b14;
+  --bg-inset: #2a2118;
+  --bg-elevated: #241d16;
+  --bg-overlay: rgb(0 0 0 / 55%);
   --bg-hover: rgb(255 255 255 / 6%);
-  --bg-active: rgb(255 255 255 / 11%);
-  --bg-selected: #1e3763;
+  --bg-active: rgb(255 255 255 / 10%);
+  --bg-selected: #35281a;
 
-  --fg: #e7ebf0;
-  --fg-muted: #9aa4b1;
-  --fg-faint: #8b95a2;
-  --fg-on-accent: #ffffff;
+  --fg: #ede4d4;
+  --fg-muted: #b3a58e;
+  --fg-faint: #8f8168;
+  --fg-on-accent: #241a10;
 
-  --border: #2c333b;
-  --border-strong: #3d4652;
+  --border: #3a2f22;
+  --border-strong: #4d4130;
 
-  --accent: #4c8bf5;
-  --accent-hover: #6ba0f8;
-  --accent-subtle: #17243c;
-  --accent-fg: #86b2fb;
+  --accent: #e0925f;
+  --accent-hover: #eaab7f;
+  --accent-subtle: #3c2a1c;
+  --accent-fg: #eaab7f;
 
-  --danger: #f0776a;
-  --danger-hover: #f5958a;
-  --danger-subtle: #3a1d1a;
+  --danger: #ef8672;
+  --danger-hover: #f4a191;
+  --danger-subtle: #3c2019;
 
-  --warning: #e0b449;
-  --warning-subtle: #33280f;
-  --warning-border: #5b4818;
+  --warning: #dcb459;
+  --warning-subtle: #362a12;
+  --warning-border: #56431c;
 
-  --success: #56c98a;
-  --success-subtle: #13301f;
+  --success: #79c28c;
+  --success-subtle: #17281a;
 
-  --teal: #4fc3cf;
-  --teal-subtle: #0f2c30;
-  --violet: #b08cf2;
-  --violet-subtle: #251a3d;
+  --teal: #6cc3c8;
+  --teal-subtle: #14302f;
+  --violet: #b79ae6;
+  --violet-subtle: #2a1f3d;
 
-  --code-bg: #1b2026;
-  --mark-bg: #6a5a12;
-  --mark-fg: #ffe98a;
+  --code-bg: #241b12;
+  --mark-bg: #6b4f17;
+  --mark-fg: #ffe5ad;
 
   --shadow-sm: 0 1px 2px rgb(0 0 0 / 40%);
-  --shadow-md: 0 4px 14px rgb(0 0 0 / 46%);
-  --shadow-lg: 0 18px 48px rgb(0 0 0 / 60%);
+  --shadow-md: 0 8px 24px rgb(0 0 0 / 46%);
+  --shadow-lg: 0 24px 64px rgb(0 0 0 / 60%);
 }

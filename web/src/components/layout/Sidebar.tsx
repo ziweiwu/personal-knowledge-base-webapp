@@ -8,7 +8,6 @@ import { useVault } from '../../state/vault-context';
 import { lastRoute } from '../../lib/recents';
 import { RecentList } from '../home/RecentList';
 import { TreeView } from '../tree/TreeView';
-import { ThemeToggle } from './ThemeToggle';
 import { Button } from '../ui/Button';
 import { Select } from '../ui/Select';
 import { Icon } from '../ui/Icon';
@@ -108,7 +107,6 @@ export function Sidebar({ activePath, currentDirectory, onNavigate }: SidebarPro
           title={CONNECTION_LABELS[connection]}
         />
         <span className="sidebar__email">{session?.email ?? ''}</span>
-        <ThemeToggle />
         <Button variant="ghost" onClick={() => void signOut()}>
           Sign out
         </Button>

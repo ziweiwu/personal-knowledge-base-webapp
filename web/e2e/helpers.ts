@@ -49,3 +49,17 @@ export async function awaitLoaded(image: Locator): Promise<void> {
 export async function proseText(page: Page): Promise<string> {
   return (await page.locator('.prose').innerText()).replace(/\s+/g, ' ');
 }
+
+/**
+ * The document list is a drawer at every width, so a test that reaches into the tree
+ * opens it first. The page behind is inert while it is open; close it with Escape before
+ * clicking anything in the document.
+ */
+export async function openDrawer(page: Page): Promise<Locator> {
+  const drawer = page.locator('#sidebar-drawer');
+  if (!(await drawer.isVisible())) {
+    await page.getByRole('button', { name: 'Open document list' }).click();
+  }
+  await expect(drawer).toBeVisible();
+  return drawer;
+}

@@ -2,9 +2,8 @@ import { useEffect, useRef } from 'react';
 import { autocompletion, completionKeymap } from '@codemirror/autocomplete';
 import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands';
 import { markdown } from '@codemirror/lang-markdown';
-import { bracketMatching, defaultHighlightStyle, indentOnInput, syntaxHighlighting } from '@codemirror/language';
+import { bracketMatching, indentOnInput } from '@codemirror/language';
 import { Compartment, EditorState, type Extension } from '@codemirror/state';
-import { oneDark } from '@codemirror/theme-one-dark';
 import {
   EditorView,
   drawSelection,
@@ -14,6 +13,7 @@ import {
   keymap,
   lineNumbers,
 } from '@codemirror/view';
+import { editorTheme, readingHighlighting } from './editorTheme';
 import { wikilinkCompletionSource } from './wikilinkCompletion';
 
 interface EditorHandlers {
@@ -49,18 +49,24 @@ interface CodeMirrorFieldProps {
   onReady: (handle: EditorHandle) => void;
 }
 
-/** Everything but the theme, which lives in a compartment so it can change without a rebuild. */
+/**
+ * Everything but the theme, which lives in a compartment so it can change without a rebuild.
+ *
+ * A markdown note is edited in the reading view's face, so it carries no line numbers
+ * and no active-line band: those belong to code, and they are what makes a page look
+ * like a source file. Any other kind is code, and keeps them.
+ */
 function baseExtensions(language: 'markdown' | 'plain', rootId: string, handlers: { current: EditorHandlers }) {
+  const codeChrome: Extension[] =
+    language === 'plain' ? [lineNumbers(), highlightActiveLineGutter(), highlightActiveLine()] : [];
   const extensions: Extension[] = [
-    lineNumbers(),
-    highlightActiveLineGutter(),
+    ...codeChrome,
     highlightSpecialChars(),
     history(),
     drawSelection(),
     indentOnInput(),
     bracketMatching(),
-    highlightActiveLine(),
-    syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
+    readingHighlighting,
     EditorView.lineWrapping,
     keymap.of([
       { key: 'Mod-s', preventDefault: true, run: () => (handlers.current.onSave(), true) },
@@ -115,7 +121,7 @@ export function CodeMirrorField({
         doc: initialValue,
         extensions: [
           ...baseExtensions(language, rootId, handlers),
-          themeCompartment.current.of(theme === 'dark' ? oneDark : []),
+          themeCompartment.current.of(editorTheme(theme)),
         ],
       }),
     });
@@ -140,9 +146,9 @@ export function CodeMirrorField({
 
   useEffect(() => {
     viewRef.current?.dispatch({
-      effects: themeCompartment.current.reconfigure(theme === 'dark' ? oneDark : []),
+      effects: themeCompartment.current.reconfigure(editorTheme(theme)),
     });
   }, [theme]);
 
-  return <div className="editor__host" ref={hostRef} />;
+  return <div className={`editor__host editor__host--${language === 'markdown' ? 'prose' : 'code'}`} ref={hostRef} />;
 }
