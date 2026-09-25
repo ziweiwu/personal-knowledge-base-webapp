@@ -29,6 +29,9 @@ phone over Tailscale, behind a password.
   screens that say what happened and what to do next, a login page that names the
   collections it guards, a reading-progress bar on long notes, and on a phone a table of
   contents that opens as a bottom sheet.
+- **Reads like a page**: notes are set in the system serif on warm paper (ink at night),
+  in a 65-character column, with the title set once. A document shows one Edit button;
+  Rename, Move, Find, Print and Delete sit behind a labelled More menu.
 
 ## Requirements
 

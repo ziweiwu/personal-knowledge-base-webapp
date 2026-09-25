@@ -5,8 +5,9 @@
 
 .prose {
   min-width: 0;
-  font-size: 1rem;
-  line-height: 1.65;
+  font-family: var(--font-serif);
+  font-size: 1.05rem;
+  line-height: 1.6;
 }
 
 .prose > * + * {
@@ -32,8 +33,13 @@
 }
 
 .prose h1 {
-  font-size: 1.7em;
-  margin-top: 1.6em;
+  font-size: 1.9em;
+  margin-top: 1.4em;
+}
+
+/* The note's own title, when it is the first thing on the page, sits at the top. */
+.prose > h1:first-child {
+  margin-top: 0;
 }
 
 .prose h2 {
