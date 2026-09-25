@@ -1165,7 +1165,9 @@ kbd {
   flex-direction: column;
   gap: 10px;
   min-height: 0;
-  padding: var(--space-4) var(--space-4) calc(var(--space-4) + env(safe-area-inset-bottom));
+  /* The same side gutters as `.doc`, so the note's text sits where it did in the reading view. */
+  padding: var(--space-4) calc(var(--space-5) + env(safe-area-inset-right))
+    calc(var(--space-4) + env(safe-area-inset-bottom)) calc(var(--space-5) + env(safe-area-inset-left));
 }
 
 .editor__bar {
@@ -1182,24 +1184,51 @@ kbd {
   color: var(--fg-muted);
 }
 
+/* The buffer is the page. A markdown note is edited in the reading view's face, on the
+   same measure as `.doc__inner`, so pressing Edit does not reflow the text; the editor
+   grows with the note and the pane scrolls, as it does while reading. */
 .editor__host {
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius-md);
-  overflow: hidden;
   background: var(--bg);
 }
 
 .editor__host .cm-editor {
-  height: min(70vh, 720px);
+  min-height: 50vh;
+}
+
+.editor__host--prose {
+  width: 100%;
+  max-width: var(--measure);
+  margin: 0 auto;
+}
+
+.editor__host--prose .cm-scroller {
+  font-family: var(--font-serif);
+  font-size: var(--text-lg);
+  line-height: 1.6;
+}
+
+.editor__host--prose .cm-content,
+.editor__host--prose .cm-line {
+  padding: 0;
+}
+
+/* Anything that is not a note is code, and is edited as code: numbered, boxed, mono. */
+.editor__host--code {
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.editor__host--code .cm-editor {
   font-size: var(--text-md);
 }
 
-.editor__host .cm-editor.cm-focused {
+.editor__host--code .cm-editor.cm-focused {
   outline: 2px solid var(--accent);
   outline-offset: -2px;
 }
 
-.editor__host .cm-scroller {
+.editor__host--code .cm-scroller {
   font-family: var(--font-mono);
   line-height: 1.6;
 }
@@ -1548,9 +1577,25 @@ kbd {
   position: sticky;
   top: 0;
   z-index: 2;
-  margin: calc(-1 * var(--space-4)) calc(-1 * var(--space-4)) 0;
-  padding: var(--space-4);
+  margin: calc(-1 * var(--space-4)) calc(-1 * var(--space-5)) 0;
+  padding: var(--space-4) var(--space-5);
   background: var(--bg);
+}
+
+/* Below the desktop breakpoint `.doc` narrows its gutters; the editor follows, so the
+   text stays put when Edit is pressed on a phone too. */
+@media (max-width: 899px) {
+  .editor {
+    padding-right: calc(var(--space-4) + env(safe-area-inset-right));
+    padding-left: calc(var(--space-4) + env(safe-area-inset-left));
+  }
+
+  .editor > .editor__bar {
+    margin-right: calc(-1 * var(--space-4));
+    margin-left: calc(-1 * var(--space-4));
+    padding-right: var(--space-4);
+    padding-left: var(--space-4);
+  }
 }
 
 /* Q5: when the pointer is a finger, every control meets the tap size, and the
