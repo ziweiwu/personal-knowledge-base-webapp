@@ -294,6 +294,19 @@ editor is open (`.app-shell:has(.editor)`); `:has()` is supported by every brows
 targets, but a browser without it shows the bar over the editor rather than breaking. When
 the strip is hidden it peeks 3px so the line stays visible.
 
+Two places bridge the palette into code that cannot read CSS. The editor's CodeMirror
+theme (`web/src/components/editor/editorTheme.ts`) is built from `var(--…)` references,
+so the buffer wears the reading view's serif and colours in both themes with no
+per-theme swap. Mermaid renders into an SVG that cannot inherit them, so
+`web/src/lib/mermaid.ts` resolves the tokens through `getComputedStyle` on every render
+and hands them to Mermaid as theme variables; it is the one sanctioned place a colour
+value is read out of the cascade, and it still names tokens, never literals.
+
+A backlink carries `context`: the line it links from, cut to `MAX_CONTEXT_CHARS`
+around the link by `crates/kbviewer-core/src/context.rs` at index time. `LinkRefs`
+wraps the wikilink that points at the open note in `<mark>` when it can match it by
+title, path or basename, and shows the line unmarked otherwise rather than guessing.
+
 ## QA
 
 `INVARIANTS.md` lists the properties the app must hold, numbered `INV-n` and never
