@@ -834,6 +834,42 @@ a.tag:focus-visible {
   background: var(--accent);
 }
 
+/* Four hues, assigned by the tag's letters (see lib/tags.ts), so a tag keeps its colour
+   from note to note. Each is an ink on its own subtle ground; hovered, the ink becomes
+   the ground and the text steps onto it. */
+.tag--teal {
+  background: var(--teal-subtle);
+  color: var(--teal);
+}
+
+.tag--violet {
+  background: var(--violet-subtle);
+  color: var(--violet);
+}
+
+/* The success ink alone measures 4.4:1 on its ground in light; leaning it towards the
+   text colour lifts the chip past AA in both themes (5.2 light, 7.9 dark). */
+.tag--success {
+  --tag-success-ink: color-mix(in srgb, var(--success) 85%, var(--fg));
+  background: var(--success-subtle);
+  color: var(--tag-success-ink);
+}
+
+a.tag--teal:hover,
+a.tag--teal:focus-visible {
+  background: var(--teal);
+}
+
+a.tag--violet:hover,
+a.tag--violet:focus-visible {
+  background: var(--violet);
+}
+
+a.tag--success:hover,
+a.tag--success:focus-visible {
+  background: var(--tag-success-ink);
+}
+
 /* Table of contents: a rail in the left margin on a wide screen, a collapsible block
    between, a sheet on a phone. */
 .toc {

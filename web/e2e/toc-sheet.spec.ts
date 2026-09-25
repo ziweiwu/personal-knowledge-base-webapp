@@ -93,7 +93,8 @@ test('on a phone the contents button leaves with the strip and never covers the 
   });
   await nudgeUp(page);
   await expect(page.locator('.app-shell')).not.toHaveClass(/app-shell--strip-hidden/);
-  const lastLineBottom = await page.locator('.prose > :last-child').evaluate((node) => node.getBoundingClientRect().bottom);
+  const lastLine = page.locator('.prose > :last-child');
+  const lastLineBottom = await lastLine.evaluate((node) => node.getBoundingClientRect().bottom);
   const buttonTop = await button.evaluate((node) => node.getBoundingClientRect().top);
   expect(lastLineBottom).toBeLessThanOrEqual(buttonTop);
 });

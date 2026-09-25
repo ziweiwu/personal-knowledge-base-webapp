@@ -11,6 +11,7 @@ import { useFindShortcut } from '../hooks/useFindShortcut';
 import { useIsWide } from '../hooks/useMediaQuery';
 import { LinkRefs } from '../components/content/LinkRefs';
 import { hasTableOfContents } from '../lib/headings';
+import { tagTone } from '../lib/tags';
 import { FindContext } from '../components/content/find-context';
 import { useAsyncResource } from '../hooks/useAsyncResource';
 import { useChangeEvents } from '../hooks/useChangeEvents';
@@ -169,7 +170,7 @@ export function DocumentPage({ rootId, path, onTitleChange }: DocumentPageProps)
     meta.tags && meta.tags.length > 0 ? (
       <p className="doc__tags">
         {meta.tags.map((tag) => (
-          <Link className="tag" key={tag} to={tagRoute(rootId, tag)}>
+          <Link className={`tag tag--${tagTone(tag)}`} key={tag} to={tagRoute(rootId, tag)}>
             #{tag}
           </Link>
         ))}
@@ -270,7 +271,12 @@ export function DocumentPage({ rootId, path, onTitleChange }: DocumentPageProps)
           {tagsInMargin}
           {linksListed ? (
             <>
-              <LinkRefs title="Backlinks" refs={payload.backlinks} rootId={rootId} emptyLabel="No other document links here yet." />
+              <LinkRefs
+                title="Backlinks"
+                refs={payload.backlinks}
+                rootId={rootId}
+                emptyLabel="No other document links here yet."
+              />
               <LinkRefs title="Links from this note" refs={payload.outlinks} rootId={rootId} />
             </>
           ) : null}
