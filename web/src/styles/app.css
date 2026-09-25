@@ -1177,8 +1177,10 @@ kbd {
   gap: var(--space-3);
 }
 
+/* Sized from its text, not from zero: a zero basis let the fixed notes beside it claim
+   the phone's whole row first and squeeze this one to a column of single letters. */
 .editor__status {
-  flex: 1;
+  flex: 1 1 auto;
   min-width: 0;
   font-size: var(--text-sm);
   color: var(--fg-muted);
