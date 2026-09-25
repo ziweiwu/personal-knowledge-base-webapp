@@ -839,6 +839,26 @@ a.tag:focus-visible {
   background: var(--bg-hover);
 }
 
+/* A backlink quotes the line it links from, in the reading face, with the link that
+   points here marked so the eye lands on the reason for the reference. */
+.linkrefs__context {
+  margin: 0 var(--space-3) var(--space-2);
+  padding: 0 0 0 var(--space-3);
+  border-left: 2px solid var(--border-strong);
+  font-family: var(--font-serif);
+  font-size: var(--text-md);
+  line-height: 1.5;
+  color: var(--fg-muted);
+  overflow-wrap: anywhere;
+}
+
+.linkrefs__context mark {
+  padding: 0 var(--space-1);
+  border-radius: var(--radius-sm);
+  background: var(--mark-bg);
+  color: var(--mark-fg);
+}
+
 .linkrefs__path {
   display: block;
   font-size: var(--text-xs);

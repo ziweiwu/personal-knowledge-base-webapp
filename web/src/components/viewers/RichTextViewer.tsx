@@ -18,7 +18,13 @@ export function RichTextViewer({ payload, rootId, onToggleTask }: ViewerProps) {
         <TableOfContents key={meta.path} headings={headings} variant="inline" />
         <HtmlContent html={html} rootId={rootId} docPath={meta.path} onToggleTask={onToggleTask} />
         <LinkRefs title="Links from this note" refs={outlinks} rootId={rootId} />
-        <LinkRefs title="Backlinks" refs={backlinks} rootId={rootId} emptyLabel="No other document links here yet." />
+        <LinkRefs
+          title="Backlinks"
+          refs={backlinks}
+          rootId={rootId}
+          subject={{ path: meta.path, title: meta.title }}
+          emptyLabel="No other document links here yet."
+        />
       </div>
       <TableOfContents key={meta.path} headings={headings} variant="rail" />
     </div>
