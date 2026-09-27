@@ -8,6 +8,16 @@
 
 const PREFIX = 'kbviewer.';
 
+/**
+ * The full `localStorage` key a preference lives under.
+ *
+ * Only for matching a `StorageEvent`, which reports the real key: `readStored` and
+ * `writeStored` add the prefix themselves.
+ */
+export function storedKey(key: string): string {
+  return PREFIX + key;
+}
+
 export function readStored(key: string): string | null {
   try {
     return localStorage.getItem(PREFIX + key);

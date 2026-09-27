@@ -43,7 +43,7 @@ export function TagPage({ rootId, tag, onTitleChange }: Props) {
             <h2 className="folder__section-title" id="tagged-documents">
               {documents.length === 1 ? '1 document' : `${documents.length} documents`}
             </h2>
-            <ul className="entries" aria-labelledby="tagged-documents">
+            <ul className="entries" role="list" aria-labelledby="tagged-documents">
               {documents.map((document) => (
                 <li className="entries__item" key={document.path}>
                   <Link className="entries__link" to={docRoute(rootId, document.path)}>

@@ -305,6 +305,22 @@ fn render_tag(name: &str, ctx: &RenderContext) -> String {
     )
 }
 
+/// The app route a relative link should point at, or `None` to leave it as written.
+///
+/// A link can name a folder as legitimately as a file — `./reference/` is how a plain
+/// markdown handbook points at a section — and those resolve to no document, so leaving
+/// them alone sent the reader to a document route for a directory and a guaranteed 404.
+fn relative_route(url: &str, ctx: &RenderContext) -> Option<String> {
+    if let Some(document) = ctx.index.resolver.resolve_relative(ctx.path, url) {
+        return Some(format!("/n/{}/{}", ctx.root_id, encode_path(&document)));
+    }
+    let folder = kbviewer_core::links::relative_path(ctx.path, url)?;
+    if !ctx.index.has_directory(&folder) {
+        return None;
+    }
+    Some(format!("/f/{}/{}", ctx.root_id, encode_path(&folder)))
+}
+
 /// Point relative links and images at app routes so they navigate in-app rather than 404.
 /// This runs for plain folders too, which is what makes a non-Obsidian folder usable.
 fn rewrite_relative_links<'a>(node: &'a comrak::nodes::AstNode<'a>, ctx: &RenderContext) {
@@ -315,9 +331,7 @@ fn rewrite_relative_links<'a>(node: &'a comrak::nodes::AstNode<'a>, ctx: &Render
         let ast = node.data.borrow();
         match &ast.value {
             NodeValue::Link(link) => {
-                if let Some(resolved) = ctx.index.resolver.resolve_relative(ctx.path, &link.url) {
-                    replacement = Some(format!("/n/{}/{}", ctx.root_id, encode_path(&resolved)));
-                }
+                replacement = relative_route(&link.url, ctx);
             }
             NodeValue::Image(image) => {
                 if let Some(resolved) = ctx.index.resolver.resolve_relative(ctx.path, &image.url) {

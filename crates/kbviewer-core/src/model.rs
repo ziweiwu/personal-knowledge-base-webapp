@@ -43,6 +43,10 @@ pub struct Heading {
 pub struct LinkRef {
     pub path: String,
     pub title: String,
+    /// For a backlink, the line the link appears on, cut to a readable width around
+    /// it, so the reader learns why the other note links here without opening it.
+    /// An outlink carries none: the reader is already looking at that line.
+    pub context: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]

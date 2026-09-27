@@ -18,6 +18,17 @@ test.describe('empty, error and not-found states', () => {
     await expect(page.locator('.state--danger')).toHaveCount(0);
   });
 
+  // A path that is absent is absent a second later too, so the most inviting control on
+  // the screen could only reproduce the same message. The transient case below keeps its
+  // retry, which is the distinction worth pinning: one is worth pressing and one is not.
+  test('a not-found state offers no retry, and the trail is still the way out', async ({ page }) => {
+    await page.goto('/f/shapes/deep/nested/does-not-exist');
+    const state = page.locator('.state--neutral');
+    await expect(state.getByText('Not found')).toBeVisible();
+    await expect(state.getByRole('button', { name: 'Try again' })).toHaveCount(0);
+    await expect(page.getByRole('navigation', { name: 'Breadcrumb' }).getByRole('link').first()).toBeVisible();
+  });
+
   test('an empty folder is a neutral empty state', async ({ page }) => {
     const created = await page.request.post('/api/folder/shapes/states-empty-folder', { data: {} });
     expect(created.ok()).toBe(true);

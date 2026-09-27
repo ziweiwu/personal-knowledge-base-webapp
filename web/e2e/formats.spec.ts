@@ -80,4 +80,19 @@ test.describe('paths and names', () => {
     await page.goto('/f/shapes');
     await expect(page.locator('.prose')).toContainText('Content Shapes');
   });
+
+  test('a folder whose index names itself in an h1 sets that name once, not twice', async ({ page }) => {
+    await page.goto('/f/shapes');
+    const heading = page.locator('.prose h1').first();
+    await expect(heading).toHaveText('Content Shapes');
+
+    // The page chrome used to print the same words in a serif title six pixels above the
+    // index's own heading, which reads as a bug rather than as a subtitle.
+    await expect(page.locator('.doc__title')).toHaveCount(0);
+  });
+
+  test('a folder with no index file still names itself in a heading', async ({ page }) => {
+    await page.goto('/f/shapes/data');
+    await expect(page.locator('h1.doc__title')).toHaveText('data');
+  });
 });

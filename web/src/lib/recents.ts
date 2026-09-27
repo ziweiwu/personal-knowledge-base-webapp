@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from 'react';
-import { readStored, writeStored } from './persist';
+import { readStored, storedKey, writeStored } from './persist';
 
 /** A note the user opened, remembered so the sidebar and home page can offer it back. */
 export interface RecentNote {
@@ -22,28 +22,71 @@ const LAST_ROUTE_PREFIX = 'lastRoute.';
 /** Enough to find yesterday's note without the list crowding out the tree. */
 const MAX_RECENTS_PER_ROOT = 8;
 
+/**
+ * One entry, checked rather than merely cast.
+ *
+ * The array-ness was already checked and the elements were not, so an entry without a
+ * `path` reached the route builder and threw — taking out the sidebar, and with it every
+ * page, on every reload until site data was cleared. A stored preference is untrusted
+ * input: the comment below has always promised it is discarded, and now it is.
+ */
+function parseNote(value: unknown): RecentNote | null {
+  if (typeof value !== 'object' || value === null) return null;
+  const { rootId, path, title, openedAt } = value as Partial<RecentNote>;
+  if (typeof rootId !== 'string' || typeof path !== 'string') return null;
+  if (rootId === '' || path === '') return null;
+  return {
+    rootId,
+    path,
+    title: typeof title === 'string' && title !== '' ? title : path,
+    openedAt: typeof openedAt === 'number' ? openedAt : 0,
+  };
+}
+
 function parseList(raw: string | null): RecentNote[] {
   try {
     const parsed: unknown = raw ? JSON.parse(raw) : [];
-    return Array.isArray(parsed) ? (parsed as RecentNote[]) : [];
+    if (!Array.isArray(parsed)) return [];
+    return parsed.map(parseNote).filter((note): note is RecentNote => note !== null);
   } catch {
     // A corrupt preference is discarded, never surfaced as a crash.
     return [];
   }
 }
 
+function readSnapshot(): RecentsSnapshot {
+  return {
+    recents: parseList(readStored(RECENTS_KEY)),
+    pins: parseList(readStored(PINS_KEY)),
+  };
+}
+
 // One module-level snapshot so every subscriber sees the same object and
 // useSyncExternalStore can compare by identity.
-let snapshot: RecentsSnapshot = {
-  recents: parseList(readStored(RECENTS_KEY)),
-  pins: parseList(readStored(PINS_KEY)),
-};
+let snapshot: RecentsSnapshot = readSnapshot();
 const listeners = new Set<() => void>();
 
-function commit(next: RecentsSnapshot): void {
+/**
+ * Apply a change to what storage holds right now, not to what this tab last read.
+ *
+ * Both keys are written back whole, so a tab computing from a snapshot taken at import
+ * silently discarded anything another tab had pinned since. This app is meant to be left
+ * open all day in more than one tab, which makes that the ordinary case.
+ */
+function commit(update: (current: RecentsSnapshot) => RecentsSnapshot): void {
+  const next = update(readSnapshot());
   snapshot = next;
   writeStored(RECENTS_KEY, JSON.stringify(next.recents));
   writeStored(PINS_KEY, JSON.stringify(next.pins));
+  listeners.forEach((listener) => listener());
+}
+
+const WATCHED_KEYS = [storedKey(RECENTS_KEY), storedKey(PINS_KEY)];
+
+/** Another tab wrote. A cleared store reports a null key and means both changed. */
+function onStorageChanged(event: StorageEvent): void {
+  if (event.key !== null && !WATCHED_KEYS.includes(event.key)) return;
+  snapshot = readSnapshot();
   listeners.forEach((listener) => listener());
 }
 
@@ -53,13 +96,16 @@ function sameNote(note: RecentNote, other: { rootId: string; path: string }): bo
 
 export function recordOpen(rootId: string, path: string, title: string): void {
   const entry: RecentNote = { rootId, path, title, openedAt: Date.now() };
-  const rest = snapshot.recents.filter((note) => !sameNote(note, entry));
-  const sameRoot = rest.filter((note) => note.rootId === rootId).slice(0, MAX_RECENTS_PER_ROOT - 1);
-  const otherRoots = rest.filter((note) => note.rootId !== rootId);
-  const recents = [entry, ...sameRoot, ...otherRoots].sort((newer, older) => older.openedAt - newer.openedAt);
-  // A pinned note keeps its title current too, since a rename changes it.
-  const pins = snapshot.pins.map((note) => (sameNote(note, entry) ? { ...note, title } : note));
-  commit({ recents, pins });
+  commit((current) => {
+    const rest = current.recents.filter((note) => !sameNote(note, entry));
+    const sameRoot = rest.filter((note) => note.rootId === rootId).slice(0, MAX_RECENTS_PER_ROOT - 1);
+    const otherRoots = rest.filter((note) => note.rootId !== rootId);
+    return {
+      recents: [entry, ...sameRoot, ...otherRoots].sort((newer, older) => older.openedAt - newer.openedAt),
+      // A pinned note keeps its title current too, since a rename changes it.
+      pins: current.pins.map((note) => (sameNote(note, entry) ? { ...note, title } : note)),
+    };
+  });
 }
 
 export function isPinned(rootId: string, path: string): boolean {
@@ -67,10 +113,12 @@ export function isPinned(rootId: string, path: string): boolean {
 }
 
 export function togglePin(note: RecentNote): void {
-  const pins = isPinned(note.rootId, note.path)
-    ? snapshot.pins.filter((pinned) => !sameNote(pinned, note))
-    : [...snapshot.pins, note];
-  commit({ ...snapshot, pins });
+  commit((current) => ({
+    ...current,
+    pins: current.pins.some((pinned) => sameNote(pinned, note))
+      ? current.pins.filter((pinned) => !sameNote(pinned, note))
+      : [...current.pins, note],
+  }));
 }
 
 /** Pinned notes first, then the rest of the recents, for one root or for all. */
@@ -82,8 +130,12 @@ export function listRecents(snap: RecentsSnapshot, rootId?: string): RecentNote[
 }
 
 function subscribe(listener: () => void): () => void {
+  if (listeners.size === 0) window.addEventListener('storage', onStorageChanged);
   listeners.add(listener);
-  return () => listeners.delete(listener);
+  return () => {
+    listeners.delete(listener);
+    if (listeners.size === 0) window.removeEventListener('storage', onStorageChanged);
+  };
 }
 
 function getSnapshot(): RecentsSnapshot {

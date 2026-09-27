@@ -5,12 +5,23 @@
 
 .prose {
   min-width: 0;
-  font-size: 1rem;
-  line-height: 1.65;
+  font-family: var(--font-serif);
+  font-size: 1.05rem;
+  line-height: 1.6;
 }
 
 .prose > * + * {
   margin-top: 1em;
+}
+
+/* comrak emits an empty `<a class="anchor">` inside every heading. It renders zero-width
+   and cannot be clicked, yet it carries an aria-label and an href — so it is a labelled
+   tab stop that does nothing, eighteen of them on a long note, and a focusable element is
+   never legitimate inside something hidden from assistive technology. The `id` the table of
+   contents and every `#heading` link resolve against sits on the heading itself, so taking
+   the anchor out of the render costs nothing. */
+.prose .anchor {
+  display: none;
 }
 
 .prose h1,
@@ -22,7 +33,8 @@
   line-height: 1.3;
   font-weight: 680;
   letter-spacing: -0.01em;
-  scroll-margin-top: calc(var(--topbar-h) + 16px);
+  /* The pane's scroll-padding already clears the strip; this is the breathing room under it. */
+  scroll-margin-top: 16px;
 }
 
 .prose > h1 + *,
@@ -32,8 +44,13 @@
 }
 
 .prose h1 {
-  font-size: 1.7em;
-  margin-top: 1.6em;
+  font-size: 1.9em;
+  margin-top: 1.4em;
+}
+
+/* The note's own title, when it is the first thing on the page, sits at the top. */
+.prose > h1:first-child {
+  margin-top: 0;
 }
 
 .prose h2 {
@@ -372,13 +389,6 @@
   color: var(--fg-muted);
 }
 
-/* Broken wikilinks render as a non-link span in Obsidian mode. */
-.prose a.internal-link.is-unresolved,
-.prose .unresolved-link {
-  color: var(--fg-faint);
-  text-decoration: underline dotted;
-}
-
 /* MathML: the browser lays it out, we only keep it from overflowing. */
 .prose math {
   font-size: 1.05em;
@@ -418,34 +428,6 @@
 .prose pre.mermaid svg {
   max-width: 100%;
   height: auto;
-}
-
-/* Generic highlight classes, in case the server's highlighter emits them. */
-.prose .hljs-comment,
-.prose .hljs-quote {
-  color: var(--fg-faint);
-  font-style: italic;
-}
-
-.prose .hljs-keyword,
-.prose .hljs-selector-tag,
-.prose .hljs-literal {
-  color: var(--accent-fg);
-}
-
-.prose .hljs-string,
-.prose .hljs-attr {
-  color: var(--success);
-}
-
-.prose .hljs-number,
-.prose .hljs-built_in {
-  color: var(--warning);
-}
-
-.prose .hljs-title,
-.prose .hljs-name {
-  color: var(--danger);
 }
 
 .prose .frontmatter-table {

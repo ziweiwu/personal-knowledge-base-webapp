@@ -113,6 +113,19 @@ code blocks and inline code. Never replace this with a regex over the document: 
 in `crates/kbviewer-core/src/links.rs` cover prose that merely mentions the name, and links inside code samples,
 because both get corrupted by naive replacement.
 
+**In a wikilinks root, no write route may mint a name a link cannot express.**
+`kbviewer_core::links::link_breaking_char` names the seven characters — `#`, `^`, `[`, `]`,
+`|`, `"`, `:` — and `reject_unlinkable_name` in `crates/kbviewer-server/src/routes/write.rs`
+refuses them on create, folder create, upload and the *destination* of a rename. Every one
+would be read as syntax by the scanner above, so the link written for such a file resolves
+somewhere else or nowhere, and the rewrite on a later rename then cannot find it. The gate
+is `root.uses_wikilinks()`: a plain markdown folder still accepts `Meeting #3.md`. `/` is
+deliberately absent — it is the path separator, which `resolve_in_root` already judges. The
+consequence is accepted on purpose: an existing file whose name already carries one cannot
+be *moved* until it is renamed to something linkable, and that rename is the fix.
+`web/src/lib/names.ts` mirrors the list so the dialog says so before the round trip; the
+server stays the boundary.
+
 **A task checkbox's line number comes from the raw file, never from the parsed
 document.** `kbviewer_core::tasks::task_lines` scans the source with the same scanner
 `set_task_state` writes through, and `enable_task_checkboxes` pairs its results with the
@@ -229,6 +242,16 @@ applied afterwards is a no-op that still reads back as `lazy` in the inspector. 
 two documents whose second image sat 5000px down: client-set fetched both, server-set
 fetched one.
 
+**A relative link is rewritten to the route its target actually is.** A markdown link can
+name a folder as readily as a note — `./reference/` is how a plain handbook points at a
+section — and a folder resolves to no document, so `rewrite_relative_links` used to leave
+those untouched and the client then sent the reader to `/n/<root>/reference`: a document
+route for a directory, and a 404 however right the path was. `relative_route` asks the
+resolver for a file first and `Index::has_directory` second, and rewrites to `/f/…` in that
+case. Nothing is rewritten on a guess: a target that is neither is left exactly as written,
+so it renders as the broken link it is. `links::relative_path` is the join both answers
+share, separated from `resolve_relative` precisely because a target need not be a file.
+
 Maths renders to **MathML** via `latex2mathml`, so no client-side maths library ships.
 `escape_stray_dollars` runs first and escapes any `$` that is not a delimiter under
 Pandoc's rules, plus any `$` followed by a digit. Without it, "costs $5 today and $7
@@ -252,7 +275,25 @@ because `u64`/`i64` otherwise map to `bigint`, which `JSON.parse` never produces
 Sort, tree expansion, theme, search scope, recently opened notes, pins and the last
 route per root persist in `localStorage` through `web/src/lib/persist.ts`
 (recents live in `web/src/lib/recents.ts`). Every access is wrapped: storage *throws* in Safari private
-browsing, and a lost preference must never become a blank page.
+browsing, and a lost preference must never become a blank page. A stored value is
+**untrusted input**: `recents.ts` validates every entry rather than casting the array, since
+one without a `path` reached the route builder and took out the sidebar — and with it every
+page — on each reload until site data was cleared. Its writes also apply to a **fresh read**
+of storage and it listens for `storage` events, because both keys are written back whole and
+this app is meant to be left open in more than one tab, where computing from a stale
+snapshot silently drops whatever the other tab pinned.
+
+Three tokens exist for accessibility floors and are not free to retune by eye.
+`--border-strong` is the border of a control and must clear **3:1** against every surface a
+control sits on — `--bg`, `--bg-subtle` and `--bg-elevated`, of which `--bg-subtle` is the
+tightest — for WCAG 1.4.11. `--fg-faint` is every eyebrow and secondary label, which is
+small text, so it must clear **4.5:1** against those same three surfaces for 1.4.3; it had
+shipped at 3.46–4.00 in the light theme. `--border` is a divider, not a control, and
+deliberately stays quieter. `--tap-min` (24px) is the 2.5.8 AA floor for anything a finger
+must hit, distinct from `--tap` (44px), the comfortable target; the coarse-pointer block in
+`app.css` applies it to inline chips such as tags, which have no height of their own.
+`web/e2e/contrast.spec.ts` computes all nine pairs in both themes, so a warmer token fails
+a test rather than a person.
 
 A folder's name filter is stored **per folder**, never globally — one folder's filter
 silently hiding another folder's contents is the failure mode that keying it this way
@@ -270,13 +311,95 @@ render through `StateFrame` in `web/src/components/ui/States.tsx`, which takes a
 `web/src/lib/errors.ts` turns an `ApiRequestError` into the title and detail a person can
 act on, so a raw status code never reaches the screen.
 
-Below 900px the inline table of contents becomes a floating button that opens a bottom
-sheet (`web/src/components/content/TocSheet.tsx`); it and `Modal` are both dressings of
-`DialogShell` in `web/src/components/ui/`, which owns the portal, scrim, focus trap,
-Escape and scroll lock, so a dialog fix lands once.
+The shell is a 44px strip over a scrolling `.main-pane`. The strip is absolutely
+positioned and the pane reserves its height as `padding-top` and `scroll-padding-top`, so
+`useHiddenOnScroll` (`web/src/hooks/`) can slide it away on a transform while the reader
+scrolls down without reflowing the page; anything that opens from the strip (drawer,
+search) keeps it on screen, and focus landing in it brings it back. The document list
+(`Sidebar`) is a fixed drawer at every width, hung below the strip and closed by any
+navigation; a test that reaches into the tree opens it with `openDrawer` from
+`web/e2e/helpers.ts` first, and the page behind it is `inert` while it is open.
+
+**A title is set once per page, and both routes decide that from the headings.** A note's
+markdown almost always opens with its own `h1`, so `DocumentPage` renders the page-chrome
+title as a `p` and steps it down to a caption when the body's first heading already is the
+title. `FolderPage` has the same problem through its index note and answers it by omitting
+the chrome title entirely in that case — it has no meta line to anchor a caption to, and the
+trail in the strip already says where the reader is.
+
+A document page is `.doc--reading`: at 1100px and up it is a margin / measure / margin
+grid — the contents rail in the left column, the text in the middle, tags and `LinkRefs`
+in a sticky `.doc__margin` on the right (`useIsWide` decides where the tags render). The
+viewer's `.doc__layout` wrapper is `display: contents` there so its children place
+themselves on the grid. Below 1100px the rail hides, the contents become the collapsible
+block above the text and the margin goes under it; below 900px the block becomes a
+floating button that opens a bottom sheet (`web/src/components/content/TocSheet.tsx`),
+which leaves with the strip while scrolling down. `TocSheet` and `Modal` are both
+dressings of `DialogShell` in `web/src/components/ui/`, which owns the portal, scrim,
+focus trap, Escape and scroll lock, so a dialog fix lands once.
+**The editor reads its buffer with the file's own line ending, never `doc.toString()`.**
+CodeMirror splits a document on `/\r\n?|\n/` and `toString()` rejoins it with `\n`
+unconditionally, so a Windows-authored note came back from the editor with every line
+rewritten — including the ones nobody touched, which surfaces later as a whole-file diff in
+git. `CodeMirrorField` therefore sets `EditorState.lineSeparator` from the text it was given
+and reads through `docText`, which slices with `state.lineBreak`. Both halves are needed:
+the facet alone governs splitting and what Enter inserts, and the fix is undone at the last
+step without the slice. This is INV-17, which only the task-toggle path had ever been held
+to; `web/e2e/editing.spec.ts` now holds the editor to it on a file of its own.
+
+**Every screen offers the same first tab stop.** `SkipLink`
+(`web/src/components/layout/`) is shared rather than written per layout, and any screen
+rendering it carries a `main#main-content` with `tabIndex={-1}` so activating it moves focus
+instead of only scrolling. The trash page renders outside the shell and so had neither the
+link nor a `main` landmark; the home page had the target and never offered the link.
+`web/e2e/landmarks.spec.ts` presses a real Tab on all four screens.
+
+**A list styled with `list-style: none` carries `role="list"`.** WebKit drops list
+semantics from an unbulleted list, so a screen reader loses "3 items" framing on every
+listing in the app — the folder entries, the tree, the backlinks, the contents, the trash.
+Chromium does not, which is why the e2e suite cannot see this and the rule lives here
+instead of in a test. A new unbulleted list needs the attribute.
+
+**A not-found state offers no retry.** `ErrorState` already tells `not-found` from the rest
+through `describeError`; a path that is absent is absent a second later too, so the most
+inviting control on the screen could only reproduce the same message. A file that does
+appear arrives on the change stream and reloads the page by itself. The transient cases keep
+their retry, and `web/e2e/states.spec.ts` pins both halves of that distinction.
+
+**Escape is one stack, not a listener per layer** (`web/src/hooks/useEscapeKey.ts`): every
+caller pushes onto a module-level array and only the innermost entry runs, because sibling
+`document` listeners all fire on the same event and `stopPropagation` does not stop them —
+one Escape used to close the dialog and the drawer under it together. Anything layered over
+the page registers there rather than adding a guard for each other layer.
+**The body scroll lock is reference counted** (`web/src/hooks/useBodyScrollLock.ts`): the
+value to restore is remembered by the *first* holder only, since two holders each
+remembering `hidden` from the other left the lock on for good. On the home route, which
+sits outside the shell, `body` is the scroller rather than `.main-pane`, so a leaked lock is
+total there; `web/e2e/layers.spec.ts` covers it with a real wheel gesture, because
+`overflow: hidden` still permits a scripted `scrollTo`.
 The reading-progress bar is mounted only on the document route and hidden by CSS while the
 editor is open (`.app-shell:has(.editor)`); `:has()` is supported by every browser the app
-targets, but a browser without it shows the bar over the editor rather than breaking.
+targets, but a browser without it shows the bar over the editor rather than breaking. When
+the strip is hidden it peeks 3px so the line stays visible.
+
+Two places bridge the palette into code that cannot read CSS. The editor's CodeMirror
+theme (`web/src/components/editor/editorTheme.ts`) is built from `var(--…)` references,
+so the buffer wears the reading view's serif and colours in both themes with no
+per-theme swap. Both sides are built once as module constants: `EditorView.theme` mints a
+new style module per call and reconfiguring the compartment never retracts the old one, so
+returning a fresh theme left another copy of the rules in the document on every toggle.
+Mermaid renders into an SVG that cannot inherit them, so `web/src/lib/mermaid.ts`
+resolves the tokens through `getComputedStyle` on every render
+and hands them to Mermaid as theme variables; it is the one sanctioned place a colour
+value is read out of the cascade, and it still names tokens, never literals.
+
+A backlink carries `context`: the line it links from, cut to `MAX_CONTEXT_CHARS`
+around the link by `crates/kbviewer-core/src/context.rs` at index time. `LinkRefs`
+wraps the wikilink that points at the open note in `<mark>` when it can match it by
+title, path or basename, and shows the line unmarked otherwise rather than guessing.
+It quotes the **first link in the body**, falling back to a front-matter one only when the
+body holds none: a note whose properties carry the link showed `related: [[Target]]` as its
+only context, which says nothing about why the two notes are connected.
 
 ## QA
 

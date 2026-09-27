@@ -9,6 +9,7 @@ import { PromptDialog } from '../ui/PromptDialog';
 import { MoveDialog } from './MoveDialog';
 import { useToast } from '../../state/toast-context';
 import { describeError } from '../../lib/errors';
+import { nameProblem } from '../../lib/names';
 
 type Pending =
   | { kind: 'new-note'; directory: string }
@@ -61,6 +62,9 @@ export function FileActionsProvider({ children }: { children: ReactNode }) {
     setError(null);
     setPending(next);
   }, []);
+
+  // Plain markdown collections rewrite no links, so the rule does not apply there.
+  const checkName = root?.obsidianMode ? nameProblem : undefined;
 
   const actions = useMemo(
     () => ({
@@ -213,6 +217,7 @@ export function FileActionsProvider({ children }: { children: ReactNode }) {
       {pending?.kind === 'new-note' ? (
         <PromptDialog
           title="New note"
+          validate={checkName}
           label="File name"
           hint={`Created in ${pending.directory || 'the root folder'}. “.md” is added if you leave the extension off.`}
           submitLabel="Create"
@@ -226,6 +231,7 @@ export function FileActionsProvider({ children }: { children: ReactNode }) {
       {pending?.kind === 'new-folder' ? (
         <PromptDialog
           title="New folder"
+          validate={checkName}
           label="Folder name"
           hint={`Created in ${pending.directory || 'the root folder'}.`}
           submitLabel="Create"
@@ -240,6 +246,7 @@ export function FileActionsProvider({ children }: { children: ReactNode }) {
         <PromptDialog
           title={pending.isDir ? 'Rename folder' : 'Rename note'}
           label="New name"
+          validate={checkName}
           initialValue={baseName(pending.path)}
           hint={
             root?.obsidianMode

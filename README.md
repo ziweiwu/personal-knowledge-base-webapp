@@ -5,7 +5,8 @@ vault, a plain folder of markdown, or a pile of PDFs and Word files — reachabl
 phone over Tailscale, behind a password.
 
 - **Markdown** with the Obsidian dialect: wikilinks, embeds and transclusion, callouts,
-  tags, backlinks, GFM tables, maths, mermaid diagrams. Task-list checkboxes are live —
+  tags, backlinks that quote the line they link from, GFM tables, maths, mermaid diagrams
+  in the app's own palette. Task-list checkboxes are live —
   ticking one in the browser writes the single character back to the file.
 - **Sized for the device**: a phone screenshot is several megabytes of PNG shown in a
   column a few hundred pixels wide. Images are re-encoded and resized on demand, cached,
@@ -29,6 +30,14 @@ phone over Tailscale, behind a password.
   screens that say what happened and what to do next, a login page that names the
   collections it guards, a reading-progress bar on long notes, and on a phone a table of
   contents that opens as a bottom sheet.
+- **Reads like a page**: notes are set in the system serif on warm paper (ink at night),
+  in a 65-character column, with the title set once. A document shows one Edit button;
+  Rename, Move, Find, Print and Delete sit behind a labelled More menu.
+- **The chrome gets out of the way**: a 44px strip carries the document list, the search
+  and the trail back out, and slides away while you scroll down a long note. The document
+  list is a drawer at every width, summoned from the strip and gone again once it has
+  taken you somewhere. On a wide screen the contents sit in the left margin of the text
+  and the tags and links in the right; narrower, they fold above and below it.
 
 ## Requirements
 
@@ -174,6 +183,10 @@ switched on.
   bounds paths that do not exist yet. `.obsidian/`, `.trash/`, `.git/` and Synology's
   `@eaDir` are never served.
 - Writes are atomic, and delete moves to `.trash/` rather than destroying anything.
+- **A new or renamed name has to be one a link can point at.** In a wikilinks collection,
+  `#`, `^`, `[`, `]`, `|`, `"` and `:` are refused, because a `[[link]]` written for such a
+  file reads them as syntax and resolves somewhere else — quietly, and beyond repair by the
+  rename that rewrites links. A plain markdown folder still takes `Meeting #3.md`.
 
 **Accepted risk:** raw HTML inside your documents is rendered, as Obsidian does. The
 content is yours and sits behind auth, so this is self-inflicted-only. Serving a folder

@@ -362,38 +362,50 @@ impl Resolver {
         nearest_candidate(self.by_stem.get(&needle)?, from)
     }
 
-    /// Resolve a relative markdown link such as `./other.md` or `../img.png`.
+    /// Resolve a relative markdown link such as `./other.md` or `../img.png` to a file.
+    ///
+    /// `None` covers both "no such file" and "not a file at all": a link to a directory
+    /// lands here too, and the caller that cares about those asks `relative_path` instead.
     pub fn resolve_relative(&self, from: &str, target: &str) -> Option<String> {
-        if target.starts_with('/') || target.contains("://") || target.starts_with('#') {
-            return None;
-        }
-        let decoded = target.split(['#', '?']).next().unwrap_or(target);
-        if decoded.is_empty() {
-            return None;
-        }
-
-        let base = Path::new(from).parent().unwrap_or(Path::new(""));
-        let mut stack: Vec<String> = base
-            .components()
-            .map(|c| c.as_os_str().to_string_lossy().to_string())
-            .collect();
-
-        for part in decoded.split('/') {
-            match part {
-                "" | "." => {}
-                ".." => {
-                    stack.pop();
-                }
-                other => stack.push(other.to_string()),
-            }
-        }
-        let joined = stack.join("/");
+        let joined = relative_path(from, target)?;
         self.by_path.get(&joined.to_lowercase()).cloned()
     }
 
     pub fn contains(&self, path: &str) -> bool {
         self.by_path.contains_key(&path.to_lowercase())
     }
+}
+
+/// Where a relative link points, as a root-relative path, without asking what is there.
+///
+/// Separated from `Resolver::resolve_relative` because a link's target need not be a file:
+/// `./reference/` names a folder, and only the caller knows whether that is interesting.
+/// Returns `None` for what is not a relative path at all, and `Some("")` for the root.
+pub fn relative_path(from: &str, target: &str) -> Option<String> {
+    if target.starts_with('/') || target.contains("://") || target.starts_with('#') {
+        return None;
+    }
+    let decoded = target.split(['#', '?']).next().unwrap_or(target);
+    if decoded.is_empty() {
+        return None;
+    }
+
+    let base = Path::new(from).parent().unwrap_or(Path::new(""));
+    let mut stack: Vec<String> = base
+        .components()
+        .map(|c| c.as_os_str().to_string_lossy().to_string())
+        .collect();
+
+    for part in decoded.split('/') {
+        match part {
+            "" | "." => {}
+            ".." => {
+                stack.pop();
+            }
+            other => stack.push(other.to_string()),
+        }
+    }
+    Some(stack.join("/"))
 }
 
 /// Of several documents sharing a basename, the one a reader would mean: a sibling of the
@@ -421,6 +433,28 @@ fn parent_of(path: &str) -> String {
         .parent()
         .map(|parent| parent.to_string_lossy().to_string())
         .unwrap_or_default()
+}
+
+/// Characters a document's name may not contain in a wikilink folder.
+///
+/// A rename rewrites every inbound link by substituting the new name between `[[` and
+/// `]]`, so the name has to survive being read back as link text. Each of these is read
+/// as something other than itself: `#` opens a heading fragment, `^` a block reference,
+/// `|` an alias, `[` and `]` the brackets themselves. A link rewritten to carry one still
+/// parses and still resolves — to a *different* document, or to nothing — while the rename
+/// reports success, which is the single failure this module exists to prevent.
+///
+/// `"` and `:` are here for the copy of a link that lives in YAML front matter: a quote
+/// ends the scalar it sits in and leaves the whole properties block unparseable for
+/// Obsidian, and Obsidian refuses a colon in a file name for its own portability reasons.
+/// `/` is deliberately absent — it separates folders, and is the one character that
+/// legitimately appears between names.
+pub const LINK_BREAKING_CHARS: &[char] = &['#', '^', '[', ']', '|', '"', ':'];
+
+/// The first character of `path` that no wikilink could point at, if it has one.
+pub fn link_breaking_char(path: &str) -> Option<char> {
+    path.chars()
+        .find(|found| LINK_BREAKING_CHARS.contains(found))
 }
 
 /// Rewrite every wikilink in `src` that resolves to `old_path` so it points at `new_path`.
@@ -929,6 +963,33 @@ mod tests {
             r.resolve_relative("index.md", "https://example.com")
                 .as_deref(),
             None
+        );
+    }
+
+    /// `relative_path` answers where a link points without asking what is there, which is
+    /// what lets the renderer tell a folder target from a dead one.
+    #[test]
+    fn a_relative_target_joins_against_the_linking_note_whatever_is_there() {
+        assert_eq!(
+            relative_path("notes/Beta.md", "./reference/").as_deref(),
+            Some("notes/reference")
+        );
+        assert_eq!(
+            relative_path("index.md", "./nowhere/").as_deref(),
+            Some("nowhere")
+        );
+        // Up out of the note's own folder is the root, which is a folder like any other.
+        assert_eq!(relative_path("notes/Beta.md", "../").as_deref(), Some(""));
+        assert_eq!(relative_path("index.md", "/absolute").as_deref(), None);
+        assert_eq!(
+            relative_path("index.md", "https://example.com").as_deref(),
+            None
+        );
+        assert_eq!(relative_path("index.md", "#section").as_deref(), None);
+        // A fragment rides along on the href and is not part of the path.
+        assert_eq!(
+            relative_path("index.md", "./notes/Beta.md#top").as_deref(),
+            Some("notes/Beta.md")
         );
     }
 

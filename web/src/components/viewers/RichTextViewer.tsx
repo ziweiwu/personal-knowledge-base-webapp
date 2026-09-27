@@ -1,12 +1,12 @@
 import { HtmlContent } from '../content/HtmlContent';
-import { LinkRefs } from '../content/LinkRefs';
 import { TableOfContents } from '../content/TableOfContents';
 import { EmptyState } from '../ui/States';
 import type { ViewerProps } from './viewer-types';
 
-/** Markdown and Word documents: both arrive as server-rendered HTML. */
+/** Markdown and Word documents: both arrive as server-rendered HTML. Their links are
+    listed by the page, in the margin beside the text. */
 export function RichTextViewer({ payload, rootId, onToggleTask }: ViewerProps) {
-  const { meta, html, headings, backlinks, outlinks } = payload;
+  const { meta, html, headings } = payload;
 
   if (html === null) {
     return <EmptyState title="Nothing to show" detail="The server returned no rendered content for this document." />;
@@ -17,8 +17,6 @@ export function RichTextViewer({ payload, rootId, onToggleTask }: ViewerProps) {
       <div className="doc__inner">
         <TableOfContents key={meta.path} headings={headings} variant="inline" />
         <HtmlContent html={html} rootId={rootId} docPath={meta.path} onToggleTask={onToggleTask} />
-        <LinkRefs title="Links from this note" refs={outlinks} rootId={rootId} />
-        <LinkRefs title="Backlinks" refs={backlinks} rootId={rootId} emptyLabel="No other document links here yet." />
       </div>
       <TableOfContents key={meta.path} headings={headings} variant="rail" />
     </div>

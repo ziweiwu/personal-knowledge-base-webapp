@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { openDoc, readRootFile } from './helpers';
+import { openDoc, openDrawer, readRootFile } from './helpers';
 
 /**
  * The tree menu closes on any scroll, and a freshly opened document scrolls its active
@@ -27,6 +27,7 @@ test.describe('move', () => {
     });
     await openDoc(page, 'shapes', 'move-me.md');
     // The tree reloads once the watcher reports the two new files; wait for that to land.
+    await openDrawer(page);
     await expect(
       page
         .locator('.tree')
@@ -44,6 +45,8 @@ test.describe('move', () => {
 
     await expect(page).toHaveURL(/\/n\/shapes\/deep\/move-me\.md$/);
     await expect(page.locator('.toast').filter({ hasText: /^Moved to deep\/move-me\.md/ })).toBeVisible();
+    // Arriving at the moved note closed the drawer; the tree is proof it landed.
+    await openDrawer(page);
     await expect(
       page
         .locator('.tree')
@@ -60,6 +63,7 @@ test.describe('move', () => {
     await page.goto('/f/shapes/move-folder');
     await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
 
+    await openDrawer(page);
     await chooseMove(page, 'move-folder');
     const dialog = page.getByRole('dialog', { name: 'Move folder' });
     await expect(dialog.getByRole('radio', { name: 'move-folder', exact: true })).toBeDisabled();

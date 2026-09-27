@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { Fragment, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useEscapeKey } from '../../hooks/useEscapeKey';
 import { Icon, type IconName } from './Icon';
@@ -8,6 +8,8 @@ export interface MenuItem {
   label: string;
   icon?: IconName;
   danger?: boolean;
+  /** Draws a rule above this item, to set a destructive action apart from the rest. */
+  separatorBefore?: boolean;
   onSelect: () => void;
 }
 
@@ -85,20 +87,22 @@ export function ContextMenu({ items, anchor, label, onClose }: ContextMenuProps)
       }}
     >
       {items.map((item, index) => (
-        <button
-          key={item.id}
-          type="button"
-          role="menuitem"
-          tabIndex={index === activeIndex ? 0 : -1}
-          className={`menu__item${item.danger ? ' menu__item--danger' : ''}`}
-          onClick={() => {
-            onClose();
-            item.onSelect();
-          }}
-        >
-          {item.icon ? <Icon name={item.icon} /> : null}
-          {item.label}
-        </button>
+        <Fragment key={item.id}>
+          {item.separatorBefore ? <div className="menu__sep" role="separator" /> : null}
+          <button
+            type="button"
+            role="menuitem"
+            tabIndex={index === activeIndex ? 0 : -1}
+            className={`menu__item${item.danger ? ' menu__item--danger' : ''}`}
+            onClick={() => {
+              onClose();
+              item.onSelect();
+            }}
+          >
+            {item.icon ? <Icon name={item.icon} /> : null}
+            {item.label}
+          </button>
+        </Fragment>
       ))}
     </div>,
     document.body,

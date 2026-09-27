@@ -94,7 +94,7 @@ addFile({
     { depth: 2, text: 'Table', slug: 'table' },
     { depth: 3, text: 'Notes', slug: 'notes' },
   ],
-  backlinks: [{ path: 'index.md', title: 'Knowledge Base' }],
+  backlinks: [{ path: 'index.md', title: 'Knowledge Base', context: 'Start with [[README]] before anything else.' }],
   renderWarning: 'One embedded attachment could not be resolved.',
 });
 

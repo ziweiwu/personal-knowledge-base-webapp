@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useLocation, useParams } from 'react-router-dom';
 import { baseName, parentPath } from '../../api/paths';
-import { useIsDesktop } from '../../hooks/useMediaQuery';
+import { useHiddenOnScroll } from '../../hooks/useHiddenOnScroll';
 import { useEscapeKey } from '../../hooks/useEscapeKey';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import { useScrollRestoration } from '../../hooks/useScrollRestoration';
@@ -15,6 +15,7 @@ import { DocumentPage } from '../../pages/DocumentPage';
 import { FolderPage } from '../../pages/FolderPage';
 import { TagPage } from '../../pages/TagPage';
 import { SearchPalette } from '../search/SearchPalette';
+import { SkipLink } from './SkipLink';
 import { Breadcrumbs } from './Breadcrumbs';
 import { ReadingProgress } from './ReadingProgress';
 import { Sidebar } from './Sidebar';
@@ -64,7 +65,6 @@ function VaultShell({ mode, path }: { mode: VaultMode; path: string }) {
   const { rootId, root } = useVault();
   const { roots } = useRoots();
   const location = useLocation();
-  const isDesktop = useIsDesktop();
 
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -72,9 +72,13 @@ function VaultShell({ mode, path }: { mode: VaultMode; path: string }) {
   const [focusNotice, setFocusNotice] = useState('');
   const focus = useFocusMode();
   const menuButtonRef = useRef<HTMLButtonElement>(null);
+  const searchButtonRef = useRef<HTMLButtonElement>(null);
   const mainRef = useRef<HTMLElement>(null);
 
   useScrollRestoration(mainRef);
+  // The strip slides away while the reader scrolls down and returns on the way up; any
+  // layer that opens from it keeps it on screen, since its toggle is the way back out.
+  const stripHidden = useHiddenOnScroll(mainRef) && !drawerOpen && !searchOpen;
 
   // Remembered per root so the picker and the home page can return here later.
   useEffect(() => {
@@ -83,14 +87,13 @@ function VaultShell({ mode, path }: { mode: VaultMode; path: string }) {
 
   const closeDrawer = useCallback(() => setDrawerOpen(false), []);
 
-  // Escape closes the topmost layer: the drawer outranks focus mode, and the search
-  // palette binds its own so it is never reached through here while open.
-  const escapeClosesDrawer = drawerOpen && !isDesktop;
-  const escapeLeavesFocus = focus.focused && !searchOpen;
-  useEscapeKey(escapeClosesDrawer ? closeDrawer : escapeLeavesFocus ? focus.exit : null);
-  useBodyScrollLock(drawerOpen && !isDesktop ? 'locked' : 'scrollable');
+  // The shell's own two ways out, in the order they should be taken. Anything layered
+  // above them — the search palette, a dialog, the lightbox — registers with the same
+  // stack in `useEscapeKey` and is closed first, so nothing here needs to know about it.
+  useEscapeKey(drawerOpen ? closeDrawer : focus.focused ? focus.exit : null);
+  useBodyScrollLock(drawerOpen ? 'locked' : 'scrollable');
 
-  // A navigation on mobile should reveal the document, not leave the drawer open.
+  // The drawer is summoned to go somewhere; arriving there should reveal the page.
   const [shownPath, setShownPath] = useState(location.pathname);
   if (shownPath !== location.pathname) {
     setShownPath(location.pathname);
@@ -109,10 +112,28 @@ function VaultShell({ mode, path }: { mode: VaultMode; path: string }) {
     drawerWasOpen.current = drawerOpen;
   }, [drawerOpen]);
 
+  // The same for the palette, which needs it more: its focus trap hands focus back to
+  // whatever held it before, and when the palette was summoned by its shortcut rather than
+  // clicked that is the body — so a keyboard user landed at the top of the page and had to
+  // tab all the way back in. Runs after the trap's own restore, which is a passive effect
+  // in a child and therefore earlier in the commit.
+  const searchWasOpen = useRef(false);
+  useEffect(() => {
+    if (searchWasOpen.current && !searchOpen) {
+      searchButtonRef.current?.focus({ preventScroll: true });
+    }
+    searchWasOpen.current = searchOpen;
+  }, [searchOpen]);
+
+  // Search supersedes the document list rather than stacking on top of it: the drawer's
+  // scrim leaves the page behind it inert, so a palette opened over it used to float above
+  // an app that answered nothing until Escape had been pressed twice. Asking to search is
+  // unambiguous, so the list gets out of the way instead of blocking the shortcut.
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
         event.preventDefault();
+        setDrawerOpen(false);
         setSearchOpen(true);
       }
     };
@@ -121,19 +142,20 @@ function VaultShell({ mode, path }: { mode: VaultMode; path: string }) {
   }, []);
 
   // A bare letter, so it is guarded against every context where it would be a keystroke
-  // rather than a command.
+  // rather than a command — including with the document list open, where focus mode would
+  // hide the strip holding the list's own toggle.
   const canFocus = mode === 'doc';
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key.toLowerCase() !== 'f') return;
       if (event.metaKey || event.ctrlKey || event.altKey) return;
-      if (!canFocus || searchOpen || isTypingTarget(event.target)) return;
+      if (!canFocus || searchOpen || drawerOpen || isTypingTarget(event.target)) return;
       event.preventDefault();
       focus.toggle();
     };
     document.addEventListener('keydown', onKeyDown);
     return () => document.removeEventListener('keydown', onKeyDown);
-  }, [canFocus, searchOpen, focus]);
+  }, [canFocus, searchOpen, drawerOpen, focus]);
 
   // A folder or tag listing is navigation; there is no document to focus on, and the
   // chrome focus mode hides is the whole page.
@@ -157,41 +179,42 @@ function VaultShell({ mode, path }: { mode: VaultMode; path: string }) {
     document.title = title ? `${title} · kbviewer` : 'kbviewer';
   }, [title]);
 
-  const drawerHidden = !isDesktop && !drawerOpen;
   // While the drawer overlays the page, everything behind the scrim must leave
   // the tab order and the accessibility tree — otherwise Tab walks straight
   // through to the breadcrumb and search button the scrim is covering.
-  const behindDrawer = !isDesktop && drawerOpen;
+  const behindDrawer = drawerOpen;
+
+  const shellClass = ['app-shell', focus.focused && 'app-shell--focus', stripHidden && 'app-shell--strip-hidden']
+    .filter(Boolean)
+    .join(' ');
 
   return (
-    <div className={`app-shell${focus.focused ? ' app-shell--focus' : ''}`}>
-      <a className="skip-link" href="#main-content">
-        Skip to content
-      </a>
+    <div className={shellClass}>
+      <SkipLink />
 
       <header className="topbar">
         <Button
           variant="icon"
-          className="only-mobile"
           ref={menuButtonRef}
           onClick={() => setDrawerOpen((open) => !open)}
           aria-label={drawerOpen ? 'Close document list' : 'Open document list'}
           aria-expanded={drawerOpen}
           aria-controls="sidebar-drawer"
         >
-          <Icon name="menu" size="md" />
+          <Icon name={drawerOpen ? 'close' : 'menu'} size="md" />
         </Button>
 
         {/* The toolbar outranks the scrim so its toggle can close the drawer again;
             everything else in it is page chrome and is neutralised alongside <main>. */}
         <div className="topbar__title" inert={behindDrawer}>
-          {title}
+          <span className="topbar__name">{title}</span>
           <Breadcrumbs rootId={rootId} rootName={rootName} path={path} mode={mode} />
         </div>
 
         <button
           type="button"
           className="search-trigger"
+          ref={searchButtonRef}
           onClick={() => setSearchOpen(true)}
           aria-keyshortcuts="Meta+K Control+K"
           inert={behindDrawer}
@@ -217,7 +240,7 @@ function VaultShell({ mode, path }: { mode: VaultMode; path: string }) {
           </Button>
         ) : null}
 
-        <span className="only-mobile" inert={behindDrawer}>
+        <span inert={behindDrawer}>
           <ThemeToggle />
         </span>
 
@@ -225,7 +248,7 @@ function VaultShell({ mode, path }: { mode: VaultMode; path: string }) {
       </header>
 
       <div className="app-body">
-        {drawerOpen && !isDesktop ? (
+        {drawerOpen ? (
           // Decorative: closing is already reachable by the toolbar toggle and Escape.
           // As a labelled <button> it was a second tab stop announcing the same name as
           // the toggle, which is ambiguous to a screen reader for no added capability.
@@ -236,8 +259,8 @@ function VaultShell({ mode, path }: { mode: VaultMode; path: string }) {
           id="sidebar-drawer"
           className={`sidebar${drawerOpen ? ' sidebar--open' : ''}`}
           aria-label="Documents"
-          aria-hidden={drawerHidden}
-          inert={drawerHidden}
+          aria-hidden={!drawerOpen}
+          inert={!drawerOpen}
         >
           <Sidebar activePath={path} currentDirectory={currentDirectory} onNavigate={closeDrawer} />
         </nav>

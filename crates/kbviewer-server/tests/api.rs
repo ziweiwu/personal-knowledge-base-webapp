@@ -44,14 +44,26 @@ enum RootAccess {
 }
 
 fn harness(label: &str) -> Harness {
-    harness_with(label, RootAccess::Writable)
+    harness_with(label, RootAccess::Writable, Wikilinks::Detect)
 }
 
 fn read_only_harness(label: &str) -> Harness {
-    harness_with(label, RootAccess::ReadOnly)
+    harness_with(label, RootAccess::ReadOnly, Wikilinks::Detect)
 }
 
-fn harness_with(label: &str, access: RootAccess) -> Harness {
+/// A folder of plain markdown: no `[[…]]` is parsed and no link is ever rewritten, which
+/// is what makes the name rules a vault needs inapplicable here.
+fn plain_harness(label: &str) -> Harness {
+    harness_with(label, RootAccess::Writable, Wikilinks::Off)
+}
+
+enum Wikilinks {
+    /// Left to the root's own `.obsidian/`, which the harness always writes.
+    Detect,
+    Off,
+}
+
+fn harness_with(label: &str, access: RootAccess, wikilinks: Wikilinks) -> Harness {
     let base = std::env::temp_dir().join(format!("kbviewer-it-{label}"));
     let _ = std::fs::remove_dir_all(&base);
     let root = base.join("vault");
@@ -83,6 +95,10 @@ fn harness_with(label: &str, access: RootAccess) -> Harness {
                 "name": "KB",
                 "path": root,
                 "readOnly": matches!(access, RootAccess::ReadOnly),
+                "wikilinks": match wikilinks {
+                    Wikilinks::Detect => serde_json::Value::Null,
+                    Wikilinks::Off => serde_json::Value::Bool(false),
+                },
             }],
         })
         .to_string(),
@@ -871,6 +887,111 @@ async fn a_rename_never_repoints_a_link_at_a_different_document() {
     );
 }
 
+/// The destination of a rename becomes link text, so a name carrying wikilink syntax
+/// corrupts every inbound link while the route reports success. Reproduced against the
+/// real route before the check existed: `[[vt-target]]` became `[[vt notes#frag]]`, which
+/// resolved to nothing, and then adopted an unrelated `vt notes.md` created afterwards.
+#[tokio::test]
+async fn a_rename_into_a_name_no_link_could_express_is_refused() {
+    let harness = harness("renameunlinkable");
+    let cookie = harness.login().await;
+
+    let (status, body) = harness
+        .send(
+            Request::post("/api/rename?root=kb")
+                .header(header::COOKIE, &cookie)
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(
+                    serde_json::json!({
+                        "from": "notes/Target.md",
+                        "to": "notes/vt notes#frag.md",
+                        "updateLinks": true
+                    })
+                    .to_string(),
+                ))
+                .unwrap(),
+        )
+        .await;
+
+    assert_eq!(status, StatusCode::BAD_REQUEST, "{body}");
+    assert!(
+        harness.root.join("notes/Target.md").exists(),
+        "a refused rename must leave the document where it was"
+    );
+    let index = std::fs::read_to_string(harness.root.join("index.md")).unwrap();
+    assert!(
+        index.contains("[[Target]]"),
+        "no inbound link may be rewritten by a rename that was refused: {index}"
+    );
+}
+
+/// Every character that would be read back as something other than itself, on the route
+/// that mints new names. A quote is the front-matter case: it ends the scalar a link sits
+/// in, so kbviewer's own parser still reads the note while Obsidian's stops.
+#[tokio::test]
+async fn no_write_route_mints_a_name_that_breaks_a_link() {
+    let harness = harness("createunlinkable");
+    let cookie = harness.login().await;
+
+    // Percent-encoded, because most of these are not legal in a URI path either: a bare
+    // `#` would be read as a fragment and never reach the route at all.
+    let names = [
+        ("a%23b.md", "a#b.md"),
+        ("a%5Eb.md", "a^b.md"),
+        ("a%5Bb.md", "a[b.md"),
+        ("a%5Db.md", "a]b.md"),
+        ("a%7Cb.md", "a|b.md"),
+        ("a%22b.md", "a\"b.md"),
+        ("a%3Ab.md", "a:b.md"),
+    ];
+    for (encoded, on_disk) in names {
+        let (status, body) = harness
+            .send(
+                Request::post(format!("/api/doc/kb/{encoded}"))
+                    .header(header::COOKIE, &cookie)
+                    .header(header::CONTENT_TYPE, "application/json")
+                    .body(Body::from(
+                        serde_json::json!({ "content": "# New\n", "baseMtimeMs": 0 }).to_string(),
+                    ))
+                    .unwrap(),
+            )
+            .await;
+        assert_eq!(
+            status,
+            StatusCode::BAD_REQUEST,
+            "creating {on_disk}: {body}"
+        );
+        assert!(
+            !harness.root.join(on_disk).exists(),
+            "a refused create must leave nothing behind: {on_disk}"
+        );
+    }
+}
+
+/// Plain markdown has no `[[…]]`, so nothing rewrites and nothing can be corrupted. A
+/// name refused in a vault is an ordinary file name here, and refusing it would take a
+/// capability away for no gain.
+#[tokio::test]
+async fn a_plain_folder_still_accepts_a_name_with_a_hash() {
+    let harness = plain_harness("createplainhash");
+    let cookie = harness.login().await;
+
+    let (status, body) = harness
+        .send(
+            Request::post("/api/doc/kb/Meeting%20%233.md")
+                .header(header::COOKIE, &cookie)
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(
+                    serde_json::json!({ "content": "# Meeting\n", "baseMtimeMs": 0 }).to_string(),
+                ))
+                .unwrap(),
+        )
+        .await;
+
+    assert_eq!(status, StatusCode::CREATED, "{body}");
+    assert!(harness.root.join("Meeting #3.md").exists(), "{body}");
+}
+
 /// A phone screenshot is several megabytes of PNG shown in a column a few hundred pixels
 /// wide. The variant is what closes that gap, so these pin its edges.
 #[tokio::test]
@@ -1482,4 +1603,62 @@ async fn a_text_file_that_is_not_utf8_is_explained_rather_than_lost() {
         ))
         .await;
     assert_ne!(status, StatusCode::INTERNAL_SERVER_ERROR);
+}
+
+/// A relative link can name a folder as readily as a note, and one that does resolves to
+/// no document — so it used to be left exactly as written, and the client then sent the
+/// reader to a *document* route for a directory: a guaranteed 404 however correct the
+/// path was. `plain-markdown`'s own fixture documents `./reference/` as a case that has
+/// to work.
+#[tokio::test]
+async fn a_relative_link_to_a_folder_points_at_the_folder_route() {
+    let harness = harness("relative-folder-link");
+    let cookie = harness.login().await;
+    create_document(
+        &harness,
+        &cookie,
+        "handbook.md",
+        "See [the notes folder](./notes/) and [one note](./notes/Target.md).\n",
+    )
+    .await;
+
+    let (status, body) = harness.get_authed(&cookie, "/api/doc/kb/handbook.md").await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    let html = serde_json::from_str::<serde_json::Value>(&body).unwrap()["html"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    assert!(
+        html.contains("href=\"/f/kb/notes\""),
+        "a folder target belongs on the folder route: {html}"
+    );
+    assert!(
+        html.contains("href=\"/n/kb/notes/Target.md\""),
+        "a file target still wins: {html}"
+    );
+}
+
+/// Nothing may be rewritten on a guess: a relative link naming neither a document nor a
+/// directory is left alone, so it renders as the broken link it is instead of pointing at
+/// a folder route that does not exist either.
+#[tokio::test]
+async fn a_relative_link_to_nothing_is_left_as_written() {
+    let harness = harness("relative-dead-link");
+    let cookie = harness.login().await;
+    create_document(
+        &harness,
+        &cookie,
+        "dead.md",
+        "A [missing folder](./nowhere/) and a [missing note](./nowhere.md).\n",
+    )
+    .await;
+
+    let (_, body) = harness.get_authed(&cookie, "/api/doc/kb/dead.md").await;
+    let html = serde_json::from_str::<serde_json::Value>(&body).unwrap()["html"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert!(html.contains("href=\"./nowhere/\""), "{html}");
+    assert!(html.contains("href=\"./nowhere.md\""), "{html}");
 }

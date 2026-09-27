@@ -16,6 +16,11 @@ interface PromptDialogProps {
    * the extension out of the selection and therefore intact.
    */
   preselect?: 'stem' | 'all';
+  /**
+   * What is wrong with the typed name, or `null`. Reported as the user types and blocks
+   * submission, so a name the server would refuse never costs a round trip.
+   */
+  validate?: (value: string) => string | null;
   onSubmit: (value: string) => void;
   onCancel: () => void;
 }
@@ -35,6 +40,7 @@ export function PromptDialog({
   busy,
   error,
   preselect,
+  validate,
   onSubmit,
   onCancel,
 }: PromptDialogProps) {
@@ -43,6 +49,8 @@ export function PromptDialog({
   const hintId = useId();
   const inputRef = useRef<HTMLInputElement>(null);
   const trimmed = value.trim();
+  // The typed name outranks whatever the last attempt failed on: the user has moved on.
+  const problem = trimmed.length > 0 && validate ? validate(trimmed) : null;
 
   // Runs after <Modal>'s focus trap has focused the field — child effects settle
   // before the parent's — so the selection is not undone by the focus that follows.
@@ -62,7 +70,12 @@ export function PromptDialog({
           <Button onClick={onCancel} disabled={busy}>
             Cancel
           </Button>
-          <Button type="submit" form={`${inputId}-form`} variant="primary" disabled={busy || trimmed.length === 0}>
+          <Button
+            type="submit"
+            form={`${inputId}-form`}
+            variant="primary"
+            disabled={busy || trimmed.length === 0 || problem !== null}
+          >
             {busy ? 'Working…' : submitLabel}
           </Button>
         </>
@@ -89,6 +102,7 @@ export function PromptDialog({
           autoComplete="off"
           spellCheck={false}
           aria-describedby={hint ? hintId : undefined}
+          aria-invalid={problem !== null || undefined}
           data-autofocus
         />
         {hint ? (
@@ -96,7 +110,7 @@ export function PromptDialog({
             {hint}
           </p>
         ) : null}
-        <FormError message={error ?? null} />
+        <FormError message={problem ?? error ?? null} />
       </form>
     </Modal>
   );

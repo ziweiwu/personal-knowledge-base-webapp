@@ -26,7 +26,7 @@ const INDENT_PER_LEVEL_PX = 12;
 
 export function TocList({ headings, shallowest, currentSlug = null, onNavigate }: TocListProps) {
   return (
-    <ul className="toc__list">
+    <ul className="toc__list" role="list">
       {headings.map((heading) => (
         <li key={`${heading.slug}-${heading.depth}-${heading.text}`}>
           <a

@@ -185,7 +185,7 @@ export function TreeView({ activePath, onNavigate }: TreeViewProps) {
   }
 
   return (
-    <ul className="tree" onKeyDown={onKeyDown}>
+    <ul className="tree" role="list" onKeyDown={onKeyDown}>
       {sorted.map((node) => (
         <TreeBranch
           key={node.path}
@@ -318,7 +318,7 @@ function TreeBranch({ node, depth, rootId, activePath, expanded, onToggle, onNav
       ) : null}
 
       {node.isDir && isOpen && children.length > 0 ? (
-        <ul className="tree">
+        <ul className="tree" role="list">
           {children.map((child) => (
             <TreeBranch
               key={child.path}

@@ -28,7 +28,8 @@ test.describe('find in page', () => {
 
   test('Escape closes the bar and leaves the prose unmarked', async ({ page }) => {
     await openDoc(page, 'shapes', 'long-document.md');
-    await page.getByRole('button', { name: 'Find' }).click();
+    await page.getByRole('button', { name: 'More' }).click();
+    await page.getByRole('menuitem', { name: 'Find' }).click();
     const input = page.getByRole('searchbox', { name: 'Find in document' });
     await input.fill('Section');
     await expect(page.locator('.prose mark.find-hit').first()).toBeVisible();
