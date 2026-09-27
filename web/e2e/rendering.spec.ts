@@ -78,3 +78,27 @@ test.describe('markdown rendering', () => {
     await expect(page.getByText(/nothing to show/i)).toBeVisible();
   });
 });
+
+/**
+ * A handbook of plain markdown points at its own sections with relative links, and one of
+ * those sections is a folder. `./reference/` resolves to no document, so it used to be
+ * left as written and then routed to `/n/plain/reference` — a document route for a
+ * directory, and a 404 whatever else was right about it.
+ */
+test.describe('relative links', () => {
+  test('a relative link to a folder opens that folder', async ({ page }) => {
+    await page.goto('/n/plain/README.md');
+    const link = page.locator('.prose a', { hasText: 'the reference folder' }).first();
+    await expect(link).toHaveAttribute('href', '/f/plain/reference');
+
+    await link.click();
+    await expect(page).toHaveURL(/\/f\/plain\/reference$/);
+    await expect(page.locator('h1.doc__title')).toHaveText('reference');
+  });
+
+  test('a relative link to a file is still a document route', async ({ page }) => {
+    await page.goto('/n/plain/README.md');
+    const link = page.locator('.prose a', { hasText: 'installation guide' }).first();
+    await expect(link).toHaveAttribute('href', '/n/plain/guides/installation.md');
+  });
+});

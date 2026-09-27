@@ -30,6 +30,32 @@ export interface EditorHandle {
   run: (command: FormatCommand) => void;
 }
 
+/**
+ * Keep the file's own line ending, so saving a CRLF note does not rewrite every line of it.
+ *
+ * CodeMirror splits a document on `/\r\n?|\n/` and rejoins it with `state.lineBreak`,
+ * which is `\n` unless told otherwise — so a Windows-authored note came back from the
+ * editor with every ending changed, including in the lines nobody touched, and the whole
+ * file showed as modified in git afterwards (INV-17). Naming the separator makes `\r\n`
+ * both what the document is split on and what Enter inserts. A lone `\n` in an otherwise
+ * CRLF file then stays inside its line, which is byte preservation rather than a tidy-up.
+ */
+function lineEndingOf(text: string): Extension[] {
+  return text.includes('\r\n') ? [EditorState.lineSeparator.of('\r\n')] : [];
+}
+
+/**
+ * The buffer as the file should be written, rather than as CodeMirror prints it.
+ *
+ * `doc.toString()` joins lines with `\n` unconditionally — the separator facet governs
+ * what the document is *split* on and what a command inserts, not this — so reading the
+ * buffer that way undoes `lineEndingOf` at the last step. `sliceString` takes the
+ * separator to use, and `state.lineBreak` is the one this document was built with.
+ */
+function docText(state: EditorState): string {
+  return state.doc.sliceString(0, state.doc.length, state.lineBreak);
+}
+
 const FORMATTING_KEYMAP = [
   { key: 'Mod-b', run: toggleBold },
   { key: 'Mod-i', run: toggleItalic },
@@ -77,7 +103,7 @@ function baseExtensions(language: 'markdown' | 'plain', rootId: string, handlers
       ...historyKeymap,
     ]),
     EditorView.updateListener.of((update) => {
-      if (update.docChanged) handlers.current.onChange(update.state.doc.toString());
+      if (update.docChanged) handlers.current.onChange(docText(update.state));
     }),
   ];
   if (language === 'markdown') {
@@ -121,6 +147,7 @@ export function CodeMirrorField({
         doc: initialValue,
         extensions: [
           ...baseExtensions(language, rootId, handlers),
+          ...lineEndingOf(initialValue),
           themeCompartment.current.of(editorTheme(theme)),
         ],
       }),
@@ -128,7 +155,7 @@ export function CodeMirrorField({
     viewRef.current = view;
 
     handlers.current.onReady({
-      getValue: () => view.state.doc.toString(),
+      getValue: () => docText(view.state),
       setValue: (next: string) => {
         view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: next } });
       },

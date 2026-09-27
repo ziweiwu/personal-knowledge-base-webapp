@@ -302,10 +302,17 @@ runaway allocation on one odd file takes the whole viewer down for every tab.
 A save round-trips the editor text unchanged; a toggle uses
 `split_inclusive('\n')` so `\r\n` survives; nothing normalises on the way out.
 
+The editor half of that was broken until 2026-09-27 and nothing here noticed:
+CodeMirror rejoins a document with `\n` whatever it was split on, so saving a
+CRLF note rewrote every line of it. It now sets `EditorState.lineSeparator` and
+reads the buffer with `state.lineBreak`.
+
 **Enforced by:** `tasks.rs` CRLF test; fixtures `crlf.md`,
 `no-trailing-newline.md`; `crlf.md` via `web/e2e/tasks.spec.ts` ("a task in a
-CRLF document" asserts no bare `\n` after a toggle). No e2e spec names
-`no-trailing-newline.md`.
+CRLF document" asserts no bare `\n` after a toggle); the editor's own save path
+via `web/e2e/editing.spec.ts` ("the editor saves a CRLF note with its line
+endings intact", on a file it creates, since two specs editing one fixture
+flake). No e2e spec names `no-trailing-newline.md`.
 
 ## INV-18 — Every string interpolated into generated HTML is escaped; raw HTML in a note is accepted
 
@@ -489,6 +496,31 @@ confirmed, now a 400 before anything touches disk).
   and every LAN login appears to fail. Question: what does the actual NAS
   setup send?
 
+## INV-27 — A link inside a note goes to the route its target actually is
+
+A relative markdown link is rewritten server-side to `/n/…` for a document and
+`/f/…` for a folder, and left exactly as written when it is neither — a broken
+link must render as broken rather than be pointed somewhere plausible. The
+client's fallback resolver reads a trailing slash as a folder for the same
+reason. `./reference/` in `plain-markdown` used to reach `/n/plain/reference`, a
+document route for a directory, which 404s whatever else is correct about it.
+
+**Enforced by:** `tests/api.rs`
+`a_relative_link_to_a_folder_points_at_the_folder_route` and
+`a_relative_link_to_nothing_is_left_as_written`; `links.rs`
+`a_relative_target_joins_against_the_linking_note_whatever_is_there`;
+`web/e2e/rendering.spec.ts` "relative links" (a real click through to the
+folder page).
+
+## INV-28 — Every screen's first tab stop is a skip link into its main landmark
+
+`SkipLink` and a `main#main-content` with `tabIndex={-1}` on all four screen
+types: home, document, folder, trash. The trash page had neither, being rendered
+outside the shell, and the home page had the landmark without the link.
+
+**Enforced by:** `web/e2e/landmarks.spec.ts`, which presses a real `Tab` and
+then `Enter` and asserts focus lands in `main`.
+
 ## What has no oracle
 
 Surfaces where nothing above asserts anything. This is the agenda for the
@@ -517,5 +549,9 @@ next round and the honest answer to a fuzz sweep that comes back clean.
 - Validation of a stored preference (`recents.ts` `parseNote`): an entry with no
   `path` used to blank every page until site data was cleared, and the parser
   that now discards it has no test. Nothing in `web/` runs unit tests.
+- Whether an unbulleted list still keeps its list semantics. Every
+  `list-style: none` list carries `role="list"` because WebKit drops the role
+  otherwise, and the e2e suite runs Chromium, which does not — so no test can
+  observe the thing the attribute is there for.
 - Upload of a file whose extension lies (a `.png` that is a PDF, a `.md` that
   is binary): `kinds.rs` classifies by extension alone.

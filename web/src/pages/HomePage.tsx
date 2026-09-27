@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { folderRoute } from '../api/paths';
 import type { RootInfo } from '../api/types';
+import { SkipLink } from '../components/layout/SkipLink';
 import { RecentList } from '../components/home/RecentList';
 import { ThemeToggle } from '../components/layout/ThemeToggle';
 import { Button } from '../components/ui/Button';
@@ -70,8 +71,9 @@ export function HomePage() {
 
   return (
     <div className="home">
+      <SkipLink />
       <HomeHeader />
-      <main className="home__main" id="main-content">
+      <main className="home__main" id="main-content" tabIndex={-1}>
         {roots.length === 0 ? (
           <NoRoots />
         ) : (
@@ -79,7 +81,7 @@ export function HomePage() {
             <h2 className="home__section-title" id="home-roots">
               Collections
             </h2>
-            <ul className="home__roots">
+            <ul className="home__roots" role="list">
               {roots.map((root) => (
                 <li key={root.id}>
                   <RootRow root={root} />

@@ -93,3 +93,33 @@ test.describe('search', () => {
     await expect(page.locator('.prose')).toContainText('swallows the prose');
   });
 });
+
+/**
+ * INV-17 says a write preserves line endings byte for byte, and only the task-toggle path
+ * was ever held to it. CodeMirror splits on `\r\n` and rejoins with `\n` unless told the
+ * separator, so saving a Windows-authored note rewrote every line in it — including the
+ * ones nobody touched, which shows up later as a whole-file diff in git.
+ *
+ * Its own file, not the `crlf.md` fixture: `tasks.spec.ts` toggles that one, and two specs
+ * editing one file is a flake waiting to happen.
+ */
+test('the editor saves a CRLF note with its line endings intact', async ({ page }) => {
+  await page.request.post('/api/doc/shapes/crlf-editor.md', {
+    data: { content: '# CRLF\r\n\r\nA line.\r\n', baseMtimeMs: 0 },
+  });
+
+  expect(readRootFile('content-shapes', 'crlf-editor.md'), 'setup wrote CRLF').not.toMatch(/[^\r]\n/);
+
+  await openDoc(page, 'shapes', 'crlf-editor.md');
+  await page.getByRole('button', { name: /edit/i }).click();
+  const editor = page.locator('.cm-content');
+  await expect(editor).toBeVisible();
+  await editor.click();
+  await page.keyboard.press('ControlOrMeta+End');
+  await page.keyboard.type('\nAnother line.');
+  await page.getByRole('button', { name: /save/i }).click();
+
+  await expect.poll(() => readRootFile('content-shapes', 'crlf-editor.md')).toContain('Another line.');
+  const saved = readRootFile('content-shapes', 'crlf-editor.md');
+  expect(saved, 'no bare LF anywhere, including the line Enter just made').not.toMatch(/[^\r]\n/);
+});

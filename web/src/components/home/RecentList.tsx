@@ -82,7 +82,7 @@ export function RecentList({
       <h2 className="recents__heading" id={headingId}>
         {heading}
       </h2>
-      <ul className="recents__list">
+      <ul className="recents__list" role="list">
         {items.map((note) => (
           <RecentRow
             key={`${note.rootId}/${note.path}`}

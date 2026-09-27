@@ -242,6 +242,16 @@ applied afterwards is a no-op that still reads back as `lazy` in the inspector. 
 two documents whose second image sat 5000px down: client-set fetched both, server-set
 fetched one.
 
+**A relative link is rewritten to the route its target actually is.** A markdown link can
+name a folder as readily as a note — `./reference/` is how a plain handbook points at a
+section — and a folder resolves to no document, so `rewrite_relative_links` used to leave
+those untouched and the client then sent the reader to `/n/<root>/reference`: a document
+route for a directory, and a 404 however right the path was. `relative_route` asks the
+resolver for a file first and `Index::has_directory` second, and rewrites to `/f/…` in that
+case. Nothing is rewritten on a guess: a target that is neither is left exactly as written,
+so it renders as the broken link it is. `links::relative_path` is the join both answers
+share, separated from `resolve_relative` precisely because a target need not be a file.
+
 Maths renders to **MathML** via `latex2mathml`, so no client-side maths library ships.
 `escape_stray_dollars` runs first and escapes any `$` that is not a delimiter under
 Pandoc's rules, plus any `$` followed by a digit. Without it, "costs $5 today and $7
@@ -273,13 +283,17 @@ of storage and it listens for `storage` events, because both keys are written ba
 this app is meant to be left open in more than one tab, where computing from a stale
 snapshot silently drops whatever the other tab pinned.
 
-Two tokens exist for accessibility floors and are not free to retune by eye.
+Three tokens exist for accessibility floors and are not free to retune by eye.
 `--border-strong` is the border of a control and must clear **3:1** against every surface a
 control sits on — `--bg`, `--bg-subtle` and `--bg-elevated`, of which `--bg-subtle` is the
-tightest — for WCAG 1.4.11. `--border` is a divider, not a control, and deliberately stays
-quieter. `--tap-min` (24px) is the 2.5.8 AA floor for anything a finger must hit, distinct
-from `--tap` (44px), the comfortable target; the coarse-pointer block in `app.css` applies
-it to inline chips such as tags, which have no height of their own.
+tightest — for WCAG 1.4.11. `--fg-faint` is every eyebrow and secondary label, which is
+small text, so it must clear **4.5:1** against those same three surfaces for 1.4.3; it had
+shipped at 3.46–4.00 in the light theme. `--border` is a divider, not a control, and
+deliberately stays quieter. `--tap-min` (24px) is the 2.5.8 AA floor for anything a finger
+must hit, distinct from `--tap` (44px), the comfortable target; the coarse-pointer block in
+`app.css` applies it to inline chips such as tags, which have no height of their own.
+`web/e2e/contrast.spec.ts` computes all nine pairs in both themes, so a warmer token fails
+a test rather than a person.
 
 A folder's name filter is stored **per folder**, never globally — one folder's filter
 silently hiding another folder's contents is the failure mode that keying it this way
@@ -306,6 +320,13 @@ search) keeps it on screen, and focus landing in it brings it back. The document
 navigation; a test that reaches into the tree opens it with `openDrawer` from
 `web/e2e/helpers.ts` first, and the page behind it is `inert` while it is open.
 
+**A title is set once per page, and both routes decide that from the headings.** A note's
+markdown almost always opens with its own `h1`, so `DocumentPage` renders the page-chrome
+title as a `p` and steps it down to a caption when the body's first heading already is the
+title. `FolderPage` has the same problem through its index note and answers it by omitting
+the chrome title entirely in that case — it has no meta line to anchor a caption to, and the
+trail in the strip already says where the reader is.
+
 A document page is `.doc--reading`: at 1100px and up it is a margin / measure / margin
 grid — the contents rail in the left column, the text in the middle, tags and `LinkRefs`
 in a sticky `.doc__margin` on the right (`useIsWide` decides where the tags render). The
@@ -316,6 +337,35 @@ floating button that opens a bottom sheet (`web/src/components/content/TocSheet.
 which leaves with the strip while scrolling down. `TocSheet` and `Modal` are both
 dressings of `DialogShell` in `web/src/components/ui/`, which owns the portal, scrim,
 focus trap, Escape and scroll lock, so a dialog fix lands once.
+**The editor reads its buffer with the file's own line ending, never `doc.toString()`.**
+CodeMirror splits a document on `/\r\n?|\n/` and `toString()` rejoins it with `\n`
+unconditionally, so a Windows-authored note came back from the editor with every line
+rewritten — including the ones nobody touched, which surfaces later as a whole-file diff in
+git. `CodeMirrorField` therefore sets `EditorState.lineSeparator` from the text it was given
+and reads through `docText`, which slices with `state.lineBreak`. Both halves are needed:
+the facet alone governs splitting and what Enter inserts, and the fix is undone at the last
+step without the slice. This is INV-17, which only the task-toggle path had ever been held
+to; `web/e2e/editing.spec.ts` now holds the editor to it on a file of its own.
+
+**Every screen offers the same first tab stop.** `SkipLink`
+(`web/src/components/layout/`) is shared rather than written per layout, and any screen
+rendering it carries a `main#main-content` with `tabIndex={-1}` so activating it moves focus
+instead of only scrolling. The trash page renders outside the shell and so had neither the
+link nor a `main` landmark; the home page had the target and never offered the link.
+`web/e2e/landmarks.spec.ts` presses a real Tab on all four screens.
+
+**A list styled with `list-style: none` carries `role="list"`.** WebKit drops list
+semantics from an unbulleted list, so a screen reader loses "3 items" framing on every
+listing in the app — the folder entries, the tree, the backlinks, the contents, the trash.
+Chromium does not, which is why the e2e suite cannot see this and the rule lives here
+instead of in a test. A new unbulleted list needs the attribute.
+
+**A not-found state offers no retry.** `ErrorState` already tells `not-found` from the rest
+through `describeError`; a path that is absent is absent a second later too, so the most
+inviting control on the screen could only reproduce the same message. A file that does
+appear arrives on the change stream and reloads the page by itself. The transient cases keep
+their retry, and `web/e2e/states.spec.ts` pins both halves of that distinction.
+
 **Escape is one stack, not a listener per layer** (`web/src/hooks/useEscapeKey.ts`): every
 caller pushes onto a module-level array and only the innermost entry runs, because sibling
 `document` listeners all fire on the same event and `stopPropagation` does not stop them —

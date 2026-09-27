@@ -1,4 +1,4 @@
-import { docRoute, fileUrl, parentPath } from '../api/paths';
+import { docRoute, fileUrl, folderRoute, parentPath } from '../api/paths';
 
 const EXTERNAL_SCHEME = /^[a-z][a-z0-9+.-]*:/i;
 
@@ -18,6 +18,11 @@ function decodeOrPassThrough(value: string): string {
   } catch {
     return value;
   }
+}
+
+/** Whether the href's path part ends in `/`, ignoring any query or fragment. */
+function endsWithSlash(href: string): boolean {
+  return href.split('#')[0].split('?')[0].endsWith('/');
 }
 
 /** Resolves a document-relative href (`../notes/a.md`) against the open document. */
@@ -51,6 +56,10 @@ export function resolveInternalRoute(rootId: string, fromDocPath: string, href: 
   const fragment = href.includes('#') ? href.slice(href.indexOf('#')) : '';
   const path = resolveVaultPath(fromDocPath, href);
   if (!path) return null;
+  // A trailing slash names a directory everywhere else a URL is read, so it names one
+  // here too. The server rewrites folder links it can see in the index; this catches a
+  // folder it holds nothing indexable from, which would otherwise route to a document.
+  if (endsWithSlash(href)) return `${folderRoute(rootId, path)}${fragment}`;
   return `${docRoute(rootId, path)}${fragment}`;
 }
 

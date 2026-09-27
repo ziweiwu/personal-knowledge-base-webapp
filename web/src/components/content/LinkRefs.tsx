@@ -64,7 +64,7 @@ export function LinkRefs({ title, refs, rootId, subject, emptyLabel }: LinkRefsP
       {refs.length === 0 ? (
         <p className="state__detail state__detail--start">{emptyLabel}</p>
       ) : (
-        <ul className="linkrefs__list">
+        <ul className="linkrefs__list" role="list">
           {refs.map((ref) => (
             <li className="linkrefs__item" key={ref.path}>
               <Link to={docRoute(rootId, ref.path)}>

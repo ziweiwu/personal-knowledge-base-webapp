@@ -1604,3 +1604,61 @@ async fn a_text_file_that_is_not_utf8_is_explained_rather_than_lost() {
         .await;
     assert_ne!(status, StatusCode::INTERNAL_SERVER_ERROR);
 }
+
+/// A relative link can name a folder as readily as a note, and one that does resolves to
+/// no document — so it used to be left exactly as written, and the client then sent the
+/// reader to a *document* route for a directory: a guaranteed 404 however correct the
+/// path was. `plain-markdown`'s own fixture documents `./reference/` as a case that has
+/// to work.
+#[tokio::test]
+async fn a_relative_link_to_a_folder_points_at_the_folder_route() {
+    let harness = harness("relative-folder-link");
+    let cookie = harness.login().await;
+    create_document(
+        &harness,
+        &cookie,
+        "handbook.md",
+        "See [the notes folder](./notes/) and [one note](./notes/Target.md).\n",
+    )
+    .await;
+
+    let (status, body) = harness.get_authed(&cookie, "/api/doc/kb/handbook.md").await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    let html = serde_json::from_str::<serde_json::Value>(&body).unwrap()["html"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    assert!(
+        html.contains("href=\"/f/kb/notes\""),
+        "a folder target belongs on the folder route: {html}"
+    );
+    assert!(
+        html.contains("href=\"/n/kb/notes/Target.md\""),
+        "a file target still wins: {html}"
+    );
+}
+
+/// Nothing may be rewritten on a guess: a relative link naming neither a document nor a
+/// directory is left alone, so it renders as the broken link it is instead of pointing at
+/// a folder route that does not exist either.
+#[tokio::test]
+async fn a_relative_link_to_nothing_is_left_as_written() {
+    let harness = harness("relative-dead-link");
+    let cookie = harness.login().await;
+    create_document(
+        &harness,
+        &cookie,
+        "dead.md",
+        "A [missing folder](./nowhere/) and a [missing note](./nowhere.md).\n",
+    )
+    .await;
+
+    let (_, body) = harness.get_authed(&cookie, "/api/doc/kb/dead.md").await;
+    let html = serde_json::from_str::<serde_json::Value>(&body).unwrap()["html"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert!(html.contains("href=\"./nowhere/\""), "{html}");
+    assert!(html.contains("href=\"./nowhere.md\""), "{html}");
+}

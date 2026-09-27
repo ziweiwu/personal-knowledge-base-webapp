@@ -15,6 +15,7 @@ import { DocumentPage } from '../../pages/DocumentPage';
 import { FolderPage } from '../../pages/FolderPage';
 import { TagPage } from '../../pages/TagPage';
 import { SearchPalette } from '../search/SearchPalette';
+import { SkipLink } from './SkipLink';
 import { Breadcrumbs } from './Breadcrumbs';
 import { ReadingProgress } from './ReadingProgress';
 import { Sidebar } from './Sidebar';
@@ -189,9 +190,7 @@ function VaultShell({ mode, path }: { mode: VaultMode; path: string }) {
 
   return (
     <div className={shellClass}>
-      <a className="skip-link" href="#main-content">
-        Skip to content
-      </a>
+      <SkipLink />
 
       <header className="topbar">
         <Button

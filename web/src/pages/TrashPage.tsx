@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import { fetchTrash, restoreFromTrash } from '../api/client';
 import { folderRoute, parentPath } from '../api/paths';
 import type { TrashEntry } from '../api/types';
+import { SkipLink } from '../components/layout/SkipLink';
 import { Button } from '../components/ui/Button';
 import { EmptyState, ErrorState, LoadingState } from '../components/ui/States';
 import { useAsyncResource } from '../hooks/useAsyncResource';
@@ -97,20 +98,23 @@ export function TrashPage() {
 
   return (
     <div className="trash">
+      <SkipLink />
       <TrashHeader rootId={rootId} rootName={rootName} />
-      {root?.readOnly ? (
-        <EmptyState
-          tone="info"
-          title="This collection is read-only"
-          detail="Nothing can be deleted from it, so its trash stays empty."
-        >
-          <Link className="btn" to={folderRoute(rootId, '')}>
-            Back to the collection
-          </Link>
-        </EmptyState>
-      ) : (
-        <TrashList trash={trash} rootId={rootId} restoring={restoring} onRestore={(entry) => void restore(entry)} />
-      )}
+      <main id="main-content" tabIndex={-1}>
+        {root?.readOnly ? (
+          <EmptyState
+            tone="info"
+            title="This collection is read-only"
+            detail="Nothing can be deleted from it, so its trash stays empty."
+          >
+            <Link className="btn" to={folderRoute(rootId, '')}>
+              Back to the collection
+            </Link>
+          </EmptyState>
+        ) : (
+          <TrashList trash={trash} rootId={rootId} restoring={restoring} onRestore={(entry) => void restore(entry)} />
+        )}
+      </main>
     </div>
   );
 }
@@ -129,7 +133,7 @@ function TrashList({ trash, rootId, restoring, onRestore }: ListProps) {
     return <EmptyState title="Trash is empty" detail="Anything you delete from this collection will appear here." />;
   }
   return (
-    <ul className="trash__list" aria-label="Deleted files">
+    <ul className="trash__list" role="list" aria-label="Deleted files">
       {trash.data.map((entry) => (
         <TrashRow
           key={entry.trashPath}

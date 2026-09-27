@@ -389,13 +389,6 @@
   color: var(--fg-muted);
 }
 
-/* Broken wikilinks render as a non-link span in Obsidian mode. */
-.prose a.internal-link.is-unresolved,
-.prose .unresolved-link {
-  color: var(--fg-faint);
-  text-decoration: underline dotted;
-}
-
 /* MathML: the browser lays it out, we only keep it from overflowing. */
 .prose math {
   font-size: 1.05em;
@@ -435,34 +428,6 @@
 .prose pre.mermaid svg {
   max-width: 100%;
   height: auto;
-}
-
-/* Generic highlight classes, in case the server's highlighter emits them. */
-.prose .hljs-comment,
-.prose .hljs-quote {
-  color: var(--fg-faint);
-  font-style: italic;
-}
-
-.prose .hljs-keyword,
-.prose .hljs-selector-tag,
-.prose .hljs-literal {
-  color: var(--accent-fg);
-}
-
-.prose .hljs-string,
-.prose .hljs-attr {
-  color: var(--success);
-}
-
-.prose .hljs-number,
-.prose .hljs-built_in {
-  color: var(--warning);
-}
-
-.prose .hljs-title,
-.prose .hljs-name {
-  color: var(--danger);
 }
 
 .prose .frontmatter-table {

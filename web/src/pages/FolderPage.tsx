@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { fetchFolder } from '../api/client';
 import { eventTouches } from '../api/events';
 import { docRoute, folderRoute } from '../api/paths';
-import type { ChangeEvent, FolderEntry } from '../api/types';
+import type { ChangeEvent, DocumentPayload, FolderEntry } from '../api/types';
 import { HtmlContent } from '../components/content/HtmlContent';
 import { Banner, EmptyState, ErrorState, LoadingState } from '../components/ui/States';
 import { useAsyncResource } from '../hooks/useAsyncResource';
@@ -15,6 +15,18 @@ import { useVault } from '../state/vault-context';
 import { Button } from '../components/ui/Button';
 import { Select } from '../components/ui/Select';
 import { Icon } from '../components/ui/Icon';
+
+/**
+ * Whether the index note already sets the folder's name in its own first heading.
+ *
+ * The title is derived from that heading when no front matter names one, so the two are
+ * the same words far more often than not.
+ */
+function indexCarriesTitle(index: DocumentPayload): boolean {
+  const first = index.headings[0];
+  const title = index.meta.title || index.meta.name;
+  return first?.depth === 1 && first.text.trim() === title.trim();
+}
 
 type SortKey = 'name' | 'modified' | 'size';
 
@@ -120,7 +132,12 @@ export function FolderPage({ rootId, path, onTitleChange }: FolderPageProps) {
     <div className="doc">
       {index ? (
         <div className="doc__inner">
-          <p className="doc__title">{index.meta.title || listing.name}</p>
+          {/* An index note conventionally opens with the folder's name as its own `h1`, so a
+              title here set the same words twice, six pixels apart. The document page steps
+              its title down to a caption in that case, but it has a meta line underneath to
+              anchor one; a folder page has none, and the trail in the strip already says
+              where the reader is. So the heading in the content is left to speak alone. */}
+          {indexCarriesTitle(index) ? null : <p className="doc__title">{index.meta.title || listing.name}</p>}
           {index.renderWarning ? <Banner tone="warning">{index.renderWarning}</Banner> : null}
           {index.html ? <HtmlContent html={index.html} rootId={rootId} docPath={index.meta.path} /> : null}
         </div>
@@ -178,7 +195,7 @@ export function FolderPage({ rootId, path, onTitleChange }: FolderPageProps) {
             detail={filter ? `No entry here contains “${filter.trim()}”.` : undefined}
           />
         ) : (
-          <ul className="entries" aria-labelledby="folder-contents">
+          <ul className="entries" role="list" aria-labelledby="folder-contents">
             {entries.map((entry) => (
               <li className="entries__item" key={entry.path}>
                 <Link

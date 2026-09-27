@@ -98,11 +98,12 @@ export function ErrorState({ error, onRetry, tone, glyph }: ErrorStateProps) {
   const { kind, title, detail, severity } = describeError(error);
   const retry = onRetry ? <Button onClick={onRetry}>Try again</Button> : null;
   if (kind === 'not-found' && !tone) {
-    return (
-      <NotFoundState title={title} detail={detail} role="alert">
-        {retry}
-      </NotFoundState>
-    );
+    // No retry here: a path that is not there is not there again a second later, so the
+    // most inviting control on the screen could only reproduce the same message. A file
+    // that does appear arrives on the change stream and reloads the page by itself, and
+    // the trail in the strip is the way out for a reader who mistyped or followed a
+    // stale link.
+    return <NotFoundState title={title} detail={detail} role="alert" />;
   }
   return (
     <StateFrame tone={tone ?? severity} glyph={glyph} title={title} detail={detail} role="alert">

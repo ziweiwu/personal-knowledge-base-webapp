@@ -25,7 +25,13 @@
 
   --fg: #2a2118;
   --fg-muted: #6d5e4c;
-  --fg-faint: #8a7c68;
+  /* The colour of every eyebrow and secondary label — a section heading in the margin, a
+     path under a search hit, the meta line under a folder entry — so it is small text and
+     carries WCAG 1.4.3's 4.5:1, not the 3:1 non-text floor. It must clear that on all
+     three surfaces a label sits on; --bg-subtle is the tightest, and the previous value
+     measured 3.77 on --bg and 3.46 there, failing in the theme a light OS defaults to.
+     It stays a step lighter than --fg-muted (5.81 / 5.32) so the hierarchy survives. */
+  --fg-faint: #786854;
   --fg-on-accent: #fdf8ee;
 
   --border: #e3d7bd;
@@ -132,7 +138,9 @@
 
     --fg: #ede4d4;
     --fg-muted: #b3a58e;
-    --fg-faint: #8f8168;
+    /* 4.5:1 on all three dark surfaces; the previous value passed on --bg alone (4.67)
+       and failed on --bg-subtle and --bg-elevated, where most labels actually sit. */
+    --fg-faint: #978970;
     --fg-on-accent: #241a10;
 
     --border: #3a2f22;
@@ -183,7 +191,9 @@
 
   --fg: #ede4d4;
   --fg-muted: #b3a58e;
-  --fg-faint: #8f8168;
+  /* 4.5:1 on all three dark surfaces; the previous value passed on --bg alone (4.67)
+     and failed on --bg-subtle and --bg-elevated, where most labels actually sit. */
+  --fg-faint: #978970;
   --fg-on-accent: #241a10;
 
   --border: #3a2f22;
