@@ -405,6 +405,50 @@ but never `index.html`.
 
 **Enforced by:** `assets.rs` unit tests; CI builds web before cargo.
 
+## INV-25 — In a wikilinks root, no write ever mints a name a link cannot point at
+
+Create, folder create, upload and the destination of a rename all go through
+`reject_unlinkable_name`, which refuses any of `#`, `^`, `[`, `]`, `|`, `"`
+and `:` — the characters `scan_wikilinks` reads as syntax — with a 400 naming
+the character. The check is gated on `root.uses_wikilinks()`, so a plain
+markdown folder still accepts `Meeting #3.md`. `/` is not on the list: it is
+the path separator and INV-1 already judges it.
+
+**Why this matters here:** the vault is Obsidian's, and the user links notes
+by name. A note called `vt notes#frag.md` can be created and opened perfectly
+well, and every `[[vt notes#frag]]` written for it resolves to the heading
+`frag` of a note called `vt notes` instead — a link that looks right, points
+elsewhere, and cannot be repaired by the rewrite in INV-5 because the scanner
+never sees a link to the file at all. Obsidian itself refuses these names, so
+accepting them also makes a file the user cannot link to from the other side.
+
+**Enforced by:** `tests/api.rs`
+`a_rename_into_a_name_no_link_could_express_is_refused` (source still on disk
+and the inbound link untouched after the refusal),
+`no_write_route_mints_a_name_that_breaks_a_link` (all seven characters across
+all three create routes) and `a_plain_folder_still_accepts_a_name_with_a_hash`.
+`web/src/lib/names.ts` mirrors the list in the dialog; nothing enforces that
+the two lists agree, so see Candidates.
+
+## INV-26 — One Escape dismisses one layer, and the page always comes back
+
+Every layer registers with the single stack in `useEscapeKey`, which runs only
+the innermost entry, so Escape over a dialog above the drawer closes the dialog
+and leaves the drawer. The body scroll lock is reference counted and restores
+the value the *first* holder saw, so two layers closing in one commit cannot
+leave the page locked. Cmd+K closes the drawer as it opens search rather than
+stacking a palette over an inert page, and `f` is ignored while the drawer is
+open because it would hide the strip holding the only way to close it.
+
+**Why this matters here:** the usual client is a phone, where the drawer is the
+only navigation and a dialog is opened from inside it. A leaked lock is total on
+the home route, which is outside the shell and scrolls `body` rather than
+`.main-pane`, and there is no keyboard to escape with.
+
+**Enforced by:** `web/e2e/layers.spec.ts`, five desktop tests. The scroll
+assertion uses a real wheel gesture: `overflow: hidden` still permits a scripted
+`scrollTo`, so a programmatic scroll cannot tell a locked page from a free one.
+
 ---
 
 ## Candidates
@@ -467,5 +511,11 @@ next round and the honest answer to a fuzz sweep that comes back clean.
   assertions beyond authentication.
 - The `mermaid.md`, `math.md`, `callouts.md` fixtures pin rendering shape but
   not fidelity; nothing asserts a diagram actually drew.
+- Whether `web/src/lib/names.ts` still lists the same characters as
+  `LINK_BREAKING_CHARS` (INV-25). Drift costs only a round trip — the server
+  refuses either way — but the dialog would stop explaining itself.
+- Validation of a stored preference (`recents.ts` `parseNote`): an entry with no
+  `path` used to blank every page until site data was cleared, and the parser
+  that now discards it has no test. Nothing in `web/` runs unit tests.
 - Upload of a file whose extension lies (a `.png` that is a PDF, a `.md` that
   is binary): `kinds.rs` classifies by extension alone.

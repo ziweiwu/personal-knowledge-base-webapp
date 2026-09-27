@@ -14,6 +14,16 @@
   margin-top: 1em;
 }
 
+/* comrak emits an empty `<a class="anchor">` inside every heading. It renders zero-width
+   and cannot be clicked, yet it carries an aria-label and an href — so it is a labelled
+   tab stop that does nothing, eighteen of them on a long note, and a focusable element is
+   never legitimate inside something hidden from assistive technology. The `id` the table of
+   contents and every `#heading` link resolve against sits on the heading itself, so taking
+   the anchor out of the render costs nothing. */
+.prose .anchor {
+  display: none;
+}
+
 .prose h1,
 .prose h2,
 .prose h3,

@@ -29,7 +29,13 @@
   --fg-on-accent: #fdf8ee;
 
   --border: #e3d7bd;
-  --border-strong: #cdbc98;
+  /* The boundary of every button, input and select, so it carries WCAG 1.4.11's 3:1
+     against each of the three surfaces a control can sit on: --bg, --bg-elevated and
+     --bg-subtle. The palette has never cleared it — the pre-redesign pair measured 1.67:1
+     and 1.88:1 — and --bg-subtle is the tightest of the three, which is what rules out the
+     lighter warm values that pass on the other two. --border stays quiet on purpose: a
+     divider is not a control, and raising both would flatten the distinction. */
+  --border-strong: #8f7d59;
 
   --accent: #9a4a2e;
   --accent-hover: #7c3a22;
@@ -105,7 +111,10 @@
     'Times New Roman', serif, 'Apple Color Emoji', 'Segoe UI Emoji';
   --font-mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace;
 
+  /* A comfortable target, and the smallest one WCAG 2.5.8 AA permits. Dense rows of
+     chips take the minimum; anything a finger aims at deliberately takes the first. */
   --tap: 44px;
+  --tap-min: 24px;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -127,7 +136,7 @@
     --fg-on-accent: #241a10;
 
     --border: #3a2f22;
-    --border-strong: #4d4130;
+    --border-strong: #7d6c52;
 
     --accent: #e0925f;
     --accent-hover: #eaab7f;
@@ -178,7 +187,7 @@
   --fg-on-accent: #241a10;
 
   --border: #3a2f22;
-  --border-strong: #4d4130;
+  --border-strong: #7d6c52;
 
   --accent: #e0925f;
   --accent-hover: #eaab7f;

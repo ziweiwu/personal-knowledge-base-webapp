@@ -1768,6 +1768,15 @@ kbd {
     min-height: var(--tap);
   }
 
+  /* A chip is a link to the tag's listing and was the one interactive thing this block
+     left out, at 21.8px against a 24px floor. Chips sit in dense rows, so they take the
+     minimum rather than the comfortable target; inline-flex is what lets a height apply. */
+  a.tag {
+    display: inline-flex;
+    align-items: center;
+    min-height: var(--tap-min);
+  }
+
   .tree__twisty,
   .tree__more {
     width: 40px;

@@ -183,6 +183,10 @@ switched on.
   bounds paths that do not exist yet. `.obsidian/`, `.trash/`, `.git/` and Synology's
   `@eaDir` are never served.
 - Writes are atomic, and delete moves to `.trash/` rather than destroying anything.
+- **A new or renamed name has to be one a link can point at.** In a wikilinks collection,
+  `#`, `^`, `[`, `]`, `|`, `"` and `:` are refused, because a `[[link]]` written for such a
+  file reads them as syntax and resolves somewhere else — quietly, and beyond repair by the
+  rename that rewrites links. A plain markdown folder still takes `Meeting #3.md`.
 
 **Accepted risk:** raw HTML inside your documents is rendered, as Obsidian does. The
 content is yours and sits behind auth, so this is self-inflicted-only. Serving a folder

@@ -423,6 +423,28 @@ fn parent_of(path: &str) -> String {
         .unwrap_or_default()
 }
 
+/// Characters a document's name may not contain in a wikilink folder.
+///
+/// A rename rewrites every inbound link by substituting the new name between `[[` and
+/// `]]`, so the name has to survive being read back as link text. Each of these is read
+/// as something other than itself: `#` opens a heading fragment, `^` a block reference,
+/// `|` an alias, `[` and `]` the brackets themselves. A link rewritten to carry one still
+/// parses and still resolves — to a *different* document, or to nothing — while the rename
+/// reports success, which is the single failure this module exists to prevent.
+///
+/// `"` and `:` are here for the copy of a link that lives in YAML front matter: a quote
+/// ends the scalar it sits in and leaves the whole properties block unparseable for
+/// Obsidian, and Obsidian refuses a colon in a file name for its own portability reasons.
+/// `/` is deliberately absent — it separates folders, and is the one character that
+/// legitimately appears between names.
+pub const LINK_BREAKING_CHARS: &[char] = &['#', '^', '[', ']', '|', '"', ':'];
+
+/// The first character of `path` that no wikilink could point at, if it has one.
+pub fn link_breaking_char(path: &str) -> Option<char> {
+    path.chars()
+        .find(|found| LINK_BREAKING_CHARS.contains(found))
+}
+
 /// Rewrite every wikilink in `src` that resolves to `old_path` so it points at `new_path`.
 ///
 /// The author's link style is preserved: a link written as a bare basename stays a bare

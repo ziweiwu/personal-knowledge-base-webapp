@@ -138,30 +138,33 @@ impl Index {
             .unwrap_or_default()
     }
 
-    /// The line in `source` where it links to `target`: the first wikilink resolving
-    /// there when the root uses them, otherwise the first markdown link that does.
+    /// The line in `source` where it links to `target`: a wikilink resolving there when the
+    /// root uses them, otherwise a markdown link that does. Prose is preferred over the
+    /// note's properties; see `prose_first`.
     fn link_context(&self, source: &Document, target: &str) -> Option<String> {
         let content = linkable_markdown(source)?;
         let resolves_here = |resolved: Option<String>| resolved.as_deref() == Some(target);
-        let wikilink = self
-            .wikilinks
-            .then(|| {
-                scan_wikilinks(content).into_iter().find(|link| {
+
+        let wikilinks = self.wikilinks.then(|| {
+            scan_wikilinks(content)
+                .into_iter()
+                .filter(|link| {
                     !link.target.is_empty()
                         && resolves_here(self.resolver.resolve(&source.path, &link.target))
                 })
-            })
-            .flatten();
-        let (start, end) = match wikilink {
-            Some(link) => (link.start, link.end),
-            None => {
-                let url = markdown_link_urls(content)
-                    .into_iter()
-                    .find(|url| resolves_here(self.resolver.resolve_relative(&source.path, url)))?;
-                let start = content.find(&url)?;
-                (start, start + url.len())
-            }
+                .map(|link| (link.start, link.end))
+                .collect::<Vec<_>>()
+        });
+        let found = match wikilinks {
+            Some(links) if !links.is_empty() => links,
+            _ => markdown_link_urls(content)
+                .into_iter()
+                .filter(|url| resolves_here(self.resolver.resolve_relative(&source.path, url)))
+                .filter_map(|url| content.find(&url).map(|start| (start, start + url.len())))
+                .collect(),
         };
+
+        let (start, end) = prose_first(&found, body_offset(content))?;
         Some(crate::context::line_around(content, start, end))
     }
 
@@ -455,6 +458,26 @@ fn wikilink_outlinks(document: &Document, resolver: &Resolver) -> Vec<String> {
 }
 
 /// Only markdown carries links the index follows, and only if its text was read.
+/// Where the body begins: past the front-matter block, or at the start when there is none.
+fn body_offset(content: &str) -> usize {
+    let (_, body) = crate::frontmatter::split(content);
+    content.len() - body.len()
+}
+
+/// The first of these links that sits in the body, falling back to the first anywhere.
+///
+/// A link in a note's properties is a real link and belongs in the backlink count. As the
+/// *snippet*, though, it shows the reader a fragment of YAML where they expected the
+/// sentence that mentions their note — and because the properties block comes first in the
+/// file, it used to win over the prose every time.
+fn prose_first(links: &[(usize, usize)], body_start: usize) -> Option<(usize, usize)> {
+    links
+        .iter()
+        .find(|(start, _)| *start >= body_start)
+        .or_else(|| links.first())
+        .copied()
+}
+
 fn linkable_markdown(document: &Document) -> Option<&str> {
     if document.kind != DocumentKind::Markdown {
         return None;
@@ -597,5 +620,49 @@ mod tests {
         let outlinks = index.outlinks("source.md");
         assert_eq!(outlinks.len(), 1);
         assert_eq!(outlinks[0].context, None);
+    }
+
+    /// A link in a note's properties is a real link, and the reader still wants the
+    /// sentence. The properties block comes first in the file, so taking the first link
+    /// that resolved handed back a fragment of YAML instead.
+    #[test]
+    fn a_backlink_quotes_the_prose_rather_than_the_properties() {
+        let root = fixture_root(
+            "backlink-frontmatter",
+            &[
+                ("target.md", "# Target\n"),
+                (
+                    "source.md",
+                    concat!(
+                        "---\ntitle: Source\nrelated: \"[[target]]\"\n---\n\n",
+                        "# Source\n\nThe reason it links is [[target]], right here.\n"
+                    ),
+                ),
+                (
+                    "only-properties.md",
+                    "---\nrelated: \"[[target]]\"\n---\n\n# Only properties\n\nNothing in the body.\n",
+                ),
+            ],
+            Some(true),
+        );
+        let index = Index::build(&root);
+        let context_of = |path: &str| {
+            index
+                .backlinks("target.md")
+                .into_iter()
+                .find(|link| link.path == path)
+                .unwrap()
+                .context
+        };
+
+        assert_eq!(
+            context_of("source.md").as_deref(),
+            Some("The reason it links is [[target]], right here.")
+        );
+        // With nothing in the body, the properties line is still better than no snippet.
+        assert_eq!(
+            context_of("only-properties.md").as_deref(),
+            Some("related: \"[[target]]\"")
+        );
     }
 }

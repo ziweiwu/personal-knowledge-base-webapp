@@ -113,6 +113,19 @@ code blocks and inline code. Never replace this with a regex over the document: 
 in `crates/kbviewer-core/src/links.rs` cover prose that merely mentions the name, and links inside code samples,
 because both get corrupted by naive replacement.
 
+**In a wikilinks root, no write route may mint a name a link cannot express.**
+`kbviewer_core::links::link_breaking_char` names the seven characters — `#`, `^`, `[`, `]`,
+`|`, `"`, `:` — and `reject_unlinkable_name` in `crates/kbviewer-server/src/routes/write.rs`
+refuses them on create, folder create, upload and the *destination* of a rename. Every one
+would be read as syntax by the scanner above, so the link written for such a file resolves
+somewhere else or nowhere, and the rewrite on a later rename then cannot find it. The gate
+is `root.uses_wikilinks()`: a plain markdown folder still accepts `Meeting #3.md`. `/` is
+deliberately absent — it is the path separator, which `resolve_in_root` already judges. The
+consequence is accepted on purpose: an existing file whose name already carries one cannot
+be *moved* until it is renamed to something linkable, and that rename is the fix.
+`web/src/lib/names.ts` mirrors the list so the dialog says so before the round trip; the
+server stays the boundary.
+
 **A task checkbox's line number comes from the raw file, never from the parsed
 document.** `kbviewer_core::tasks::task_lines` scans the source with the same scanner
 `set_task_state` writes through, and `enable_task_checkboxes` pairs its results with the
@@ -252,7 +265,21 @@ because `u64`/`i64` otherwise map to `bigint`, which `JSON.parse` never produces
 Sort, tree expansion, theme, search scope, recently opened notes, pins and the last
 route per root persist in `localStorage` through `web/src/lib/persist.ts`
 (recents live in `web/src/lib/recents.ts`). Every access is wrapped: storage *throws* in Safari private
-browsing, and a lost preference must never become a blank page.
+browsing, and a lost preference must never become a blank page. A stored value is
+**untrusted input**: `recents.ts` validates every entry rather than casting the array, since
+one without a `path` reached the route builder and took out the sidebar — and with it every
+page — on each reload until site data was cleared. Its writes also apply to a **fresh read**
+of storage and it listens for `storage` events, because both keys are written back whole and
+this app is meant to be left open in more than one tab, where computing from a stale
+snapshot silently drops whatever the other tab pinned.
+
+Two tokens exist for accessibility floors and are not free to retune by eye.
+`--border-strong` is the border of a control and must clear **3:1** against every surface a
+control sits on — `--bg`, `--bg-subtle` and `--bg-elevated`, of which `--bg-subtle` is the
+tightest — for WCAG 1.4.11. `--border` is a divider, not a control, and deliberately stays
+quieter. `--tap-min` (24px) is the 2.5.8 AA floor for anything a finger must hit, distinct
+from `--tap` (44px), the comfortable target; the coarse-pointer block in `app.css` applies
+it to inline chips such as tags, which have no height of their own.
 
 A folder's name filter is stored **per folder**, never globally — one folder's filter
 silently hiding another folder's contents is the failure mode that keying it this way
@@ -289,6 +316,17 @@ floating button that opens a bottom sheet (`web/src/components/content/TocSheet.
 which leaves with the strip while scrolling down. `TocSheet` and `Modal` are both
 dressings of `DialogShell` in `web/src/components/ui/`, which owns the portal, scrim,
 focus trap, Escape and scroll lock, so a dialog fix lands once.
+**Escape is one stack, not a listener per layer** (`web/src/hooks/useEscapeKey.ts`): every
+caller pushes onto a module-level array and only the innermost entry runs, because sibling
+`document` listeners all fire on the same event and `stopPropagation` does not stop them —
+one Escape used to close the dialog and the drawer under it together. Anything layered over
+the page registers there rather than adding a guard for each other layer.
+**The body scroll lock is reference counted** (`web/src/hooks/useBodyScrollLock.ts`): the
+value to restore is remembered by the *first* holder only, since two holders each
+remembering `hidden` from the other left the lock on for good. On the home route, which
+sits outside the shell, `body` is the scroller rather than `.main-pane`, so a leaked lock is
+total there; `web/e2e/layers.spec.ts` covers it with a real wheel gesture, because
+`overflow: hidden` still permits a scripted `scrollTo`.
 The reading-progress bar is mounted only on the document route and hidden by CSS while the
 editor is open (`.app-shell:has(.editor)`); `:has()` is supported by every browser the app
 targets, but a browser without it shows the bar over the editor rather than breaking. When
@@ -297,8 +335,11 @@ the strip is hidden it peeks 3px so the line stays visible.
 Two places bridge the palette into code that cannot read CSS. The editor's CodeMirror
 theme (`web/src/components/editor/editorTheme.ts`) is built from `var(--…)` references,
 so the buffer wears the reading view's serif and colours in both themes with no
-per-theme swap. Mermaid renders into an SVG that cannot inherit them, so
-`web/src/lib/mermaid.ts` resolves the tokens through `getComputedStyle` on every render
+per-theme swap. Both sides are built once as module constants: `EditorView.theme` mints a
+new style module per call and reconfiguring the compartment never retracts the old one, so
+returning a fresh theme left another copy of the rules in the document on every toggle.
+Mermaid renders into an SVG that cannot inherit them, so `web/src/lib/mermaid.ts`
+resolves the tokens through `getComputedStyle` on every render
 and hands them to Mermaid as theme variables; it is the one sanctioned place a colour
 value is read out of the cascade, and it still names tokens, never literals.
 
@@ -306,6 +347,9 @@ A backlink carries `context`: the line it links from, cut to `MAX_CONTEXT_CHARS`
 around the link by `crates/kbviewer-core/src/context.rs` at index time. `LinkRefs`
 wraps the wikilink that points at the open note in `<mark>` when it can match it by
 title, path or basename, and shows the line unmarked otherwise rather than guessing.
+It quotes the **first link in the body**, falling back to a front-matter one only when the
+body holds none: a note whose properties carry the link showed `related: [[Target]]` as its
+only context, which says nothing about why the two notes are connected.
 
 ## QA
 

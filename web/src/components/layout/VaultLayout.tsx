@@ -71,6 +71,7 @@ function VaultShell({ mode, path }: { mode: VaultMode; path: string }) {
   const [focusNotice, setFocusNotice] = useState('');
   const focus = useFocusMode();
   const menuButtonRef = useRef<HTMLButtonElement>(null);
+  const searchButtonRef = useRef<HTMLButtonElement>(null);
   const mainRef = useRef<HTMLElement>(null);
 
   useScrollRestoration(mainRef);
@@ -85,10 +86,10 @@ function VaultShell({ mode, path }: { mode: VaultMode; path: string }) {
 
   const closeDrawer = useCallback(() => setDrawerOpen(false), []);
 
-  // Escape closes the topmost layer: the drawer outranks focus mode, and the search
-  // palette binds its own so it is never reached through here while open.
-  const escapeLeavesFocus = focus.focused && !searchOpen;
-  useEscapeKey(drawerOpen ? closeDrawer : escapeLeavesFocus ? focus.exit : null);
+  // The shell's own two ways out, in the order they should be taken. Anything layered
+  // above them — the search palette, a dialog, the lightbox — registers with the same
+  // stack in `useEscapeKey` and is closed first, so nothing here needs to know about it.
+  useEscapeKey(drawerOpen ? closeDrawer : focus.focused ? focus.exit : null);
   useBodyScrollLock(drawerOpen ? 'locked' : 'scrollable');
 
   // The drawer is summoned to go somewhere; arriving there should reveal the page.
@@ -110,10 +111,28 @@ function VaultShell({ mode, path }: { mode: VaultMode; path: string }) {
     drawerWasOpen.current = drawerOpen;
   }, [drawerOpen]);
 
+  // The same for the palette, which needs it more: its focus trap hands focus back to
+  // whatever held it before, and when the palette was summoned by its shortcut rather than
+  // clicked that is the body — so a keyboard user landed at the top of the page and had to
+  // tab all the way back in. Runs after the trap's own restore, which is a passive effect
+  // in a child and therefore earlier in the commit.
+  const searchWasOpen = useRef(false);
+  useEffect(() => {
+    if (searchWasOpen.current && !searchOpen) {
+      searchButtonRef.current?.focus({ preventScroll: true });
+    }
+    searchWasOpen.current = searchOpen;
+  }, [searchOpen]);
+
+  // Search supersedes the document list rather than stacking on top of it: the drawer's
+  // scrim leaves the page behind it inert, so a palette opened over it used to float above
+  // an app that answered nothing until Escape had been pressed twice. Asking to search is
+  // unambiguous, so the list gets out of the way instead of blocking the shortcut.
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
         event.preventDefault();
+        setDrawerOpen(false);
         setSearchOpen(true);
       }
     };
@@ -122,19 +141,20 @@ function VaultShell({ mode, path }: { mode: VaultMode; path: string }) {
   }, []);
 
   // A bare letter, so it is guarded against every context where it would be a keystroke
-  // rather than a command.
+  // rather than a command — including with the document list open, where focus mode would
+  // hide the strip holding the list's own toggle.
   const canFocus = mode === 'doc';
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key.toLowerCase() !== 'f') return;
       if (event.metaKey || event.ctrlKey || event.altKey) return;
-      if (!canFocus || searchOpen || isTypingTarget(event.target)) return;
+      if (!canFocus || searchOpen || drawerOpen || isTypingTarget(event.target)) return;
       event.preventDefault();
       focus.toggle();
     };
     document.addEventListener('keydown', onKeyDown);
     return () => document.removeEventListener('keydown', onKeyDown);
-  }, [canFocus, searchOpen, focus]);
+  }, [canFocus, searchOpen, drawerOpen, focus]);
 
   // A folder or tag listing is navigation; there is no document to focus on, and the
   // chrome focus mode hides is the whole page.
@@ -195,6 +215,7 @@ function VaultShell({ mode, path }: { mode: VaultMode; path: string }) {
         <button
           type="button"
           className="search-trigger"
+          ref={searchButtonRef}
           onClick={() => setSearchOpen(true)}
           aria-keyshortcuts="Meta+K Control+K"
           inert={behindDrawer}

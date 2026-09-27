@@ -87,6 +87,32 @@ pub(super) fn reject_excluded(path: &str) -> AppResult<()> {
     Ok(())
 }
 
+/// Refuse a destination whose name could not be written back into a wikilink.
+///
+/// `reject_excluded` above answers "will the index look here"; this answers "can a link
+/// say this name". They are different questions, and rename asked neither until a
+/// destination holding a `#` was found to rewrite `[[target]]` into `[[notes#frag]]` —
+/// a link that resolves to nothing, then silently attaches itself to whatever note is
+/// created under that name later, all reported to the caller as a successful rename.
+///
+/// Only in a wikilink folder. Plain markdown has no `[[…]]` and rewrites nothing, so
+/// `Meeting #3.md` is an ordinary file name there and refusing it would buy nothing.
+pub(super) fn reject_unlinkable_name(
+    root: &kbviewer_core::config::RootConfig,
+    path: &str,
+) -> AppResult<()> {
+    if !root.uses_wikilinks() {
+        return Ok(());
+    }
+    match kbviewer_core::links::link_breaking_char(path) {
+        None => Ok(()),
+        Some(found) => Err(AppError::BadRequest(format!(
+            "a name in this folder cannot contain {found:?}: a link pointing at it would read \
+             that character as syntax and resolve somewhere else"
+        ))),
+    }
+}
+
 pub(super) fn mtime_ms(path: &FsPath) -> i64 {
     std::fs::metadata(path)
         .and_then(|m| m.modified())
@@ -305,6 +331,7 @@ pub async fn create(
 ) -> AppResult<(StatusCode, Json<DocumentMeta>)> {
     let root = writable_root(&state, &root_id)?;
     reject_excluded(&path)?;
+    reject_unlinkable_name(root, &path)?;
     let absolute = resolve_in_root(&root.path, &path)?;
     let _one_writer = one_writer(&state, &root_id)?;
 
@@ -323,6 +350,7 @@ pub async fn create_folder(
 ) -> AppResult<StatusCode> {
     let root = writable_root(&state, &root_id)?;
     reject_excluded(&path)?;
+    reject_unlinkable_name(root, &path)?;
     let absolute = resolve_in_root(&root.path, &path)?;
     let _one_writer = one_writer(&state, &root_id)?;
 
@@ -405,6 +433,7 @@ pub async fn upload(
 ) -> AppResult<StatusCode> {
     let root = writable_root(&state, &root_id)?;
     reject_excluded(&path)?;
+    reject_unlinkable_name(root, &path)?;
     if body.len() > MAX_UPLOAD_BYTES {
         return Err(AppError::BadRequest("file too large".into()));
     }
@@ -435,6 +464,7 @@ pub async fn rename(
     // And the source: moving `.obsidian/app.json` out into the open would serve a file
     // the index deliberately hides, and moving `.git/` wholesale would index its objects.
     reject_excluded(&body.from)?;
+    reject_unlinkable_name(root, &body.to)?;
     reject_move_into_itself(&body)?;
     let from_absolute = resolve_in_root(&root.path, &body.from)?;
     let to_absolute = resolve_in_root(&root.path, &body.to)?;

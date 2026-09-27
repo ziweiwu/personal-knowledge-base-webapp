@@ -13,29 +13,40 @@ const SELECTION =
  * only has to tell CodeMirror which side it is on (that decides its built-in
  * defaults such as the drop cursor) rather than swap a whole theme.
  */
+const THEME_RULES: Parameters<typeof EditorView.theme>[0] = {
+  '&': { color: 'var(--fg)', backgroundColor: 'var(--bg)' },
+  '.cm-content': { caretColor: 'var(--accent)' },
+  '.cm-cursor, .cm-dropCursor': { borderLeftColor: 'var(--accent)' },
+  [SELECTION]: { backgroundColor: 'var(--accent-subtle)' },
+  '.cm-activeLine': { backgroundColor: 'var(--bg-hover)' },
+  '.cm-gutters': {
+    backgroundColor: 'var(--bg)',
+    color: 'var(--fg-faint)',
+    borderRight: '1px solid var(--border)',
+  },
+  '.cm-activeLineGutter': { backgroundColor: 'var(--bg-hover)', color: 'var(--fg-muted)' },
+  '&.cm-focused .cm-matchingBracket, &.cm-focused .cm-nonmatchingBracket': {
+    backgroundColor: 'var(--accent-subtle)',
+    outline: 'none',
+  },
+  '.cm-specialChar': { color: 'var(--danger)' },
+  '.cm-tooltip': { backgroundColor: 'var(--bg-elevated)', color: 'var(--fg)', borderColor: 'var(--border)' },
+};
+
+/**
+ * Both sides, built once.
+ *
+ * `EditorView.theme` mints a new style module on every call, and reconfiguring the theme
+ * compartment adds the new one without ever retracting the old — so each theme toggle left
+ * another copy of these rules in the document's stylesheet, measured climbing from 575 to
+ * 645 over ten toggles and never coming back down. There are only two possible values, so
+ * there only need to be two modules.
+ */
+const LIGHT_THEME = EditorView.theme(THEME_RULES, { dark: false });
+const DARK_THEME = EditorView.theme(THEME_RULES, { dark: true });
+
 export function editorTheme(theme: 'light' | 'dark'): Extension {
-  return EditorView.theme(
-    {
-      '&': { color: 'var(--fg)', backgroundColor: 'var(--bg)' },
-      '.cm-content': { caretColor: 'var(--accent)' },
-      '.cm-cursor, .cm-dropCursor': { borderLeftColor: 'var(--accent)' },
-      [SELECTION]: { backgroundColor: 'var(--accent-subtle)' },
-      '.cm-activeLine': { backgroundColor: 'var(--bg-hover)' },
-      '.cm-gutters': {
-        backgroundColor: 'var(--bg)',
-        color: 'var(--fg-faint)',
-        borderRight: '1px solid var(--border)',
-      },
-      '.cm-activeLineGutter': { backgroundColor: 'var(--bg-hover)', color: 'var(--fg-muted)' },
-      '&.cm-focused .cm-matchingBracket, &.cm-focused .cm-nonmatchingBracket': {
-        backgroundColor: 'var(--accent-subtle)',
-        outline: 'none',
-      },
-      '.cm-specialChar': { color: 'var(--danger)' },
-      '.cm-tooltip': { backgroundColor: 'var(--bg-elevated)', color: 'var(--fg)', borderColor: 'var(--border)' },
-    },
-    { dark: theme === 'dark' },
-  );
+  return theme === 'dark' ? DARK_THEME : LIGHT_THEME;
 }
 
 /**
