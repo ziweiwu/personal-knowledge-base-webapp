@@ -521,6 +521,29 @@ outside the shell, and the home page had the landmark without the link.
 **Enforced by:** `web/e2e/landmarks.spec.ts`, which presses a real `Tab` and
 then `Enter` and asserts focus lands in `main`.
 
+## INV-29 — A diagram and the editor wear the page's palette, in both themes
+
+Mermaid cannot be handed `var(--…)`, so `web/src/lib/mermaid.ts` resolves the
+tokens with `getComputedStyle` on every render and a theme switch re-runs that
+render. CodeMirror's theme is two module constants built from `var(--…)`
+references, so the buffer follows the cascade with no per-theme swap and a switch
+mints no new style module. A note is edited in `--font-serif`; anything that is
+not a note is code and is edited in `--font-mono`.
+
+**Why this matters here:** these are the only two places a colour value leaves
+the cascade, and both fail quietly. The diagram keeps the light palette on a dark
+page — reported twice by eye because nothing measured it — and a fresh theme
+module per toggle grows the document's stylesheet without bound (measured
+climbing 575 to 645 over ten toggles before the constants).
+
+**Enforced by:** `web/e2e/theming.spec.ts`, four desktop tests. The diagram's
+node fill must equal `--accent-subtle` in each theme, which fails both if it
+never re-renders and if it reads the tokens before the cascade changed; the open
+editor's surface must equal `--bg` after a switch; the two font stacks must equal
+their tokens; and the document's rule count must not move over ten switches once
+both sides have mounted. Each colour is compared against the token resolved
+through the browser, never a literal, so re-warming the palette cannot fail it.
+
 ## What has no oracle
 
 Surfaces where nothing above asserts anything. This is the agenda for the
@@ -541,8 +564,9 @@ next round and the honest answer to a fuzz sweep that comes back clean.
   run exists, and Tailscale-path behaviour (cookie, Origin) is only reasoned.
 - Search relevance and tag pages: `tests/api.rs` has no search or `/api/tag`
   assertions beyond authentication.
-- The `mermaid.md`, `math.md`, `callouts.md` fixtures pin rendering shape but
-  not fidelity; nothing asserts a diagram actually drew.
+- The `math.md` and `callouts.md` fixtures pin rendering shape but not fidelity.
+  `mermaid.md` is no longer in that company: INV-29 asserts the diagram drew and
+  that it drew in the page's colours.
 - Whether `web/src/lib/names.ts` still lists the same characters as
   `LINK_BREAKING_CHARS` (INV-25). Drift costs only a round trip — the server
   refuses either way — but the dialog would stop explaining itself.
