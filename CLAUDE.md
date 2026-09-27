@@ -392,6 +392,11 @@ Mermaid renders into an SVG that cannot inherit them, so `web/src/lib/mermaid.ts
 resolves the tokens through `getComputedStyle` on every render
 and hands them to Mermaid as theme variables; it is the one sanctioned place a colour
 value is read out of the cascade, and it still names tokens, never literals.
+`web/e2e/theming.spec.ts` holds both bridges to that (INV-29): it drives the real theme
+control rather than stamping `data-theme`, since the question is whether the app repaints,
+and compares every colour against the token resolved through the browser, so warming a
+token cannot fail a test. Read its rule-count test before touching the editor theme — the
+second side's module mounting once is correct, and only growth *after* that is the leak.
 
 A backlink carries `context`: the line it links from, cut to `MAX_CONTEXT_CHARS`
 around the link by `crates/kbviewer-core/src/context.rs` at index time. `LinkRefs`
