@@ -64,12 +64,21 @@ run it on the NAS instead.
 
 ### The launch agent and KBViewer.app
 
-Both want port 4321, and nothing breaks if both are set up. `KBViewer.app` probes the port
-before binding and asks whether the server there accepts its own account. The agent's
-does not — it runs this repository's config against `data/` here, not the app's account
-store — so the app declines to adopt it, takes the next free port, and runs its own
-server alongside. Adopting it would have served the agent's folders instead of the one
-the app was told to serve, and left you on a login screen the app cannot fill in.
+Both want port 4321, so whichever starts second has to notice the first. `KBViewer.app`
+probes the port before binding and asks whether the server there accepts its own
+account. The agent's does not — it runs this repository's config against `data/` here,
+not the app's account store — so the app declines to adopt it, takes the next free
+port, and runs its own server alongside. Adopting it would have served the agent's
+folders instead of the one the app was told to serve, and left you on a login screen the
+app cannot fill in.
+
+That only works when the agent got there first. If the app starts while the agent is not
+running — unloaded, or not yet started at login — the app takes 4321 itself and the agent
+cannot bind: launchd restarts it every ten seconds for as long as the app stays open,
+and each attempt adds a few lines to `data/kbviewer.log`. Quitting the app ends it. The
+server claims its port before it indexes, so those attempts cost no indexing, and an
+agent still building its index already holds the port: the app's probe waits for its
+answer instead of finding the port free.
 
 So by default the two coexist, each with its own port and its own accounts. Giving the
 app a config that names this same `data/` directory makes it adopt the agent's server
