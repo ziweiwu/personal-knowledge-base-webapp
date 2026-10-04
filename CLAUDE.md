@@ -216,9 +216,11 @@ reason.
 (`crates/kbviewer-server/src/main.rs`). A second server on the same port then fails in
 milliseconds rather than after indexing the whole vault — launchd restarts a failed agent
 every ten seconds, and one that indexed first did so a quarter of a million times in a
-month — and the app's probe meets an agent that is still indexing instead of a port that
-looks free. `crates/kbviewer-server/tests/startup.rs` runs the binary to hold this; do
-not move the bind back behind `AppState::new`.
+month — and an agent that is still indexing holds a port the app can see is taken.
+The app's probe gets no answer from it until the index is built, so `ServerProcess`
+asks the kernel before it treats a silent port as free.
+`crates/kbviewer-server/tests/startup.rs` runs the binary to hold this, and
+`macos/smoke-test.sh` the app's side; do not move the bind back behind `AppState::new`.
 
 ### Rendering
 

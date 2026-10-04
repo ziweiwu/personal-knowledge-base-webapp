@@ -61,9 +61,10 @@ change needs the frontend built *before* `cargo build --release`.
 
 An agent installed before 0.1.1 is `com.kbview`: it runs `target/release/kbview` and
 reads `kbview.config.json`, neither of which a build produces any more, so it keeps
-serving the binary it was installed with. Rename the config to
-`kbviewer.config.json`, `launchctl unload` the old agent and delete its plist, then
-install as above.
+serving the binary it was installed with. That config was tracked until 0.1.1, so a
+pull deletes it: copy it to `kbviewer.config.json` *before* pulling, or recover it
+afterwards with `git show 2a2d97c^:kbview.config.json > kbviewer.config.json`. Then
+`launchctl unload` the old agent, delete its plist, and install as above.
 
 The Mac must be awake to serve. If you want the knowledge base reachable while it sleeps,
 run it on the NAS instead.
@@ -83,8 +84,8 @@ running — unloaded, or not yet started at login — the app takes 4321 itself 
 cannot bind: launchd restarts it every ten seconds for as long as the app stays open,
 and each attempt adds a few lines to `data/kbviewer.log`. Quitting the app ends it. The
 server claims its port before it indexes, so those attempts cost no indexing, and an
-agent still building its index already holds the port: the app's probe waits for its
-answer instead of finding the port free.
+agent still building its index already holds the port: the app finds it taken and
+moves to the next free one, as it does for an agent that answers.
 
 So by default the two coexist, each with its own port and its own accounts. Giving the
 app a config that names this same `data/` directory makes it adopt the agent's server
