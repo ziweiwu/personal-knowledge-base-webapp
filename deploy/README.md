@@ -59,6 +59,12 @@ Rebuild the binary and the agent keeps running the old one until you
 `unload` and `load` again; the frontend is embedded in the binary, so a `web`
 change needs the frontend built *before* `cargo build --release`.
 
+An agent installed before 0.1.1 is `com.kbview`: it runs `target/release/kbview` and
+reads `kbview.config.json`, neither of which a build produces any more, so it keeps
+serving the binary it was installed with. Rename the config to
+`kbviewer.config.json`, `launchctl unload` the old agent and delete its plist, then
+install as above.
+
 The Mac must be awake to serve. If you want the knowledge base reachable while it sleeps,
 run it on the NAS instead.
 
