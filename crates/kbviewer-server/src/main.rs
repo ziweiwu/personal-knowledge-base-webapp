@@ -25,11 +25,19 @@ async fn main() -> Result<()> {
         .parse()
         .context("invalid host or port")?;
 
+    // Claimed before the index is built, not after. A second server wanting the same
+    // port (the launch agent and KBViewer.app both default to 4321) then fails at once
+    // instead of after indexing the whole vault, and the app's probe finds this server
+    // while it is still indexing rather than mistaking the port for a free one.
+    let listener = tokio::net::TcpListener::bind(address)
+        .await
+        .with_context(|| format!("could not bind {address}"))?;
+
     let state = AppState::new(config, store);
     // Held for the process lifetime; dropping the debouncers would stop the watch.
     let _watchers = watch::spawn(state.clone())?;
 
-    serve(router::build(state), address).await
+    serve(router::build(state), listener).await
 }
 
 fn init_tracing() {
@@ -64,11 +72,10 @@ fn warn_about_missing_roots(config: &Config) {
     }
 }
 
-async fn serve(app: axum::Router, address: SocketAddr) -> Result<()> {
-    let listener = tokio::net::TcpListener::bind(address)
-        .await
-        .with_context(|| format!("could not bind {address}"))?;
-
+async fn serve(app: axum::Router, listener: tokio::net::TcpListener) -> Result<()> {
+    let address = listener
+        .local_addr()
+        .context("could not read the bound address")?;
     tracing::info!(%address, "kbviewer listening");
     eprintln!("kbviewer listening on http://{address}");
 

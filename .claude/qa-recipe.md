@@ -23,14 +23,14 @@ fixture roots into it, writes its own config there, builds
 `target/debug/kbviewer` (`cargo build -p kbviewer-server`), creates one account,
 and execs the binary bound to `127.0.0.1:$KBVIEWER_E2E_PORT`. It refuses to start
 without `web/dist/index.html`. Nothing it does touches the repo's `./data`,
-`kbviewer.config.json`, `kbview.config.json` or `test/fixtures/`.
+`kbviewer.config.json` or `test/fixtures/`.
 
 Account for the scratch server (from `run-server.sh`, not a secret):
 email `e2e@example.test`, password `e2e-password-not-a-secret`.
 
 **Live data — never point anything at these:**
 
-- **Port 4321** on this Mac: `kbview.config.json` at the repo root maps root
+- **Port 4321** on this Mac: `kbviewer.config.json` at the repo root maps root
   `kb` to `~/SynologyDrive/my-knowledge-base`, the user's real vault, and
   `./data` holds the real account and sessions. A running server there is the
   user's, not yours.

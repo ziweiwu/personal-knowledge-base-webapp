@@ -212,6 +212,16 @@ user on a login screen the app has no credentials for, so that case takes a free
 instead. `build-app.sh` builds the frontend before the server for the usual `rust-embed`
 reason.
 
+**The server binds its port before it builds the index**
+(`crates/kbviewer-server/src/main.rs`). A second server on the same port then fails in
+milliseconds rather than after indexing the whole vault — launchd restarts a failed agent
+every ten seconds, and one that indexed first did so a quarter of a million times in a
+month — and an agent that is still indexing holds a port the app can see is taken.
+The app's probe gets no answer from it until the index is built, so `ServerProcess`
+asks the kernel before it treats a silent port as free.
+`crates/kbviewer-server/tests/startup.rs` runs the binary to hold this, and
+`macos/smoke-test.sh` the app's side; do not move the bind back behind `AppState::new`.
+
 ### Rendering
 
 Obsidian syntax (wikilinks, embeds, callouts, tags) is rewritten **in the source before

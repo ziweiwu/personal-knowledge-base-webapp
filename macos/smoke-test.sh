@@ -19,6 +19,7 @@ fi
 
 app_pid=""
 foreign_pid=""
+silent_pid=""
 stop_pid() {
 	[ -n "$1" ] && kill -0 "$1" 2>/dev/null || return 0
 	kill -TERM "$1" 2>/dev/null || true
@@ -28,6 +29,7 @@ stop_pid() {
 cleanup() {
 	stop_pid "$app_pid"
 	stop_pid "$foreign_pid"
+	stop_pid "$silent_pid"
 	pkill -f "$SCRATCH" 2>/dev/null || true
 }
 trap cleanup EXIT
@@ -40,7 +42,9 @@ rm -rf "$SCRATCH"
 mkdir -p "$SCRATCH/vault" "$SCRATCH/support"
 printf '# Smoke test vault\n\nA note.\n' > "$SCRATCH/vault/index.md"
 
-cat > "$SCRATCH/support/kbviewer.config.json" <<JSON
+# Rewritten before each launch: an app that moves to a free port records it here.
+write_app_config() {
+	cat > "$SCRATCH/support/kbviewer.config.json" <<JSON
 {
   "host": "127.0.0.1",
   "port": $PORT,
@@ -48,6 +52,8 @@ cat > "$SCRATCH/support/kbviewer.config.json" <<JSON
   "roots": [{ "id": "kb", "name": "Smoke", "path": "$SCRATCH/vault" }]
 }
 JSON
+}
+write_app_config
 
 echo "==> Launching the app"
 KBVIEWER_APP_SUPPORT="$SCRATCH/support" "$APP/Contents/MacOS/KBViewer" \
@@ -176,6 +182,45 @@ pass "the foreign server was left alone"
 
 stop_pid "$app_pid"; app_pid=""
 stop_pid "$foreign_pid"; foreign_pid=""
+
+echo
+echo "==> A port that is held but does not answer yet"
+
+# A kbviewer claims its port before it builds its index and answers only once the index
+# is built, so on a large vault the app's probe times out on a port it cannot bind. nc
+# stands in for that server: it holds the port and answers nothing while its stdin is
+# open, which the sleep keeps it for longer than this section runs.
+write_app_config
+rm -rf "$SCRATCH/support/data" "$SCRATCH/support/logs"
+sleep 120 | nc -lk 127.0.0.1 "$PORT" >/dev/null 2>&1 &
+silent_pid=$!
+disown %% 2>/dev/null || true
+
+deadline=$((SECONDS + 10))
+until lsof -nP -iTCP:"$PORT" -sTCP:LISTEN >/dev/null; do
+	[ $SECONDS -lt $deadline ] || fail "the silent stand-in never took port $PORT"
+	sleep 1
+done
+pass "a silent process holds port $PORT"
+
+KBVIEWER_APP_SUPPORT="$SCRATCH/support" "$APP/Contents/MacOS/KBViewer" \
+	>"$SCRATCH/app-silent.log" 2>&1 &
+app_pid=$!
+
+deadline=$((SECONDS + 60))
+until [ -f "$SCRATCH/support/data/sessions.json" ]; do
+	kill -0 "$app_pid" 2>/dev/null || fail "the app exited instead of moving to a free port"
+	[ $SECONDS -lt $deadline ] || fail "the app never signed in to a server of its own"
+	sleep 1
+done
+pass "the app signed in to a server of its own"
+
+grep -q "\"port\" : $PORT," "$SCRATCH/support/kbviewer.config.json" \
+	&& fail "the app kept port $PORT, which it cannot bind"
+pass "the app moved to a free port"
+
+stop_pid "$app_pid"; app_pid=""
+stop_pid "$silent_pid"; silent_pid=""
 
 echo
 echo "smoke-test: all checks passed"

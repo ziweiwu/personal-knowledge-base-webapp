@@ -53,7 +53,10 @@ the app probes before it binds:
   ignore the folder the app was told to serve and strand you on a login screen the app
   cannot fill in, so the app takes the next free port and runs its own alongside it;
 - something else on the port → same: next free port, recorded in the app's own config;
-- nothing there → it starts its own, and stops it again on quit.
+- something holding the port that does not answer within the probe's three seconds - a
+  kbviewer still building its index, which claims its port first - → same;
+- nothing there → it starts its own, and stops it again on quit. While it holds 4321 the
+  launch agent cannot bind, and launchd retries it every ten seconds until the app quits.
 
 Sharing an account is the usable test for "the same server": there is no other way to ask
 a running kbviewer which configuration it was given.

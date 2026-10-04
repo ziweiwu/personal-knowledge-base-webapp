@@ -97,7 +97,14 @@ final class ServerProcess {
             }
             mustRelocate = true
         case .absent:
-            port = configured
+            // No answer is not proof of an empty port. A kbviewer holds its port while it
+            // builds its index and answers only afterwards, so a probe that times out on
+            // a large vault meets a port it can no longer bind.
+            if Self.isPortFree(configured) {
+                port = configured
+            } else {
+                mustRelocate = true
+            }
         case .foreign:
             mustRelocate = true
         }
