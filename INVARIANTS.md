@@ -544,6 +544,33 @@ their tokens; and the document's rule count must not move over ten switches once
 both sides have mounted. Each colour is compared against the token resolved
 through the browser, never a literal, so re-warming the palette cannot fail it.
 
+## INV-30 — A search finds a note by its words in any order, and never by a guess in its prose
+
+A query is a set of terms, split on spaces and on `-`, `_` and `/`. A document
+matches only when **every** term appears in it — title, file name, folders,
+tags or body — in any order, so `insurance condo` finds "Condo Insurance
+Coverage" and `long running agents` finds "Long-Running Agents". A term found
+nowhere may still match a word of the note's *names* (title, file name,
+folders, tags) one edit away, and only when it has five or more characters:
+`cheatshet` finds the tmux cheatsheet. Prose is never matched loosely, because
+in a long note some word is always one edit from a short term, and a query
+with a term that matches nothing returns nothing rather than a near guess.
+
+**Why this matters here:** search used to be one case-insensitive phrase, so a
+query whose words were not adjacent in the note returned nothing at all —
+measured on a snapshot of the real vault, 29 of 41 known-item queries found
+nothing (three-word queries, reordered words, hyphenated names typed with
+spaces, a typo, two Chinese terms with a space between them).
+
+**Enforced by:** `crates/kbviewer-core/src/search.rs`
+`every_term_must_match_but_in_any_order_and_any_field`,
+`a_hyphenated_name_is_found_when_typed_with_spaces`,
+`a_term_one_typo_from_a_word_of_the_name_still_finds_the_note`,
+`a_typo_in_prose_alone_matches_nothing` and
+`every_term_inside_the_snippet_is_marked`, beside the older ranking and
+snippet tests. Relevance on the real vault is measured outside the repo, by
+the rsi eval in `~/.local/state/rsi/evals/kbviewer/`.
+
 ## What has no oracle
 
 Surfaces where nothing above asserts anything. This is the agenda for the
@@ -562,8 +589,9 @@ next round and the honest answer to a fuzz sweep that comes back clean.
   variant budget end to end.
 - The phone: the e2e phone projects are WebKit emulation; no real iOS Safari
   run exists, and Tailscale-path behaviour (cookie, Origin) is only reasoned.
-- Search relevance and tag pages: `tests/api.rs` has no search or `/api/tag`
-  assertions beyond authentication.
+- Tag pages, and search over HTTP: `tests/api.rs` has no search or `/api/tag`
+  assertions beyond authentication. Search ranking itself is held by INV-30's
+  unit tests in `kbviewer-core`.
 - The `math.md` and `callouts.md` fixtures pin rendering shape but not fidelity.
   `mermaid.md` is no longer in that company: INV-29 asserts the diagram drew and
   that it drew in the page's colours.
