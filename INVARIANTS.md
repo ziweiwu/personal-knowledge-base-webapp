@@ -546,15 +546,30 @@ through the browser, never a literal, so re-warming the palette cannot fail it.
 
 ## INV-30 — A search finds a note by its words in any order, and never by a guess in its prose
 
-A query is a set of terms, split on spaces and on `-`, `_` and `/`. A document
-matches only when **every** term appears in it — title, file name, folders,
-tags or body — in any order, so `insurance condo` finds "Condo Insurance
-Coverage" and `long running agents` finds "Long-Running Agents". A term found
-nowhere may still match a word of the note's *names* (title, file name,
-folders, tags) one edit away, and only when it has five or more characters:
-`cheatshet` finds the tmux cheatsheet. Prose is never matched loosely, because
-in a long note some word is always one edit from a short term, and a query
-with a term that matches nothing returns nothing rather than a near guess.
+A query is a set of terms, split on spaces. A document matches only when
+**every** term appears in it — title, file name, folders, tags or body — in any
+order, so `insurance condo` finds "Condo Insurance Coverage" and `long running
+agents` finds "Long-Running Agents". A term typed with `-`, `_` or `/` inside it
+is one term whose parts must stay adjacent: `m-team` finds "M-Team", never a
+note that merely says "team" and holds an "m", and `2026-10-14` finds that date
+only as written. A term of one or two ASCII letters or digits matches only as a
+whole word, so `a b` does not match every note with those letters in it; two
+Chinese characters are a whole word and are exempt. A query made only of
+separators (`-`, `/`) is searched for literally. A term found nowhere may still
+match a word of the note's *names* (title, file name, folders, tags) one edit
+away, and only when it has five or more characters and no digits:
+`cheatshet` finds the tmux cheatsheet, while `20261014` never finds the note
+for the day before. Prose is never matched loosely, because in a long note some
+word is always one edit from a short term, and a query with a term that matches
+nothing returns nothing rather than a near guess.
+
+The whole query still ranks: an exact title outranks the same words scattered,
+and prose holding the query verbatim, as typed, outranks prose that only uses
+its words often. A link to a note is not its words written verbatim:
+`[[jazz-kissa/tokyo]]` does not earn `jazz kissa tokyo` the phrase score.
+Scoring, snippets and their highlights fold case one character at a time, the
+same way, so a hit's snippet marks the words that made it match, and the only
+`**` in a snippet are the markers around those words.
 
 **Why this matters here:** search used to be one case-insensitive phrase, so a
 query whose words were not adjacent in the note returned nothing at all —
@@ -565,10 +580,21 @@ spaces, a typo, two Chinese terms with a space between them).
 **Enforced by:** `crates/kbviewer-core/src/search.rs`
 `every_term_must_match_but_in_any_order_and_any_field`,
 `a_hyphenated_name_is_found_when_typed_with_spaces`,
+`a_word_typed_with_a_hyphen_keeps_its_parts_together`,
+`a_term_of_one_or_two_letters_matches_only_a_whole_word`,
+`a_date_matches_only_as_written`, `a_term_with_digits_is_never_corrected`,
+`a_query_of_separators_alone_is_searched_literally`,
 `a_term_one_typo_from_a_word_of_the_name_still_finds_the_note`,
-`a_typo_in_prose_alone_matches_nothing` and
-`every_term_inside_the_snippet_is_marked`, beside the older ranking and
-snippet tests. Relevance on the real vault is measured outside the repo, by
+`a_typo_in_prose_alone_matches_nothing`,
+`an_exact_title_outranks_scattered_matches`,
+`a_verbatim_phrase_in_the_prose_outranks_the_same_words_scattered`,
+`a_link_to_a_note_is_not_its_words_written_verbatim`,
+`every_term_inside_the_snippet_is_marked`,
+`a_snippet_cut_inside_the_notes_own_emphasis_still_pairs_its_markers` and
+`a_hit_and_its_snippet_fold_case_the_same_way`, beside the older ranking and
+snippet tests. `web/src/api/mock.ts` follows the same term rule, without the
+typo tolerance or the ranking, so mock mode finds what the server finds.
+Relevance on the real vault is measured outside the repo, by
 the rsi eval in `~/.local/state/rsi/evals/kbviewer/`.
 
 ## What has no oracle

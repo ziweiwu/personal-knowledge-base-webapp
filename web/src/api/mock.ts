@@ -282,15 +282,54 @@ function decodeTail(segments: string[]): string {
 
 /** How much of the surrounding text is kept on either side of a search hit. */
 const SNIPPET_LEAD_CHARS = 30;
+const SNIPPET_TAIL_CHARS = 60;
+/** A query term this short, made of ASCII letters or digits, matches only a whole word. */
+const MAX_SHORT_TERM_CHARS = 2;
+/** Terms read from one query, as the server caps them. */
+const MAX_QUERY_TERMS = 32;
+/** Characters the server reads as the space between two words of a name. */
+const WORD_GAPS = /[\s\-_/]+/g;
+const WORD_GAP_CLASS = '[\\s\\-_/]+';
+const REGEX_SPECIALS = /[.*+?^${}()|[\]\\]/g;
 
-function markSnippet(source: string, query: string): string {
-  const at = source.toLowerCase().indexOf(query.toLowerCase());
-  if (at === -1) return source.slice(0, 100);
-  const from = Math.max(0, at - SNIPPET_LEAD_CHARS);
-  return `${from > 0 ? '\u2026' : ''}${source.slice(from, at)}**${source.slice(at, at + query.length)}**${source.slice(
-    at + query.length,
-    at + query.length + 60,
-  )}`;
+function isShortWord(word: string): boolean {
+  return word.length <= MAX_SHORT_TERM_CHARS && /^[a-z\d]+$/.test(word);
+}
+
+/**
+ * The server's term rule (INV-30) as a pattern: the term's words in order, any run of
+ * separators between them, and a word boundary at an edge whose word is short.
+ */
+function termPattern(term: string): RegExp {
+  const words = term.split(' ');
+  const open = isShortWord(words[0] ?? '') ? '(?<![\\p{L}\\p{N}])' : '';
+  const close = isShortWord(words[words.length - 1] ?? '') ? '(?![\\p{L}\\p{N}])' : '';
+  const body = words.map((word) => word.replace(REGEX_SPECIALS, '\\$&')).join(WORD_GAP_CLASS);
+  return new RegExp(`${open}${body}${close}`, 'giu');
+}
+
+/** The distinct terms of a query, longest first; separators alone are searched literally. */
+function queryPatterns(query: string): RegExp[] {
+  const tokens = query.toLowerCase().split(/\s+/).filter(Boolean);
+  const literal = tokens.every((token) => !token.replace(WORD_GAPS, ''));
+  const terms = new Set(literal ? tokens : tokens.map((token) => token.replace(WORD_GAPS, ' ').trim()));
+  return [...terms]
+    .slice(0, MAX_QUERY_TERMS)
+    .sort((a, b) => b.length - a.length)
+    .map((term) => (literal ? new RegExp(term.replace(REGEX_SPECIALS, '\\$&'), 'giu') : termPattern(term)));
+}
+
+function markSnippet(source: string, patterns: RegExp[]): string {
+  const first = patterns.map((pattern) => source.search(pattern)).find((at) => at !== -1) ?? -1;
+  if (first === -1) return source.slice(0, SNIPPET_TAIL_CHARS + SNIPPET_LEAD_CHARS);
+  const from = Math.max(0, first - SNIPPET_LEAD_CHARS);
+  const to = first + SNIPPET_TAIL_CHARS;
+  // As on the server: the note's own `*` would unbalance the `**` markers added here.
+  const window = source.slice(from, to).replace(/\*/g, '').trim();
+  // One pass over every term, so a term inside a longer one is not marked twice.
+  const anyTerm = new RegExp(patterns.map((pattern) => pattern.source).join('|'), 'giu');
+  const marked = window.replace(anyTerm, (match) => `**${match}**`);
+  return `${from > 0 ? '\u2026' : ''}${marked}${to < source.length ? '\u2026' : ''}`;
 }
 
 /* ------------------------------------------------------------- routing -- */
@@ -330,18 +369,20 @@ function handleAuth(action: string | undefined, request: MockRequest): Response 
   return null;
 }
 
+/** The server's search in miniature: every term, in any order, anywhere in the note. */
 function handleSearch(request: MockRequest): Response {
   const query = request.query.get('q') ?? '';
   if (!query.trim()) return json([]);
+  const patterns = queryPatterns(query);
   const hits: SearchHit[] = [];
   for (const file of files.values()) {
-    const haystack = `${file.meta.title}\n${file.source}`;
-    if (!haystack.toLowerCase().includes(query.toLowerCase())) continue;
+    const haystack = `${file.meta.title}\n${file.meta.path}\n${file.source}`;
+    if (!patterns.every((pattern) => haystack.search(pattern) !== -1)) continue;
     hits.push({
       path: file.meta.path,
       title: file.meta.title,
       kind: file.meta.kind,
-      snippet: markSnippet(haystack, query),
+      snippet: markSnippet(`${file.meta.title}\n${file.source}`, patterns),
       score: 1,
     });
   }
