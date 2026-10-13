@@ -20,7 +20,8 @@ phone over Tailscale, behind a password.
   changes made in Obsidian.
 - **Live**: edit a note on your desktop and the browser on your phone updates.
 - **Findable**: a home page of collections and recently opened notes, pins, search across
-  every collection from one palette, arrow keys in the file tree, hover previews on
+  every collection from one palette that matches the words you type in any order and forgives
+  a typo in a note's name, arrow keys in the file tree, hover previews on
   wikilinks, and find-in-page that works in focus mode.
 - **Editable from a phone**: a formatting toolbar with Cmd-B/I/K, wikilink autocomplete
   after `[[`, autosave ten seconds after you stop typing, a Move action with a folder
