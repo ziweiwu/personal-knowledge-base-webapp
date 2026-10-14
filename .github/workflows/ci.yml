@@ -34,7 +34,23 @@ jobs:
 
       - uses: taiki-e/install-action@v2
         with:
-          tool: cargo-nextest,cargo-vet,cargo-machete
+          tool: cargo-nextest,cargo-machete
+
+      # taiki-e ships cargo-vet only up to 0.10.0, whose store formatting differs from
+      # the 0.10.2 that wrote supply-chain/ (and that the local hook runs), so pin the
+      # crates.io build and cache it.
+      - name: Cache cargo-vet
+        id: cargo-vet-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo-tools
+          key: cargo-vet-0.10.2-${{ runner.os }}
+
+      - name: Install cargo-vet 0.10.2
+        if: steps.cargo-vet-cache.outputs.cache-hit != 'true'
+        run: cargo install --locked --root ~/.cargo-tools cargo-vet@0.10.2
+
+      - run: echo "$HOME/.cargo-tools/bin" >> "$GITHUB_PATH"
 
       - uses: actions/setup-node@v7
         with:
