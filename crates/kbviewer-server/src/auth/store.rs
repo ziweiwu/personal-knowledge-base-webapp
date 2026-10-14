@@ -335,6 +335,21 @@ mod tests {
     }
 
     #[test]
+    fn counts_and_listing_track_users_and_sessions() {
+        let store = store("counts");
+        assert_eq!(store.user_count(), 0);
+        assert_eq!(store.session_count(), 0);
+        let first = store.add_user("a@b.c", "pw").unwrap();
+        store.add_user("d@e.f", "pw").unwrap();
+        store.create_session(&first.id).unwrap();
+        assert_eq!(store.user_count(), 2);
+        assert_eq!(store.session_count(), 1);
+        let mut emails: Vec<String> = store.list_users().into_iter().map(|u| u.email).collect();
+        emails.sort();
+        assert_eq!(emails, ["a@b.c", "d@e.f"]);
+    }
+
+    #[test]
     fn an_unknown_email_does_not_authenticate() {
         let store = store("unknown");
         assert!(store.authenticate("nobody@example.com", "pw").is_none());
