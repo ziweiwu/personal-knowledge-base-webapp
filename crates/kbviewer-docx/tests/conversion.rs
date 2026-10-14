@@ -10,6 +10,10 @@ use fixture::{
 use kbviewer_docx::{convert, extract_media, DocxError};
 
 /// Convert a body, with the standard styles and numbering parts present.
+#[expect(
+    clippy::expect_used,
+    reason = "test helper: a conversion that fails should fail the test calling it"
+)]
 fn convert_body(body: &str) -> kbviewer_docx::DocxDocument {
     let bytes = DocxBuilder::new()
         .part("word/styles.xml", STYLES)

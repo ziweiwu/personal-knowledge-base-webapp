@@ -4,6 +4,9 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 
+[lints]
+workspace = true
+
 [lib]
 name = "kbviewer_server"
 path = "src/lib.rs"
@@ -23,8 +26,8 @@ comrak = "0.54.0"
 dashmap = "6.2.1"
 futures-util = "0.3.34"
 getrandom = "0.4.3"
-kbviewer-core = { path = "../kbviewer-core" }
-kbviewer-docx = { path = "../kbviewer-docx" }
+kbviewer-core = { version = "0.1.0", path = "../kbviewer-core" }
+kbviewer-docx = { version = "0.1.0", path = "../kbviewer-docx" }
 latex2mathml = "0.2.3"
 mime_guess = "2.0.5"
 notify = "8.2.0"
@@ -33,7 +36,6 @@ rpassword = "7.5.4"
 rust-embed = "8.12.0"
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.151"
-subtle = "2.6.1"
 syntect = "5.3.0"
 tempfile = "3.27.0"
 thiserror = "2.0.20"

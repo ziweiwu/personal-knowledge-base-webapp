@@ -62,6 +62,10 @@ fn a_free_port_is_indexed_and_announced() {
     );
 }
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "test helper: a failed step should fail the test that called it"
+)]
 fn write_config(base: &Path, port: u16) -> PathBuf {
     let root = base.join("vault");
     std::fs::create_dir_all(&root).unwrap();
@@ -91,6 +95,10 @@ struct RunningServer {
 }
 
 impl RunningServer {
+    #[expect(
+        clippy::unwrap_used,
+        reason = "test helper: a failed step should fail the test that called it"
+    )]
     fn spawn(config_path: &Path, log_path: &Path) -> Self {
         let log = File::create(log_path).unwrap();
         let child = Command::new(env!("CARGO_BIN_EXE_kbviewer"))
@@ -104,6 +112,11 @@ impl RunningServer {
         Self { child }
     }
 
+    #[expect(
+        clippy::unwrap_used,
+        clippy::panic,
+        reason = "test helper: a failed step should fail the test that called it"
+    )]
     fn wait_for_exit(&mut self) -> ExitStatus {
         let started = Instant::now();
         while started.elapsed() < DEADLINE {
@@ -115,6 +128,11 @@ impl RunningServer {
         panic!("the server was still running after {DEADLINE:?}");
     }
 
+    #[expect(
+        clippy::unwrap_used,
+        clippy::panic,
+        reason = "test helper: a failed step should fail the test that called it"
+    )]
     fn wait_for_output(&mut self, log_path: &Path, expected: &str) -> String {
         let started = Instant::now();
         while started.elapsed() < DEADLINE {
@@ -132,6 +150,10 @@ impl RunningServer {
 }
 
 impl Drop for RunningServer {
+    #[expect(
+        clippy::let_underscore_must_use,
+        reason = "drop cannot report, and a server that already exited makes kill fail"
+    )]
     fn drop(&mut self) {
         let _ = self.child.kill();
         let _ = self.child.wait();

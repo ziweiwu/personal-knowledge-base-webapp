@@ -1,0 +1,12 @@
+# cargo-mutants: CI runs it on each pull request's diff (`make mutants` locally).
+test_tool = "nextest"
+# Integration tests, benches and test-only helper modules are not code under test.
+exclude_globs = [
+    "**/tests/**",
+    "**/benches/**",
+    "**/examples/**",
+    "**/fuzz/**",
+    "**/build.rs",
+    "**/test_support.rs",
+]
+timeout_multiplier = 3.0

@@ -696,7 +696,7 @@ mod tests {
     #[test]
     fn trash_keeps_the_original_folder_layout() {
         let root = std::env::temp_dir().join("kbviewer-trash-layout");
-        let _ = std::fs::remove_dir_all(&root);
+        crate::test_support::remove_stale_dir(&root);
         let destination = trash_destination(&root, "notes/deep/a.md");
         assert!(
             destination.ends_with(".trash/notes/deep/a.md"),
@@ -707,7 +707,7 @@ mod tests {
     #[test]
     fn deleting_the_same_path_twice_does_not_overwrite_the_first() {
         let root = std::env::temp_dir().join("kbviewer-trash-collide");
-        let _ = std::fs::remove_dir_all(&root);
+        crate::test_support::remove_stale_dir(&root);
         let first = trash_destination(&root, "a.md");
         std::fs::create_dir_all(first.parent().unwrap()).unwrap();
         std::fs::write(&first, "first").unwrap();
@@ -723,7 +723,7 @@ mod tests {
     #[test]
     fn an_atomic_write_replaces_content_completely() {
         let dir = std::env::temp_dir().join("kbviewer-atomic");
-        let _ = std::fs::remove_dir_all(&dir);
+        crate::test_support::remove_stale_dir(&dir);
         std::fs::create_dir_all(&dir).unwrap();
         let file = dir.join("a.md");
 
@@ -739,7 +739,7 @@ mod tests {
     #[test]
     fn an_atomic_write_creates_missing_directories() {
         let dir = std::env::temp_dir().join("kbviewer-atomic-mkdir");
-        let _ = std::fs::remove_dir_all(&dir);
+        crate::test_support::remove_stale_dir(&dir);
         let file = dir.join("deep/nested/a.md");
         write_atomic(&file, b"content").unwrap();
         assert_eq!(std::fs::read_to_string(&file).unwrap(), "content");
@@ -754,7 +754,7 @@ mod tests {
     #[test]
     fn an_atomic_write_keeps_the_mode_the_file_already_had() {
         let dir = std::env::temp_dir().join("kbviewer-atomic-mode-kept");
-        let _ = std::fs::remove_dir_all(&dir);
+        crate::test_support::remove_stale_dir(&dir);
         std::fs::create_dir_all(&dir).unwrap();
         let file = dir.join("a.md");
         std::fs::write(&file, "before").unwrap();
@@ -768,7 +768,7 @@ mod tests {
     #[test]
     fn a_file_written_for_the_first_time_is_readable_by_others() {
         let dir = std::env::temp_dir().join("kbviewer-atomic-mode-new");
-        let _ = std::fs::remove_dir_all(&dir);
+        crate::test_support::remove_stale_dir(&dir);
         let file = dir.join("new.md");
         write_atomic(&file, b"content").unwrap();
         assert_eq!(
@@ -781,7 +781,7 @@ mod tests {
     #[test]
     fn writing_beneath_a_file_is_the_callers_mistake_not_a_server_fault() {
         let dir = std::env::temp_dir().join("kbviewer-atomic-under-file");
-        let _ = std::fs::remove_dir_all(&dir);
+        crate::test_support::remove_stale_dir(&dir);
         std::fs::create_dir_all(&dir).unwrap();
         std::fs::write(dir.join("note.md"), "a file").unwrap();
 

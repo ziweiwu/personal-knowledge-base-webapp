@@ -135,7 +135,7 @@ mod tests {
 
     fn temp_root(label: &str) -> PathBuf {
         let dir = std::env::temp_dir().join(format!("kbviewer-paths-{label}"));
-        let _ = fs::remove_dir_all(&dir);
+        crate::test_support::remove_stale_dir(&dir);
         fs::create_dir_all(dir.join("sub")).unwrap();
         fs::write(dir.join("sub/note.md"), "hi").unwrap();
         dir
@@ -205,7 +205,7 @@ mod tests {
     fn rejects_a_symlink_pointing_out_of_the_root() {
         let root = temp_root("symlink");
         let outside = std::env::temp_dir().join("kbviewer-paths-symlink-outside");
-        let _ = fs::remove_dir_all(&outside);
+        crate::test_support::remove_stale_dir(&outside);
         fs::create_dir_all(&outside).unwrap();
         fs::write(outside.join("secret.md"), "secret").unwrap();
 

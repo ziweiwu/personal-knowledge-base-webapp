@@ -1,4 +1,3 @@
-#![allow(dead_code)]
 //! Builds real `.docx` packages from XML strings.
 //!
 //! A `.docx` is a zip of XML parts, so a fixture is cheaper to write, read
@@ -79,6 +78,10 @@ impl DocxBuilder {
         self.part("word/_rels/document.xml.rels", &xml)
     }
 
+    #[expect(
+        clippy::expect_used,
+        reason = "test fixture: a zip that cannot be built in memory should fail the test"
+    )]
     pub fn build(self) -> Vec<u8> {
         let mut writer = ZipWriter::new(Cursor::new(Vec::new()));
         let options = SimpleFileOptions::default();

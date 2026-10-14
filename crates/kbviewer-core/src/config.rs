@@ -236,18 +236,25 @@ mod tests {
     }
 
     #[test]
+    #[expect(
+        unsafe_code,
+        reason = "std::env::set_var and remove_var are unsafe from edition 2024 on"
+    )]
     fn an_env_override_is_canonicalised_like_a_configured_path() {
         let real = std::env::temp_dir().join("kbviewer-config-envroot");
-        let _ = std::fs::remove_dir_all(&real);
+        crate::test_support::remove_stale_dir(&real);
         std::fs::create_dir_all(&real).unwrap();
 
         let path = write_config(
             "envoverride",
             r#"{"roots":[{"id":"envroot","path":"/nonexistent"}]}"#,
         );
-        // SAFETY: single-threaded test; the variable is removed immediately after loading.
+        // SAFETY: nextest runs each test in its own process, so no other thread reads the
+        // environment while it changes. Under `cargo test`, the other tests only read it
+        // through std::env, which holds std's environment lock, and none reads this name.
         unsafe { std::env::set_var("KBVIEWER_ROOT_ENVROOT", &real) };
         let config = Config::load(&path);
+        // SAFETY: as for set_var above; the variable is removed as soon as it was read.
         unsafe { std::env::remove_var("KBVIEWER_ROOT_ENVROOT") };
 
         assert_eq!(
@@ -260,7 +267,7 @@ mod tests {
     #[test]
     fn a_root_reached_through_a_symlink_is_stored_canonically() {
         let real = std::env::temp_dir().join("kbviewer-config-real");
-        let _ = std::fs::remove_dir_all(&real);
+        crate::test_support::remove_stale_dir(&real);
         std::fs::create_dir_all(&real).unwrap();
 
         let path = write_config(

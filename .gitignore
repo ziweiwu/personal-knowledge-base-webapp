@@ -16,3 +16,8 @@ playwright/.auth/
 web/playwright/.auth/
 web/test-results/
 web/playwright-report/
+
+# cargo-mutants' report (`make mutants`); CI uploads it when a mutant survives.
+/mutants.out*/
+# The Stop hook's record of which tree state it last gated (.claude/gates.json).
+.claude/.verify-gate-state.json

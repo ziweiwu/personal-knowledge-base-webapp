@@ -221,6 +221,12 @@ deploy/               Dockerfiles, compose template, macOS launch agent
 macos/                the KBViewer.app wrapper: Swift sources, bundle build, smoke test
 .github/workflows/    CI: tests, then publishes the container image
 .cargo/config.toml    points ts-rs at web/src/api so the bindings stay generated
+.cargo/mutants.toml   cargo-mutants settings for the pull-request job
+.config/nextest.toml  nextest profiles; CI's runs every test instead of stopping at one
+Makefile              `make gate` and its parts, the one gate CI and the Stop hook run
+scripts/              clippy_ratchet.py, the lint gate (see Guardrails below)
+deny.toml             cargo-deny: advisories, licences, sources
+supply-chain/         cargo-vet audits, imports and exemptions
 INVARIANTS.md         the properties the app must hold, each with the test that enforces it
 .claude/qa-recipe.md  how to run a scratch instance for a QA pass without touching real data
 ```
@@ -228,8 +234,8 @@ INVARIANTS.md         the properties the app must hold, each with the test that 
 ## Development
 
 ```sh
-cargo test --workspace                       # 356 tests
-cargo clippy --workspace --all-targets -- -D warnings
+make gate                                    # fmt, clippy, tests, deny, vet, machete
+cargo test --workspace                       # 382 tests
 cargo fmt --all
 cd web && npm run dev                        # proxies /api to 127.0.0.1:4321
 cd web && npm run typecheck                  # tsc --noEmit
@@ -249,3 +255,20 @@ from what is committed, or if the e2e run left a fingerprint on `test/fixtures/`
 
 `web/src/api/types.ts` is **generated** from the Rust types by `cargo test` — never edit
 it by hand. If the API changes, rerun the tests and commit the regenerated file.
+
+### Guardrails
+
+`make gate` is the one gate: CI runs its targets, and so does Claude Code's Stop hook
+(`.claude/gates.json`). The server embeds `web/dist`, so the first run builds the
+frontend; `make web` rebuilds it after a frontend change.
+
+- **Lints** live in `[workspace.lints]` in `Cargo.toml` and are fatal, with one ratchet:
+  `arithmetic_side_effects` and `indexing_slicing` fail only on lines your branch
+  touches (`scripts/clippy_ratchet.py`). Old sites stay until someone edits them. An
+  exception is a function-level `#[expect(lint, reason = "...")]`, never a blanket allow.
+- **Supply chain:** `cargo deny` checks advisories, licences and sources; `cargo vet`
+  requires every crate to be audited or exempted. A new crate needs
+  `cargo vet certify` or `cargo vet add-exemption`, and which one is the owner's call.
+- **Mutation testing:** CI runs `cargo mutants` on the diff of every pull request, and a
+  mutant no test catches fails it. `make mutants` runs the same thing locally.
+- `make bench` times search over a generated 1 MB vault; CI only checks it compiles.

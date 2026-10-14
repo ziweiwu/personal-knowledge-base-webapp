@@ -1,0 +1,53 @@
+# cargo-deny configuration. `make deny` and CI run `cargo deny --locked check`.
+
+[graph]
+# What ships: the container image's two musl binaries (ci.yml publish job) and the
+# Apple Silicon KBViewer.app (macos/build-app.sh).
+targets = [
+    { triple = "x86_64-unknown-linux-musl" },
+    { triple = "aarch64-unknown-linux-musl" },
+    { triple = "aarch64-apple-darwin" },
+]
+all-features = false
+
+[advisories]
+version = 2
+yanked = "deny"
+ignore = [
+    # Both arrive only through syntect 5.3.0 (the latest release), which comrak and the
+    # server's code highlighter use; neither is a vulnerability. Revisit when syntect moves.
+    { id = "RUSTSEC-2024-0320", reason = "yaml-rust is unmaintained; only syntect pulls it in" },
+    { id = "RUSTSEC-2025-0141", reason = "bincode 1 is unmaintained; only syntect pulls it in" },
+]
+
+[licenses]
+version = 2
+confidence-threshold = 0.9
+# Permissive only, and only what the graph needs: a copyleft licence is a decision for
+# the maintainer, not something to allow in passing.
+allow = [
+    "MIT",
+    "MIT-0",
+    "MITNFA",
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "BSL-1.0",
+    "CC0-1.0",
+    "ISC",
+    "Zlib",
+    "Unicode-3.0",
+    "Unicode-DFS-2016",
+    "bzip2-1.0.6",
+]
+
+[bans]
+multiple-versions = "warn"
+wildcards = "deny"
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+allow-git = []

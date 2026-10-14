@@ -9,3 +9,6 @@ pub mod router;
 pub mod routes;
 pub mod state;
 pub mod watch;
+
+#[cfg(test)]
+pub(crate) mod test_support;
