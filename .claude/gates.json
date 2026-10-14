@@ -1,0 +1,18 @@
+{
+  "watch": [
+    "crates/",
+    "Cargo.toml",
+    "Cargo.lock",
+    "deny.toml",
+    "clippy.toml",
+    "supply-chain/",
+    ".config/",
+    ".cargo/",
+    "scripts/",
+    "Makefile"
+  ],
+  "gates": [
+    ["rust", ["make", "gate"]]
+  ],
+  "timeout": 600
+}

@@ -175,6 +175,10 @@ impl AppState {
             None => self.attribute_to_recent_write(root_id, &paths, &rebuilt),
         };
 
+        #[expect(
+            clippy::let_underscore_must_use,
+            reason = "send fails only when no client is subscribed to changes, which is normal"
+        )]
         let _ = self.changes.send(ChangeEvent {
             root_id: root_id.to_string(),
             paths,
@@ -236,7 +240,7 @@ mod tests {
 
     fn state(label: &str) -> (Arc<AppState>, PathBuf) {
         let base = std::env::temp_dir().join(format!("kbviewer-state-{label}"));
-        let _ = std::fs::remove_dir_all(&base);
+        crate::test_support::remove_stale_dir(&base);
         let root = base.join("vault");
         std::fs::create_dir_all(&root).unwrap();
         std::fs::write(root.join("a.md"), "# A\n").unwrap();

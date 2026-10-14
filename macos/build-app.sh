@@ -42,7 +42,8 @@ npm run build
 
 step "Building the server"
 cd "$REPO"
-cargo build --release -p kbviewer-server
+# auditable embeds the dependency list, so `cargo audit bin` can check a shipped app.
+cargo auditable build --release -p kbviewer-server
 
 step "Compiling the app wrapper"
 mkdir -p "$BUILD_DIR"

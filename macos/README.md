@@ -12,8 +12,9 @@ macos/build-app.sh --install    # also copies it to /Applications
 ```
 
 Needs the Xcode Command Line Tools for `swiftc`, plus the Node and Rust toolchains the
-rest of the repo needs. The script builds the frontend first because the server embeds
-`web/dist` with `rust-embed`, and the derive fails outright if that folder is missing.
+rest of the repo needs, and `cargo install cargo-auditable`. The script builds the frontend
+first because the server embeds `web/dist` with `rust-embed`, and the derive fails outright
+if that folder is missing.
 
 ## What it does on first launch
 

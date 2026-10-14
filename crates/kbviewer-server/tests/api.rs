@@ -19,6 +19,10 @@ const PASSWORD: &str = "integration-test-password";
 
 /// The login route rate-limits per client address, so it needs the connect info that a
 /// real socket would supply. Driving the router directly means providing it here.
+#[expect(
+    clippy::unwrap_used,
+    reason = "test helper: a failed step should fail the test that called it"
+)]
 fn login_request(body: serde_json::Value) -> Request<Body> {
     Request::post("/api/auth/login")
         .header(header::CONTENT_TYPE, "application/json")
@@ -63,9 +67,21 @@ enum Wikilinks {
     Off,
 }
 
+#[expect(
+    clippy::unwrap_used,
+    clippy::panic,
+    reason = "test helper: a failed step should fail the test that called it"
+)]
 fn harness_with(label: &str, access: RootAccess, wikilinks: Wikilinks) -> Harness {
     let base = std::env::temp_dir().join(format!("kbviewer-it-{label}"));
-    let _ = std::fs::remove_dir_all(&base);
+    match std::fs::remove_dir_all(&base) {
+        Ok(()) => {}
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+        Err(error) => panic!(
+            "cannot clear the previous run's {}: {error}",
+            base.display()
+        ),
+    }
     let root = base.join("vault");
     std::fs::create_dir_all(root.join(".obsidian")).unwrap();
     std::fs::create_dir_all(root.join("notes")).unwrap();
@@ -123,6 +139,10 @@ fn harness_with(label: &str, access: RootAccess, wikilinks: Wikilinks) -> Harnes
 ///
 /// Opaque matters: an image that merely *has* an alpha channel must still re-encode as
 /// JPEG, or the whole size saving is forfeited.
+#[expect(
+    clippy::unwrap_used,
+    reason = "test helper: a failed step should fail the test that called it"
+)]
 fn opaque_png(width: u32, height: u32) -> Vec<u8> {
     use std::io::Cursor;
     let mut buffer = image::RgbaImage::new(width, height);
@@ -142,6 +162,10 @@ fn opaque_png(width: u32, height: u32) -> Vec<u8> {
 /// A smooth gradient: the case PNG is genuinely good at, where re-encoding can come out
 /// *larger* than the original. Nothing guarantees a resize is a saving, which is why the
 /// route compares before it commits.
+#[expect(
+    clippy::unwrap_used,
+    reason = "test helper: a failed step should fail the test that called it"
+)]
 fn gradient_png(width: u32, height: u32) -> Vec<u8> {
     use std::io::Cursor;
     let mut buffer = image::RgbaImage::new(width, height);
@@ -156,6 +180,10 @@ fn gradient_png(width: u32, height: u32) -> Vec<u8> {
 }
 
 impl Harness {
+    #[expect(
+        clippy::unwrap_used,
+        reason = "test helper: a failed step should fail the test that called it"
+    )]
     async fn send(&self, request: Request<Body>) -> (StatusCode, String) {
         let response = self.app.clone().oneshot(request).await.unwrap();
         let status = response.status();
@@ -164,6 +192,10 @@ impl Harness {
     }
 
     /// Bytes and headers rather than a lossy string: an image response is not text.
+    #[expect(
+        clippy::unwrap_used,
+        reason = "test helper: a failed step should fail the test that called it"
+    )]
     async fn send_raw(&self, request: Request<Body>) -> (StatusCode, header::HeaderMap, Vec<u8>) {
         let response = self.app.clone().oneshot(request).await.unwrap();
         let status = response.status();
@@ -172,6 +204,11 @@ impl Harness {
         (status, headers, bytes.to_vec())
     }
 
+    #[expect(
+        clippy::unwrap_used,
+        clippy::expect_used,
+        reason = "test helper: a failed step should fail the test that called it"
+    )]
     async fn login(&self) -> String {
         let response = self
             .app
@@ -194,6 +231,10 @@ impl Harness {
             .to_string()
     }
 
+    #[expect(
+        clippy::unwrap_used,
+        reason = "test helper: a failed step should fail the test that called it"
+    )]
     async fn get_authed(&self, cookie: &str, uri: &str) -> (StatusCode, String) {
         self.send(
             Request::get(uri)
@@ -208,6 +249,10 @@ impl Harness {
 /// Create a document through the API so the in-memory index and the file on disk agree.
 /// Writing straight to disk leaves the index stale, and every write route checks the
 /// mtime it handed out.
+#[expect(
+    clippy::unwrap_used,
+    reason = "test helper: a failed step should fail the test that called it"
+)]
 async fn create_document(harness: &Harness, cookie: &str, path: &str, content: &str) -> i64 {
     let (status, _) = harness
         .send(
@@ -508,6 +553,10 @@ async fn deleting_moves_to_trash_rather_than_destroying() {
 }
 
 impl Harness {
+    #[expect(
+        clippy::unwrap_used,
+        reason = "test helper: a failed step should fail the test that called it"
+    )]
     async fn delete_authed(&self, cookie: &str, uri: &str) -> StatusCode {
         let (status, _) = self
             .send(
@@ -520,6 +569,10 @@ impl Harness {
         status
     }
 
+    #[expect(
+        clippy::unwrap_used,
+        reason = "test helper: a failed step should fail the test that called it"
+    )]
     async fn restore_authed(&self, cookie: &str, trash_path: &str) -> (StatusCode, String) {
         self.send(
             Request::post("/api/trash/restore")
@@ -1341,6 +1394,10 @@ async fn trash_restore_requires_a_session() {
     assert_eq!(status, StatusCode::UNAUTHORIZED);
 }
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "test helper: a failed step should fail the test that called it"
+)]
 fn json_post(uri: &str, cookie: &str, body: serde_json::Value) -> Request<Body> {
     Request::post(uri)
         .header(header::COOKIE, cookie)

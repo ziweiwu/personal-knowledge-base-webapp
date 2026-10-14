@@ -1,0 +1,16 @@
+# CI sets NEXTEST_PROFILE=ci: run every test rather than stopping at the first failure.
+[profile.ci]
+fail-fast = false
+
+# ts-rs generates one export_bindings_* test per #[ts(export)] type, all writing one
+# types.ts: the first export in a process truncates the file and the rest merge into it.
+# nextest runs each test in its own process, so in parallel they read each other's
+# half-written file and panic, and even one at a time the last one wins. `make test`
+# therefore points nextest's exports at a scratch directory, runs them one at a time
+# here, and regenerates web/src/api/types.ts with a single `cargo test` process.
+[test-groups]
+ts-rs-export = { max-threads = 1 }
+
+[[profile.default.overrides]]
+filter = 'test(/(^|::)export_bindings_/)'
+test-group = 'ts-rs-export'

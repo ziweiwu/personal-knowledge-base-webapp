@@ -11,11 +11,13 @@ RUN npm run build
 
 FROM rust:1-alpine AS server
 RUN apk add --no-cache musl-dev
+# Embeds the dependency list in the binary, so `cargo audit bin` can check it later.
+RUN cargo install --locked cargo-auditable
 WORKDIR /build
 COPY Cargo.toml Cargo.lock ./
 COPY crates ./crates
 COPY --from=web /build/dist ./web/dist
-RUN cargo build --release --locked -p kbviewer-server
+RUN cargo auditable build --release --locked -p kbviewer-server
 
 FROM alpine:3
 RUN apk add --no-cache ca-certificates tini && \

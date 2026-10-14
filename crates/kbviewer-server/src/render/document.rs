@@ -204,7 +204,7 @@ mod tests {
         wikilinks: Wikilinks,
     ) -> (Index, RootConfig) {
         let root = std::env::temp_dir().join(format!("kbviewer-render-{label}"));
-        let _ = std::fs::remove_dir_all(&root);
+        crate::test_support::remove_stale_dir(&root);
         for (path, body) in files {
             let full = root.join(path);
             std::fs::create_dir_all(full.parent().unwrap()).unwrap();

@@ -18,10 +18,12 @@ const TOKEN_BYTES: usize = 32;
 pub enum PasswordError {
     #[error("could not hash password: {0}")]
     Hash(String),
+    #[error("OS randomness unavailable: {0}")]
+    Entropy(String),
 }
 
 pub fn hash_password(password: &str) -> Result<String, PasswordError> {
-    let salt = SaltString::encode_b64(&random_bytes::<SALT_BYTES>())
+    let salt = SaltString::encode_b64(&random_bytes::<SALT_BYTES>()?)
         .map_err(|e| PasswordError::Hash(e.to_string()))?;
     Argon2::default()
         .hash_password(password.as_bytes(), &salt)
@@ -43,24 +45,30 @@ pub fn verify_password(password: &str, stored: &str) -> bool {
 /// Without it, "no such user" returns in microseconds while "wrong password" takes ~50 ms,
 /// and that gap tells an attacker which email addresses have accounts. Verifying against
 /// this instead makes the two paths cost the same.
+#[expect(
+    clippy::expect_used,
+    reason = "Argon2::default() accepts a 64-char password and a 16-byte salt, so only a \
+              broken OS CSPRNG fails here, and then no session or salt can be minted either"
+)]
 pub fn decoy_hash() -> &'static str {
     static DECOY: OnceLock<String> = OnceLock::new();
     DECOY.get_or_init(|| {
-        hash_password(&to_hex(&random_bytes::<TOKEN_BYTES>()))
-            .expect("hashing random bytes cannot fail")
+        random_bytes::<TOKEN_BYTES>()
+            .and_then(|bytes| hash_password(&to_hex(&bytes)))
+            .expect("a decoy hash needs only OS randomness and default Argon2 parameters")
     })
 }
 
-pub fn random_token() -> String {
-    to_hex(&random_bytes::<TOKEN_BYTES>())
+pub fn random_token() -> Result<String, PasswordError> {
+    Ok(to_hex(&random_bytes::<TOKEN_BYTES>()?))
 }
 
-/// Entropy straight from the OS. A failure here means the system CSPRNG is broken,
-/// which is not a condition this process can sensibly continue through.
-fn random_bytes<const N: usize>() -> [u8; N] {
+/// Entropy straight from the OS. A failure means the system CSPRNG is broken; the caller
+/// gets an error rather than a token or salt it could not trust.
+fn random_bytes<const N: usize>() -> Result<[u8; N], PasswordError> {
     let mut bytes = [0u8; N];
-    getrandom::fill(&mut bytes).expect("OS randomness unavailable");
-    bytes
+    getrandom::fill(&mut bytes).map_err(|e| PasswordError::Entropy(e.to_string()))?;
+    Ok(bytes)
 }
 
 fn to_hex(bytes: &[u8]) -> String {
@@ -117,8 +125,8 @@ mod tests {
 
     #[test]
     fn random_tokens_do_not_repeat() {
-        let a = random_token();
-        let b = random_token();
+        let a = random_token().unwrap();
+        let b = random_token().unwrap();
         assert_ne!(a, b);
         assert_eq!(
             a.len(),

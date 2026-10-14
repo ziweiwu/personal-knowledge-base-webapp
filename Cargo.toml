@@ -7,7 +7,26 @@ version = "0.1.1"
 edition = "2021"
 license = "MIT"
 
+# clippy::arithmetic_side_effects and clippy::indexing_slicing are deliberately absent:
+# scripts/clippy_ratchet.py applies them only to the lines a branch touches.
+[workspace.lints.rust]
+# Not "forbid": two tests in kbviewer-core/src/config.rs call std::env::set_var, which is
+# unsafe from edition 2024 on. Each such site opts out with a reasoned #[expect].
+unsafe_code = "deny"
+
+[workspace.lints.clippy]
+unwrap_used = "deny"
+expect_used = "deny"
+panic = "deny"
+todo = "deny"
+unimplemented = "deny"
+let_underscore_must_use = "deny"
+allow_attributes = "deny"
+allow_attributes_without_reason = "deny"
+undocumented_unsafe_blocks = "deny"
+
 [profile.release]
+overflow-checks = true
 lto = true
 codegen-units = 1
 strip = true

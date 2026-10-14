@@ -20,13 +20,21 @@ jobs:
     name: Test and lint
     runs-on: ubuntu-latest
     steps:
+      # Full history: the clippy ratchet compares against the merge base with main.
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+          fetch-depth: 0
 
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
 
       - uses: Swatinem/rust-cache@v2
+
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-nextest,cargo-vet,cargo-machete
 
       - uses: actions/setup-node@v7
         with:
@@ -44,20 +52,36 @@ jobs:
         working-directory: web
         run: npm run build
 
+      # The same targets the Stop hook runs through `make gate`; see the Makefile.
       - name: Format
-        run: cargo fmt --all -- --check
+        run: make fmt
 
-      - name: Clippy
-        run: cargo clippy --workspace --all-targets -- -D warnings
+      # Every lint fatal, except arithmetic_side_effects and indexing_slicing, which
+      # fail only on the lines a branch touches.
+      - name: Clippy (ratcheted)
+        run: make lint
 
-      - name: Test
-        run: cargo test --workspace
+      - name: Tests (nextest + doctests + API bindings)
+        env:
+          NEXTEST_PROFILE: ci
+        run: make test
 
-      # `cargo test` regenerates the TypeScript API bindings from the Rust types. If the
+      # `make test` regenerates the TypeScript API bindings from the Rust types. If the
       # committed copy differs, the frontend is compiling against a contract the server no
       # longer serves — so fail rather than let the two drift apart silently.
       - name: API bindings are in sync
         run: git diff --exit-code -- web/src/api/types.ts
+
+      - name: cargo vet
+        run: make vet
+
+      - name: cargo machete
+        run: make machete
+
+      # Compiled, not run: timings on a shared runner mean nothing, but a bench that no
+      # longer builds is found here rather than the next time someone wants numbers.
+      - name: Benchmarks compile
+        run: make bench-build
 
       - name: Typecheck frontend
         working-directory: web
@@ -100,9 +124,65 @@ jobs:
       - name: Fixtures survived the e2e run untouched
         run: git diff --exit-code -- test/fixtures/
 
+  deny:
+    name: cargo deny
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: EmbarkStudios/cargo-deny-action@v2
+        with:
+          command: check
+          arguments: --locked
+
+  mutants:
+    name: cargo-mutants on the PR diff
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-mutants,cargo-nextest
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      # The server embeds web/dist, so every mutant build needs it, as the test job does.
+      - name: Build frontend
+        working-directory: web
+        run: npm ci && npm run build
+
+      - name: Diff against the base branch
+        run: git diff "origin/${GITHUB_BASE_REF}...HEAD" > "$RUNNER_TEMP/pr.diff"
+
+      - name: Mutants that no test catches fail the PR
+        run: cargo mutants --in-place --no-shuffle --in-diff "$RUNNER_TEMP/pr.diff"
+
+      - if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: mutants.out
+          path: mutants.out
+          retention-days: 14
+
   publish:
     name: Publish container image
-    needs: test
+    needs: [test, deny]
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     permissions:
@@ -130,15 +210,16 @@ jobs:
           key: cross
 
       # zig supplies the cross-linker, so both targets compile at native speed on this
-      # x86 runner instead of under emulation.
+      # x86 runner instead of under emulation. cargo-auditable embeds the dependency
+      # list in each binary, so `cargo audit bin` can check a deployed one later.
       - name: Install cross toolchain
         run: |
           pip install ziglang
-          cargo install --locked cargo-zigbuild
+          cargo install --locked cargo-zigbuild cargo-auditable
 
       - name: Cross-compile both architectures
         run: |
-          cargo zigbuild --release --locked -p kbviewer-server \
+          cargo auditable zigbuild --release --locked -p kbviewer-server \
             --target x86_64-unknown-linux-musl \
             --target aarch64-unknown-linux-musl
           mkdir -p dist/amd64 dist/arm64

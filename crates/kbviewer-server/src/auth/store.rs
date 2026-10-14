@@ -10,7 +10,7 @@ use crate::auth::rate_limit::RateLimiter;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use std::sync::RwLock;
+use std::sync::{PoisonError, RwLock};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 const SESSION_LIFETIME_MS: i64 = 30 * 24 * 60 * 60 * 1000;
@@ -88,11 +88,17 @@ impl AuthStore {
     }
 
     pub fn user_count(&self) -> usize {
-        self.users.read().unwrap().len()
+        self.users
+            .read()
+            .unwrap_or_else(PoisonError::into_inner)
+            .len()
     }
 
     pub fn list_users(&self) -> Vec<User> {
-        self.users.read().unwrap().clone()
+        self.users
+            .read()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clone()
     }
 
     pub fn add_user(&self, email: &str, password: &str) -> Result<User, AuthError> {
@@ -101,12 +107,15 @@ impl AuthStore {
             return Err(AuthError::DuplicateEmail);
         }
         let user = User {
-            id: random_token(),
+            id: random_token()?,
             email,
             password_hash: hash_password(password)?,
             created_at: now_ms(),
         };
-        self.users.write().unwrap().push(user.clone());
+        self.users
+            .write()
+            .unwrap_or_else(PoisonError::into_inner)
+            .push(user.clone());
         self.persist_users()?;
         Ok(user)
     }
@@ -115,7 +124,7 @@ impl AuthStore {
         let email = normalise_email(email);
         let hash = hash_password(password)?;
         {
-            let mut users = self.users.write().unwrap();
+            let mut users = self.users.write().unwrap_or_else(PoisonError::into_inner);
             let user = users
                 .iter_mut()
                 .find(|u| u.email == email)
@@ -128,7 +137,7 @@ impl AuthStore {
     pub fn remove_user(&self, email: &str) -> Result<(), AuthError> {
         let email = normalise_email(email);
         let removed = {
-            let mut users = self.users.write().unwrap();
+            let mut users = self.users.write().unwrap_or_else(PoisonError::into_inner);
             let before = users.len();
             users.retain(|u| u.email != email);
             before != users.len()
@@ -145,7 +154,7 @@ impl AuthStore {
         let email = normalise_email(email);
         self.users
             .read()
-            .unwrap()
+            .unwrap_or_else(PoisonError::into_inner)
             .iter()
             .find(|u| u.email == email)
             .cloned()
@@ -167,14 +176,14 @@ impl AuthStore {
     pub fn create_session(&self, user_id: &str) -> Result<Session, AuthError> {
         let now = now_ms();
         let session = Session {
-            id: random_token(),
+            id: random_token()?,
             user_id: user_id.to_string(),
             created_at: now,
             expires_at: now + SESSION_LIFETIME_MS,
         };
         self.sessions
             .write()
-            .unwrap()
+            .unwrap_or_else(PoisonError::into_inner)
             .insert(session.id.clone(), session.clone());
         self.persist_sessions()?;
         Ok(session)
@@ -185,7 +194,7 @@ impl AuthStore {
     pub fn session_user(&self, session_id: &str) -> Option<User> {
         let now = now_ms();
         let (user_id, needs_refresh) = {
-            let sessions = self.sessions.read().unwrap();
+            let sessions = self.sessions.read().unwrap_or_else(PoisonError::into_inner);
             let session = sessions.get(session_id)?;
             if session.expires_at <= now {
                 None
@@ -200,7 +209,7 @@ impl AuthStore {
         let user = self
             .users
             .read()
-            .unwrap()
+            .unwrap_or_else(PoisonError::into_inner)
             .iter()
             .find(|u| u.id == user_id)
             .cloned();
@@ -211,7 +220,12 @@ impl AuthStore {
         }
 
         if needs_refresh {
-            if let Some(session) = self.sessions.write().unwrap().get_mut(session_id) {
+            if let Some(session) = self
+                .sessions
+                .write()
+                .unwrap_or_else(PoisonError::into_inner)
+                .get_mut(session_id)
+            {
                 session.expires_at = now + SESSION_LIFETIME_MS;
             }
             self.persist_sessions().ok();
@@ -220,26 +234,35 @@ impl AuthStore {
     }
 
     pub fn destroy_session(&self, session_id: &str) -> Result<(), AuthError> {
-        self.sessions.write().unwrap().remove(session_id);
+        self.sessions
+            .write()
+            .unwrap_or_else(PoisonError::into_inner)
+            .remove(session_id);
         self.persist_sessions()
     }
 
     pub fn revoke_all_sessions(&self) -> Result<(), AuthError> {
-        self.sessions.write().unwrap().clear();
+        self.sessions
+            .write()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clear();
         self.persist_sessions()
     }
 
     pub fn session_count(&self) -> usize {
-        self.sessions.read().unwrap().len()
+        self.sessions
+            .read()
+            .unwrap_or_else(PoisonError::into_inner)
+            .len()
     }
 
     fn persist_users(&self) -> Result<(), AuthError> {
-        let users = self.users.read().unwrap();
+        let users = self.users.read().unwrap_or_else(PoisonError::into_inner);
         write_json_private(&self.dir.join("users.json"), &*users)
     }
 
     fn persist_sessions(&self) -> Result<(), AuthError> {
-        let sessions = self.sessions.read().unwrap();
+        let sessions = self.sessions.read().unwrap_or_else(PoisonError::into_inner);
         write_json_private(&self.dir.join("sessions.json"), &*sessions)
     }
 }
@@ -281,7 +304,7 @@ mod tests {
 
     fn store(label: &str) -> AuthStore {
         let dir = std::env::temp_dir().join(format!("kbviewer-auth-{label}"));
-        let _ = std::fs::remove_dir_all(&dir);
+        crate::test_support::remove_stale_dir(&dir);
         AuthStore::open(&dir).unwrap()
     }
 
@@ -336,7 +359,7 @@ mod tests {
     #[test]
     fn users_and_sessions_survive_a_restart() {
         let dir = std::env::temp_dir().join("kbviewer-auth-persist");
-        let _ = std::fs::remove_dir_all(&dir);
+        crate::test_support::remove_stale_dir(&dir);
 
         let session_id = {
             let store = AuthStore::open(&dir).unwrap();
@@ -390,7 +413,7 @@ mod tests {
     #[test]
     fn an_expired_session_is_not_accepted() {
         let dir = std::env::temp_dir().join("kbviewer-auth-expired");
-        let _ = std::fs::remove_dir_all(&dir);
+        crate::test_support::remove_stale_dir(&dir);
         std::fs::create_dir_all(&dir).unwrap();
 
         let store = AuthStore::open(&dir).unwrap();

@@ -15,11 +15,13 @@ export PATH="$HOME/.cargo/bin:$PATH"
 ## Commands
 
 ```sh
+make gate                                               # what CI and the Stop hook run; see Guardrails
 cargo test --workspace                                  # everything
 cargo test -p kbviewer-core links                          # one module
 cargo test -p kbviewer-server --test api                   # HTTP integration tests
 cargo test -p kbviewer-server -- --nocapture rename         # one test, with output
-cargo clippy --workspace --all-targets -- -D warnings     # must be clean
+make lint                                                 # clippy, ratcheted; must be clean
+make bench                                                # search over a generated 1 MB vault
 cargo fmt --all
 
 cd web && npm run dev        # Vite, proxies /api to 127.0.0.1:4321
@@ -57,14 +59,34 @@ RUST_LOG=kbviewer=debug ./target/debug/kbviewer     # see reindex/watch activity
 `.github/workflows/ci.yml` runs the gate list above, then publishes a multi-arch image to
 `ghcr.io/ziweiwu/personal-knowledge-base-webapp` on pushes to `main`.
 
-The publish job **cross-compiles with `cargo-zigbuild`** and copies the binary into
+The publish job **cross-compiles with `cargo auditable zigbuild`** (the dependency list is
+embedded, so `cargo audit bin` can check a deployed binary) and copies the binary into
 `deploy/Dockerfile.ci`, which compiles nothing. Building Rust inside a multi-platform
 image instead would run the non-native half under QEMU, where a release build with LTO
 takes tens of minutes and can exhaust the runner. `deploy/Dockerfile` is the
 build-from-source path and is not what CI uses.
 
-CI also fails if `web/src/api/types.ts` changes during `cargo test` — see the boundary
+CI also fails if `web/src/api/types.ts` changes during `make test` — see the boundary
 note below.
+
+## Guardrails
+
+- **The gate is `make gate`**: fmt, ratcheted clippy, nextest + doctests + bindings,
+  `cargo deny`, `cargo vet`, `cargo machete`. CI and `.claude/gates.json` run the same
+  targets. It builds `web/dist` first if it is missing.
+- **Ratchet:** every lint in `[workspace.lints]` is fatal, except `arithmetic_side_effects`
+  and `indexing_slicing`, which fail only on lines this branch touches. Do not rewrite an
+  untouched site to make the count go down. An exception is a function-level
+  `#[expect(lint, reason = "...")]`; module or crate-level ones are not allowed.
+- **`unsafe_code` is denied.** The only unsafe is `set_var` in one config test, under an
+  `#[expect]` with a `SAFETY` comment.
+- **Vet:** a new or upgraded crate fails `cargo vet` until it is certified
+  (`cargo vet certify`) or exempted (`cargo vet add-exemption`). Which one is the user's
+  decision — ask, do not pick.
+- **Mutants** run on every pull request's diff (`make mutants` locally, minutes).
+- nextest gives each test its own process, which ts-rs's export tests cannot share a file
+  across, so `make test` sends their output to `target/` and then regenerates
+  `types.ts` with one `cargo test` process (`.config/nextest.toml`).
 
 ## Architecture
 
@@ -276,8 +298,8 @@ render with one.
 
 ### The Rust/TypeScript boundary
 
-`web/src/api/types.ts` is **generated** by `ts-rs` during `cargo test`, directed by
-`.cargo/config.toml`. Never hand-edit it. Numeric fields carry `#[ts(type = "number")]`
+`web/src/api/types.ts` is **generated** by `ts-rs` during `cargo test` (and `make test`),
+directed by `.cargo/config.toml`. Never hand-edit it. Numeric fields carry `#[ts(type = "number")]`
 because `u64`/`i64` otherwise map to `bigint`, which `JSON.parse` never produces.
 
 ### View preferences
