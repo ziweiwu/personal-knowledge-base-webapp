@@ -77,6 +77,13 @@ fn mtime_of(index: &Index, path: &str) -> i64 {
         .unwrap_or(0)
 }
 
+fn mtimes_of(index: &Index, paths: &[String]) -> Vec<(String, i64)> {
+    paths
+        .iter()
+        .map(|path| (path.clone(), mtime_of(index, path)))
+        .collect()
+}
+
 /// A vault synced by a client that skips dot-folders arrives without `.obsidian/`, and
 /// detection then treats it as a plain folder: every `[[link]]` renders as literal text.
 /// The page still looks healthy, so the log is the only place this can be pointed out.
@@ -150,16 +157,12 @@ impl AppState {
     /// `origin` identifies the client that asked for the change, or `None` when the change
     /// came from outside this server (Obsidian, a sync client, an editor).
     pub fn reindex(&self, root_id: &str, paths: Vec<String>, origin: Option<String>) {
-        let Some(root) = self.config.root(root_id) else {
+        let (Some(root), Some(slot)) = (self.config.root(root_id), self.indexes.get(root_id))
+        else {
             return;
         };
-        let Some(slot) = self.indexes.get(root_id) else {
-            return;
-        };
-
         let rebuilt = Arc::new(Index::build(root));
         let previous = slot.swap(rebuilt.clone());
-        let structural = !rebuilt.has_same_tree_as(&previous);
         // Every render goes, because a note's links and embeds resolve against the others.
         // Resized images stay: each is keyed by its source's mtime, so an edited image is a
         // new key and its stale variants are never served.
@@ -167,24 +170,46 @@ impl AppState {
 
         let origin = match origin {
             Some(origin) => {
-                let written = paths
-                    .iter()
-                    .map(|path| (path.clone(), mtime_of(&rebuilt, path)))
-                    .collect();
-                self.remember_write(root_id, &origin, written);
+                self.remember_write(root_id, &origin, mtimes_of(&rebuilt, &paths));
                 Some(origin)
             }
             // No caller means the watcher saw it. Attribute it to our own recent write
             // only if the file still holds exactly what we wrote.
             None => self.attribute_to_recent_write(root_id, &paths, &rebuilt),
         };
-
-        let _ = self.changes.send(ChangeEvent {
+        let absorbed = rebuilt
+            .paths_changed_since(&previous)
+            .into_iter()
+            .filter(|path| !paths.contains(path))
+            .collect();
+        let event = ChangeEvent {
             root_id: root_id.to_string(),
             paths,
             origin,
-            structural,
+            structural: !rebuilt.has_same_tree_as(&previous),
+        };
+        self.announce(event, absorbed);
+    }
+
+    /// Send `event`, and with it the paths the rebuild also took in that nobody named: an
+    /// external edit whose watcher batch is still waiting, or one landing while the
+    /// watcher's own rebuild ran. That batch will then match the index and be dropped, so
+    /// this is the only event that can name them. They go out unattributed, because the
+    /// tab that caused the rebuild ignores its own events and did not make them.
+    fn announce(&self, mut event: ChangeEvent, mut absorbed: Vec<String>) {
+        if event.origin.is_none() {
+            event.paths.append(&mut absorbed);
+        }
+        let unattributed = (!absorbed.is_empty()).then(|| ChangeEvent {
+            root_id: event.root_id.clone(),
+            paths: absorbed,
+            origin: None,
+            structural: event.structural,
         });
+        let _ = self.changes.send(event);
+        if let Some(unattributed) = unattributed {
+            let _ = self.changes.send(unattributed);
+        }
     }
 
     /// Record what we just wrote, with the mtime it left behind, so the watcher's echo of

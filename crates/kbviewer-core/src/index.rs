@@ -52,6 +52,11 @@ impl Document {
             tags: self.tags.clone(),
         }
     }
+
+    /// The same file by the two things the scan reads without opening it.
+    fn is_unchanged_from(&self, before: &Document) -> bool {
+        self.size == before.size && self.mtime_ms == before.mtime_ms
+    }
 }
 
 pub struct Index {
@@ -210,6 +215,27 @@ impl Index {
     /// shows. A content edit leaves it unchanged.
     pub fn has_same_tree_as(&self, other: &Index) -> bool {
         self.documents.keys().eq(other.documents.keys()) && self.directories == other.directories
+    }
+
+    /// Every file and folder that differs from `previous`: added, removed, or a file whose
+    /// size or mtime moved. What a rebuild took in, whichever change asked for it.
+    pub fn paths_changed_since(&self, previous: &Index) -> BTreeSet<String> {
+        let added_or_edited = self.documents.iter().filter(|(path, document)| {
+            previous
+                .documents
+                .get(*path)
+                .is_none_or(|before| !document.is_unchanged_from(before))
+        });
+        let removed = previous
+            .documents
+            .keys()
+            .filter(|path| !self.documents.contains_key(*path));
+        added_or_edited
+            .map(|(path, _)| path)
+            .chain(removed)
+            .chain(self.directories.symmetric_difference(&previous.directories))
+            .cloned()
+            .collect()
     }
 
     /// Children of one folder: subfolders first, then documents, each alphabetical.
@@ -781,5 +807,38 @@ mod tests {
         std::fs::remove_dir(root.path.join("empty")).unwrap();
         std::fs::write(root.path.join("b.md"), "# B\n").unwrap();
         assert!(!Index::build(&root).has_same_tree_as(&before));
+    }
+
+    #[test]
+    fn a_rebuild_names_every_file_and_folder_it_took_in() {
+        let root = fixture_root(
+            "changed-since",
+            &[
+                ("kept.md", "# Kept\n"),
+                ("edited.md", "# Edited\n"),
+                ("gone.md", "# Gone\n"),
+            ],
+            None,
+        );
+        let before = Index::build(&root);
+
+        std::thread::sleep(MTIME_GRANULARITY_PAUSE);
+        std::fs::write(root.path.join("edited.md"), "# Edited\nagain\n").unwrap();
+        std::fs::remove_file(root.path.join("gone.md")).unwrap();
+        std::fs::create_dir(root.path.join("sub")).unwrap();
+        std::fs::write(root.path.join("sub/new.md"), "# New\n").unwrap();
+
+        let changed: Vec<String> = Index::build(&root)
+            .paths_changed_since(&before)
+            .into_iter()
+            .collect();
+        assert_eq!(changed, ["edited.md", "gone.md", "sub", "sub/new.md"]);
+    }
+
+    #[test]
+    fn a_rebuild_of_an_untouched_root_names_nothing() {
+        let root = fixture_root("changed-none", &[("a.md", "# A\n")], None);
+        let before = Index::build(&root);
+        assert!(Index::build(&root).paths_changed_since(&before).is_empty());
     }
 }

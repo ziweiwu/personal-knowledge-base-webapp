@@ -348,7 +348,12 @@ file's mtime so the watcher's later event for the same write is attributed to
 that origin and the originating tab ignores it. Each event says whether it is
 `structural` — a file or folder appeared, vanished or was renamed — and the
 tree refetches only then; an edit reloads the open page and folder listing but
-not the tree. A lagging SSE receiver has its lag error dropped and stays
+not the tree. A rebuild reads the whole root, so it can take in a change
+nobody named — an external edit whose watcher batch is still waiting when a
+tab saves — and that batch then matches the index and is dropped. Every
+rebuild therefore names each path that differs between the old and new index
+(`Index::paths_changed_since`); the ones its caller did not write go out in an
+unattributed event, so the saving tab hears them too. A lagging SSE receiver has its lag error dropped and stays
 connected; it catches up on the next event it sees, except that a missed
 structural event leaves its tree stale until the next structural one. A 401 on
 the stream triggers a full reload.
@@ -367,7 +372,10 @@ layer.
 **Enforced by:** `state.rs` unit tests (author not warned about own save;
 `an_edit_is_not_structural_but_a_new_file_or_folder_is`); `watch.rs`
 `reads_are_not_changes_but_a_closed_write_is`,
-`an_external_edit_burst_reaches_subscribers_once`; `tests/api.rs`
+`an_external_edit_burst_reaches_subscribers_once`,
+`an_external_edit_taken_in_by_a_save_is_still_announced`,
+`a_change_landing_during_a_rebuild_is_named_by_that_rebuild`; `index.rs`
+`a_rebuild_names_every_file_and_folder_it_took_in`; `tests/api.rs`
 `a_browser_write_carries_its_origin_onto_the_change_event` and
 `the_client_sends_the_origin_header_the_server_reads`, which reads the
 TypeScript constant. No test covers what a tab shows after more than 256

@@ -394,6 +394,47 @@ mod tests {
         assert_eq!(changes.try_recv().unwrap().paths, [""]);
     }
 
+    /// A save through the API rebuilds the whole root, so it takes in an external edit
+    /// whose batch is still waiting, and that batch then matches and is dropped. The
+    /// save's rebuild is the only one left to name the edit, and the saving tab, which
+    /// ignores its own events, has to hear it too.
+    #[test]
+    fn an_external_edit_taken_in_by_a_save_is_still_announced() {
+        let (state, root) = scratch_state("watch-absorbed");
+        let mut changes = state.changes.subscribe();
+        std::fs::write(root.join("a.md"), "# A\nedited elsewhere\n").unwrap();
+        std::fs::write(root.join("b.md"), "# B\n").unwrap();
+        state.reindex("kb", vec!["b.md".into()], Some("tab".into()));
+        reindex_if_changed(&state, "kb", &root, batch_of(&["a.md", "b.md"]));
+
+        let announced: Vec<_> = std::iter::from_fn(|| changes.try_recv().ok())
+            .map(|event| (event.paths, event.origin))
+            .collect();
+        assert_eq!(
+            announced,
+            [
+                (vec!["b.md".to_string()], Some("tab".to_string())),
+                (vec!["a.md".to_string()], None),
+            ]
+        );
+    }
+
+    #[test]
+    fn a_change_landing_during_a_rebuild_is_named_by_that_rebuild() {
+        let (state, root) = scratch_state("watch-landed");
+        let mut changes = state.changes.subscribe();
+        std::fs::write(root.join("a.md"), "# A\nedited\n").unwrap();
+        std::fs::write(root.join("b.md"), "# B\n").unwrap();
+        reindex_if_changed(&state, "kb", &root, batch_of(&["b.md"]));
+        assert_eq!(changes.try_recv().unwrap().paths, ["b.md", "a.md"]);
+
+        reindex_if_changed(&state, "kb", &root, batch_of(&["a.md"]));
+        assert!(
+            changes.try_recv().is_err(),
+            "a.md's own batch has nothing left to do"
+        );
+    }
+
     /// Wait out one full batch and return every change event it produced.
     fn events_after_one_batch(
         changes: &mut tokio::sync::broadcast::Receiver<kbviewer_core::model::ChangeEvent>,
