@@ -13,9 +13,18 @@
   <key>Label</key>
   <string>com.kbviewer</string>
 
+  <!--
+    The server writes and rotates its own log: 10 MiB, then kbviewer.log.1 to .3.
+    launchd never rotates StandardErrorPath, and an agent restarted every ten seconds
+    once grew that file to 590 MB, so there is deliberately no StandardOutPath or
+    StandardErrorPath here. stderr goes nowhere; the reason a start failed is in the
+    log file too. Needs a binary that knows the flag: rebuild before reinstalling this.
+  -->
   <key>ProgramArguments</key>
   <array>
     <string>PROJECT_DIR/target/release/kbviewer</string>
+    <string>--log-file</string>
+    <string>PROJECT_DIR/data/kbviewer.log</string>
   </array>
 
   <key>WorkingDirectory</key>
@@ -31,10 +40,5 @@
   <true/>
   <key>KeepAlive</key>
   <true/>
-
-  <key>StandardOutPath</key>
-  <string>PROJECT_DIR/data/kbviewer.log</string>
-  <key>StandardErrorPath</key>
-  <string>PROJECT_DIR/data/kbviewer.log</string>
 </dict>
 </plist>

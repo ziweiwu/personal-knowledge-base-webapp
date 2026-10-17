@@ -577,6 +577,28 @@ their tokens; and the document's rule count must not move over ten switches once
 both sides have mounted. Each colour is compared against the token resolved
 through the browser, never a literal, so re-warming the palette cannot fail it.
 
+## INV-30 — A log the server writes itself is bounded, and says why it stopped
+
+With `--log-file` the server writes its log to that file, not stderr, without
+colour codes, and moves it aside before a write would take it past 10 MiB:
+`<file>.1` is the newest predecessor and `<file>.3` the oldest kept, so the set
+never grows past four files. A restarted server counts what the file already
+holds. The error that ends `main`, and any panic, are written there too, because
+under launchd stderr goes nowhere. stderr still carries the `kbviewer listening
+on http://` line, which is what KBViewer.app waits for. Without the flag nothing
+changes: Docker logs to stderr and its json-file driver rotates.
+
+**Why this matters here:** launchd appends to `StandardErrorPath` for ever, and
+an agent restarted every ten seconds grew `data/kbview.log` to 590 MB. The app
+deleted its `server.log` past 1 MiB, but only at launch.
+
+**Enforced by:** the `logging` tests in `crates/kbviewer-server/src/logging.rs`
+(rotation, retention, a restart counting the existing file, a long line kept
+whole) and two in `crates/kbviewer-server/tests/startup.rs`, which run the binary:
+the log lands in the file free of colour codes while the ready line stays on
+stderr, and a start refused for a taken port leaves "could not bind" in the file.
+`macos/smoke-test.sh` checks that the app's `server.log` is written by the server.
+
 ## What has no oracle
 
 Surfaces where nothing above asserts anything. This is the agenda for the

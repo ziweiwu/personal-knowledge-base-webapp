@@ -164,6 +164,11 @@ runs as root** — the template sets one.
 in a container where the folder is mounted elsewhere. `KBVIEWER_CONFIG` moves the config
 file itself.
 
+The log goes to stderr unless `--log-file PATH` (or `KBVIEWER_LOG_FILE`) is given. The
+server then writes it to that file and rotates it at 10 MiB, keeping `PATH.1` to `PATH.3`.
+The launch agent and the macOS app both use it, since nothing rotates their stderr. Under
+Docker leave it unset: the logging driver rotates stderr already.
+
 ## Security model
 
 Tailscale controls *who can reach the port*. This app controls *who can read the

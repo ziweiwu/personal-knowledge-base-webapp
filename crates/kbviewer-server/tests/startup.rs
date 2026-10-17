@@ -16,6 +16,8 @@ const INDEXED_LINE: &str = "indexed root";
 const LISTENING_LINE: &str = "kbviewer listening on http://";
 /// Asks the kernel for any free port, so the control run cannot collide with anything.
 const ANY_FREE_PORT: u16 = 0;
+/// What starts every ANSI colour sequence the terminal formatter writes.
+const COLOUR_CODE: char = '\u{1b}';
 
 /// The launch agent and KBViewer.app both want 4321. Whichever process loses must find out
 /// before it indexes anything: launchd restarts the agent every ten seconds, and a loser
@@ -62,6 +64,54 @@ fn a_free_port_is_indexed_and_announced() {
     );
 }
 
+/// KBViewer.app passes `--log-file` and still reads stderr, for the line that says the
+/// server is ready; the log itself must go to the file, without a terminal's colour codes.
+#[test]
+fn a_log_file_takes_the_log_while_stderr_keeps_the_ready_line() {
+    let base = tempfile::tempdir().unwrap();
+    let stderr_path = base.path().join("stderr.log");
+    let log_file = base.path().join("kbviewer.log");
+    let config = write_config(base.path(), ANY_FREE_PORT);
+
+    let mut server = RunningServer::spawn_logging_to(&config, &stderr_path, &log_file);
+    let stderr = server.wait_for_output(&stderr_path, LISTENING_LINE);
+    let logged = std::fs::read_to_string(&log_file).unwrap();
+
+    assert!(
+        logged.contains(INDEXED_LINE),
+        "the index was not logged:\n{logged}"
+    );
+    assert!(
+        !logged.contains(COLOUR_CODE),
+        "colour codes in the log file:\n{logged}"
+    );
+    assert!(
+        !stderr.contains(INDEXED_LINE),
+        "the log still went to stderr:\n{stderr}"
+    );
+}
+
+/// Under launchd stderr goes nowhere, so the file is the only place a failed start can say
+/// why — and a port already taken is exactly how the agent fails beside the app.
+#[test]
+fn a_log_file_records_why_the_server_stopped() {
+    let base = tempfile::tempdir().unwrap();
+    let holder = TcpListener::bind("127.0.0.1:0").unwrap();
+    let taken_port = holder.local_addr().unwrap().port();
+    let log_file = base.path().join("kbviewer.log");
+    let config = write_config(base.path(), taken_port);
+
+    let stderr_path = base.path().join("stderr.log");
+    let mut server = RunningServer::spawn_logging_to(&config, &stderr_path, &log_file);
+    server.wait_for_exit();
+    let logged = std::fs::read_to_string(&log_file).unwrap();
+
+    assert!(
+        logged.contains("could not bind"),
+        "the reason is missing:\n{logged}"
+    );
+}
+
 fn write_config(base: &Path, port: u16) -> PathBuf {
     let root = base.join("vault");
     std::fs::create_dir_all(&root).unwrap();
@@ -92,13 +142,31 @@ struct RunningServer {
 
 impl RunningServer {
     fn spawn(config_path: &Path, log_path: &Path) -> Self {
-        let log = File::create(log_path).unwrap();
-        let child = Command::new(env!("CARGO_BIN_EXE_kbviewer"))
+        Self::start(Self::command(config_path), log_path)
+    }
+
+    /// As `spawn`, with `--log-file` set, so `stderr_path` receives only what the server
+    /// writes outside its log.
+    fn spawn_logging_to(config_path: &Path, stderr_path: &Path, log_file: &Path) -> Self {
+        let mut command = Self::command(config_path);
+        command.arg("--log-file").arg(log_file);
+        Self::start(command, stderr_path)
+    }
+
+    fn command(config_path: &Path) -> Command {
+        let mut command = Command::new(env!("CARGO_BIN_EXE_kbviewer"));
+        command
             .env("KBVIEWER_CONFIG", config_path)
             .env("RUST_LOG", "kbviewer=info")
-            .stdin(Stdio::null())
-            .stdout(log.try_clone().unwrap())
-            .stderr(log)
+            .stdin(Stdio::null());
+        command
+    }
+
+    fn start(mut command: Command, output_path: &Path) -> Self {
+        let output = File::create(output_path).unwrap();
+        let child = command
+            .stdout(output.try_clone().unwrap())
+            .stderr(output)
             .spawn()
             .unwrap();
         Self { child }

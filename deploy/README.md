@@ -47,7 +47,12 @@ curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:4321/api/roots  # 401
 ```
 
 `KeepAlive` is on, so killing the process restarts it; stopping it for real means
-`launchctl unload`. Logs go to `data/kbviewer.log`.
+`launchctl unload`. Logs go to `data/kbviewer.log`, which the server rotates itself
+(`--log-file`): at 10 MiB it becomes `kbviewer.log.1`, and the three newest old files
+are kept, so the log never holds more than 40 MiB. launchd itself never rotates
+anything, which is why the template sets no `StandardErrorPath`. An agent installed
+from an older template still has one and keeps appending to it without limit; to move
+it over, rebuild, `unload`, run the `sed` line above again and `load`.
 
 ```sh
 launchctl unload ~/Library/LaunchAgents/com.kbviewer.plist   # stop
