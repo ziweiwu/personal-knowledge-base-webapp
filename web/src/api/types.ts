@@ -9,7 +9,12 @@ export type ChangeEvent = { rootId: string, paths: Array<string>,
 /**
  * Set when this app made the change, so the client that made it can ignore the echo.
  */
-origin: string | null, };
+origin: string | null, 
+/**
+ * Whether a file or folder appeared, vanished or was renamed, which is all the tree
+ * shows. An edit to a note's content leaves it false, and the tree is not refetched.
+ */
+structural: boolean, };
 
 /**
  * How a document is rendered server-side and which viewer the client picks.

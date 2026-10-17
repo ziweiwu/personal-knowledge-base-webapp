@@ -34,7 +34,7 @@ async fn main() -> Result<()> {
         .with_context(|| format!("could not bind {address}"))?;
 
     let state = AppState::new(config, store);
-    // Held for the process lifetime; dropping the debouncers would stop the watch.
+    // Held for the process lifetime; dropping the watchers would stop the watch.
     let _watchers = watch::spawn(state.clone())?;
 
     serve(router::build(state), listener).await

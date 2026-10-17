@@ -136,8 +136,8 @@ device within seconds. A wrong rewrite is indistinguishable from an edit.
 The temp name starts with `.tmp`, which `is_excluded` hides, so an aborted
 write is invisible rather than indexed as a document.
 
-**Why this matters here:** the directory is watched (400 ms debounce) and
-synced. A truncated note synced to the Mac is a lost note.
+**Why this matters here:** the directory is watched (a batch per root, rebuilt
+once the root has been quiet for 1 s) and synced. A truncated note synced to the Mac is a lost note.
 
 **Enforced by:** none as a test. The fence is structural (one helper). An
 aborted-write test does not exist.
@@ -210,8 +210,8 @@ message never contains the path or the reason a path was rejected.
 ## INV-11 — Excluded paths are never indexed, served, or written to
 
 `paths::is_excluded` names `.obsidian`, `.trash`, `.git`, `.svn`, `@eaDir`,
-`.SynologyWorkingDirectory`, `node_modules`, macOS `Icon\r` files and any
-dot-prefixed component. The indexer, the
+`.SynologyWorkingDirectory`, `node_modules`, `__pycache__`, macOS `Icon\r`
+files and any dot-prefixed component. The indexer, the
 watcher (`relative_if_relevant`), the file routes and every write
 (`reject_excluded` on create, create_folder, upload, delete, and on both ends
 of a rename) agree on it. A save cannot reach one because it must already be
@@ -226,8 +226,10 @@ Obsidian rewrites constantly and would otherwise trigger reindexes and appear
 as documents. Writing into an excluded path succeeds on disk and then
 vanishes, which is worse than refusing.
 
-**Enforced by:** `paths.rs` `excludes_sync_and_tool_artefacts`; `watch.rs`
-`ignores_changes_in_excluded_directories`; `tests/api.rs`
+**Enforced by:** `paths.rs` `excludes_sync_and_tool_artefacts`,
+`python_bytecode_caches_are_not_content`; `watch.rs`
+`reports_ordinary_documents_and_ignores_excluded_ones`,
+`events_the_index_ignores_never_start_a_batch`; `tests/api.rs`
 `renaming_into_an_excluded_path_is_refused`,
 `excluded_paths_can_be_neither_deleted_nor_renamed_out`,
 `traversal_attempts_are_refused`.
@@ -343,9 +345,13 @@ anyone noticing (every link rendered as text).
 Writes reindex synchronously and broadcast a `ChangeEvent` on SSE. A mutating
 request carries `X-Kbviewer-Origin`; the reindex records it against the
 file's mtime so the watcher's later event for the same write is attributed to
-that origin and the originating tab ignores it. A lagging SSE receiver has its
-lag error dropped and stays connected; it catches up on the next event it
-sees. A 401 on the stream triggers a full reload.
+that origin and the originating tab ignores it. Each event says whether it is
+`structural` — a file or folder appeared, vanished or was renamed — and the
+tree refetches only then; an edit reloads the open page and folder listing but
+not the tree. A lagging SSE receiver has its lag error dropped and stays
+connected; it catches up on the next event it sees, except that a missed
+structural event leaves its tree stale until the next structural one. A 401 on
+the stream triggers a full reload.
 
 **Why this matters here:** the editor on the Mac and the viewer on the phone
 are open at the same time all day; a self-echo would reload the editor under
@@ -358,8 +364,10 @@ browser write ever carried an origin and every tab fought its own echo; the
 `state.rs` tests passed throughout because they feed the origin past the HTTP
 layer.
 
-**Enforced by:** `state.rs` unit tests (author not warned about own save);
-`watch.rs` `ignores_reads`, `reports_writes`; `tests/api.rs`
+**Enforced by:** `state.rs` unit tests (author not warned about own save;
+`an_edit_is_not_structural_but_a_new_file_or_folder_is`); `watch.rs`
+`reads_are_not_changes_but_a_closed_write_is`,
+`an_external_edit_burst_reaches_subscribers_once`; `tests/api.rs`
 `a_browser_write_carries_its_origin_onto_the_change_event` and
 `the_client_sends_the_origin_header_the_server_reads`, which reads the
 TypeScript constant. No test covers what a tab shows after more than 256
@@ -368,30 +376,44 @@ events were dropped; see Candidates.
 ## INV-21 — A read never triggers a reindex
 
 `watch.rs::is_change` accepts `Access(Close(Write))` and rejects every other
-`Access` event. Everything else (create, modify, remove, rename) reindexes the
-whole root, logged at `info` as `reindexing after change` with a count.
+`Access` event. Everything else (create, modify, remove, rename) on a path
+`is_excluded` lets through joins the root's pending batch; an ignored event
+neither starts a batch nor extends its wait. The batch is flushed once the root
+has been quiet for 1 s, or 5 s after it began. Only its paths that no longer
+match the index — by size and mtime for a file, by presence for a folder
+(`Index::matches_disk`) — count, and a batch with none is dropped: a chmod, a
+temporary file that came and went, the echo of a save already indexed. What is
+left reindexes the whole root, logged at `info` as `reindexing after change`
+with a count; a dropped batch logs at `debug`.
 
 **Why this matters here:** Linux inotify reports `IN_OPEN`/`IN_CLOSE_NOWRITE`
 for the indexer's own reads. Before the filter the container rebuilt the index
 in a loop and hit `mem_limit: 1g` 56 times a day. The `info` line is the only
-visible sign of a recurrence.
+visible sign of a recurrence. The batching exists because one save or sync
+arrives as a burst over a second or more, and the earlier 400 ms per-event
+debounce split it into several rebuilds, each emptying the render cache and
+notifying every tab.
 
-**Enforced by:** `watch.rs` `ignores_reads`, `reports_writes`; the
-`reindexing after change` count in the container log on an idle NAS should be
-zero.
+**Enforced by:** `watch.rs` `reads_are_not_changes_but_a_closed_write_is`,
+`a_burst_of_writes_is_one_batch`, `a_steady_stream_is_still_flushed_at_the_cap`,
+`ignored_events_do_not_hold_back_a_real_change`,
+`a_batch_that_changed_nothing_indexed_is_not_rebuilt`,
+`a_permission_change_alone_sends_nothing`; the `reindexing after change` count
+in the container log on an idle NAS should be zero.
 
 ## INV-22 — Image variants are whitelisted widths, never wider than the original, never stale
 
 `/api/file/...?w=N` serves a resized variant only for `N` in
 `[400, 800, 1200, 1600]` and only when `N` is smaller than the source; any
-other query serves the original bytes. Variants are cached and invalidated
-when the source's mtime changes, and the cache has a byte budget.
+other query serves the original bytes. Variants are cached by the source's
+mtime, so an edited image is a new key and its old variants are never served;
+a reindex therefore leaves the cache alone, and the cache has a byte budget.
 
 **Enforced by:** `tests/api.rs`
 `a_resized_variant_is_smaller_than_the_original_and_cached`,
 `a_variant_is_never_larger_than_the_original`,
 `a_width_that_is_not_offered_serves_the_original_untouched`; `variants.rs`
-unit tests.
+unit tests; `state.rs` `a_reindex_keeps_resized_images`.
 
 ## INV-23 — The frontend's request shapes are the backend's
 

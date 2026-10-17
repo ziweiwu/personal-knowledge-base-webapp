@@ -256,6 +256,9 @@ pub struct ChangeEvent {
     /// Set when this app made the change, so the client that made it can ignore the echo.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub origin: Option<String>,
+    /// Whether a file or folder appeared, vanished or was renamed, which is all the tree
+    /// shows. An edit to a note's content leaves it false, and the tree is not refetched.
+    pub structural: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
