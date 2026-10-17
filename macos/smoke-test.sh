@@ -106,9 +106,14 @@ pass "the bundle runs one wrapper and one server"
 	|| fail "first-run setup did not create the app account"
 pass "the app account exists"
 
-grep -q "listening on http" "$SCRATCH/support/logs/server.log" \
+# The server writes this file itself (--log-file); the app no longer copies stderr into
+# it. Its tracing line reads "kbviewer listening address=…", not the stderr ready line.
+grep -q "kbviewer listening address=" "$SCRATCH/support/logs/server.log" \
 	|| fail "the server log does not record a listening line"
-pass "stderr is captured to the server log"
+if grep -q $'\x1b\\[' "$SCRATCH/support/logs/server.log"; then
+	fail "the server log carries terminal colour codes"
+fi
+pass "the server writes its own log"
 
 echo "==> Quitting"
 kill -TERM "$app_pid"

@@ -21,6 +21,12 @@ pub struct Cli {
     #[arg(long, env = "KBVIEWER_CONFIG", default_value = "kbviewer.config.json")]
     pub config: PathBuf,
 
+    /// Write the log to this file instead of stderr, rotated at 10 MiB with the three
+    /// before it kept. For launchd and the macOS app, where nothing rotates stderr; under
+    /// Docker leave it unset, since the logging driver already does.
+    #[arg(long, env = "KBVIEWER_LOG_FILE")]
+    pub log_file: Option<PathBuf>,
+
     #[command(subcommand)]
     pub command: Option<Command>,
 }

@@ -199,6 +199,13 @@ add` against a live server's data directory is invisible to it. This is what dec
 whether the app adopts that server or starts its own, and it fails in the confusing
 direction: the credential is right, the file is right, and the login is still refused.
 
+**The app's `server.log` is written by the server, not the app.** It launches the server
+with `--log-file`, which rotates at 10 MiB and keeps three older files
+(`crates/kbviewer-server/src/logging.rs`), and reads stderr only for the ready line and the
+reason for an exit. The launch agent's template passes the same flag and sets no
+`StandardErrorPath`, because launchd never rotates one; that file once reached 590 MB.
+Do not move the copying back into the wrapper: the agent has no wrapper to do it.
+
 **`NSAllowsLocalNetworking` is required in `Info.plist`.** Without it App Transport
 Security blocks the `http://127.0.0.1` load and the window stays blank with nothing
 logged anywhere.

@@ -36,7 +36,6 @@ final class ServerProcess {
     private static let startTimeout: TimeInterval = 30
     private static let recentLineLimit = 40
     private static let portScanRange = 20
-    private static let maximumLogBytes: UInt64 = 1_048_576
 
     /// How long a terminate is given before the signal stops being polite.
     private static let terminationGracePeriod: TimeInterval = 3
@@ -166,7 +165,9 @@ final class ServerProcess {
     private func makeServerProcess() -> Process {
         let process = Process()
         process.executableURL = Paths.serverBinary
-        process.arguments = ["--config", Paths.configFile.path]
+        // The server writes and rotates the log itself, the same code the launch agent
+        // relies on; stderr still arrives here for the ready line and the exit reason.
+        process.arguments = ["--config", Paths.configFile.path, "--log-file", Paths.logFile.path]
         process.currentDirectoryURL = Paths.supportDirectory
 
         var environment = ProcessInfo.processInfo.environment
@@ -175,15 +176,12 @@ final class ServerProcess {
         return process
     }
 
-    /// Streams the server's output to the log and the ring buffer, signalling `ready`
-    /// when it announces its listener or exits, whichever happens first.
+    /// Streams the server's output to the ring buffer, signalling `ready` when it
+    /// announces its listener or exits, whichever happens first.
     private func attachHandlers(process: Process, pipe: Pipe, ready: DispatchSemaphore) {
-        let log = Self.openLog()
-
         pipe.fileHandleForReading.readabilityHandler = { [weak self] handle in
             let chunk = handle.availableData
             guard !chunk.isEmpty else { return }
-            try? log?.write(contentsOf: chunk)
             guard let self, let text = String(data: chunk, encoding: .utf8) else { return }
             if self.absorb(text) { ready.signal() }
         }
@@ -194,11 +192,9 @@ final class ServerProcess {
             // still be sitting in the pipe when this fires. Draining it here is what
             // makes the alert say why instead of saying nothing.
             let remaining = pipe.fileHandleForReading.readDataToEndOfFile()
-            if !remaining.isEmpty {
-                try? log?.write(contentsOf: remaining)
-                if let text = String(data: remaining, encoding: .utf8) { _ = self?.absorb(text) }
+            if let text = String(data: remaining, encoding: .utf8), !text.isEmpty {
+                _ = self?.absorb(text)
             }
-            try? log?.close()
             self?.reportExit(process: finished, ready: ready)
         }
     }
@@ -341,23 +337,5 @@ final class ServerProcess {
             }
         }
         return bound == 0
-    }
-
-    // MARK: - Logging
-
-    private static func openLog() -> FileHandle? {
-        let path = Paths.logFile.path
-        let manager = FileManager.default
-        if let size = try? manager.attributesOfItem(atPath: path)[.size] as? UInt64,
-            size > maximumLogBytes
-        {
-            try? manager.removeItem(atPath: path)
-        }
-        if !manager.fileExists(atPath: path) {
-            manager.createFile(atPath: path, contents: nil)
-        }
-        let handle = try? FileHandle(forWritingTo: Paths.logFile)
-        _ = try? handle?.seekToEnd()
-        return handle
     }
 }

@@ -2,15 +2,28 @@ use anyhow::{Context, Result};
 use clap::Parser;
 use kbviewer_core::config::Config;
 use kbviewer_server::auth::store::AuthStore;
-use kbviewer_server::{cli, router, state, watch};
+use kbviewer_server::{cli, logging, router, state, watch};
 use state::AppState;
 use std::net::SocketAddr;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    init_tracing();
-
     let args = cli::Cli::parse();
+    logging::init(args.log_file.as_deref())?;
+    let writes_its_own_log = args.log_file.is_some();
+
+    let outcome = run(args).await;
+    // Returning the error prints it to stderr, which is the whole log only when there is
+    // no log file; under launchd stderr goes nowhere, so the reason has to be in the file.
+    if let Err(error) = &outcome {
+        if writes_its_own_log {
+            tracing::error!("{error:#}");
+        }
+    }
+    outcome
+}
+
+async fn run(args: cli::Cli) -> Result<()> {
     let config = Config::load(&args.config).context("could not load configuration")?;
     let store = AuthStore::open(&config.data_dir).context("could not open the account store")?;
 
@@ -38,15 +51,6 @@ async fn main() -> Result<()> {
     let _watchers = watch::spawn(state.clone())?;
 
     serve(router::build(state), listener).await
-}
-
-fn init_tracing() {
-    tracing_subscriber::fmt()
-        .with_env_filter(
-            tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| "kbviewer=info,tower_http=warn".into()),
-        )
-        .init();
 }
 
 /// An empty account store with a login page in front of it is a locked door with no key,
