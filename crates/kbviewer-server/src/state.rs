@@ -60,8 +60,9 @@ struct RecentWrite {
     at: Instant,
 }
 
-/// How long a write stays attributable. Comfortably longer than the watcher debounce,
-/// short enough that a genuine external edit moments later is still reported as external.
+/// How long a write stays attributable. Comfortably longer than the watcher's quiet
+/// window, short enough that a genuine external edit moments later is still reported as
+/// external.
 const WRITE_ATTRIBUTION_WINDOW: Duration = Duration::from_secs(5);
 
 /// Buffered change events per subscriber. A client that falls further behind than this is
@@ -74,6 +75,20 @@ fn mtime_of(index: &Index, path: &str) -> i64 {
         .get(path)
         .map(|document| document.mtime_ms)
         .unwrap_or(0)
+}
+
+/// Whether a caller that listed `named` has accounted for `path`: the path itself, or
+/// anything inside it when it is a folder the caller renamed or trashed.
+fn names(named: &str, path: &str) -> bool {
+    path.strip_prefix(named)
+        .is_some_and(|rest| rest.is_empty() || rest.starts_with('/'))
+}
+
+fn mtimes_of(index: &Index, paths: &[String]) -> Vec<(String, i64)> {
+    paths
+        .iter()
+        .map(|path| (path.clone(), mtime_of(index, path)))
+        .collect()
 }
 
 /// A vault synced by a client that skips dot-folders arrives without `.obsidian/`, and
@@ -138,48 +153,70 @@ impl AppState {
         self.config.root(root_id)
     }
 
-    /// Rebuild one root's index and tell connected clients what changed.
-    ///
-    /// `origin` identifies the client that asked for the change, or `None` when the change
-    /// came from outside this server (Obsidian, a sync client, an editor).
     /// The root's write gate. Lock it from the precondition check to the write that relies
     /// on it. `None` only for a root that does not exist, which the caller already refused.
     pub fn write_gate(&self, root_id: &str) -> Option<&std::sync::Mutex<()>> {
         self.write_gates.get(root_id)
     }
 
+    /// Rebuild one root's index and tell connected clients what changed.
+    ///
+    /// `origin` identifies the client that asked for the change, or `None` when the change
+    /// came from outside this server (Obsidian, a sync client, an editor).
     pub fn reindex(&self, root_id: &str, paths: Vec<String>, origin: Option<String>) {
-        let Some(root) = self.config.root(root_id) else {
+        let (Some(root), Some(slot)) = (self.config.root(root_id), self.indexes.get(root_id))
+        else {
             return;
         };
-        let Some(slot) = self.indexes.get(root_id) else {
-            return;
-        };
-
         let rebuilt = Arc::new(Index::build(root));
-        slot.store(rebuilt.clone());
+        let previous = slot.swap(rebuilt.clone());
+        // Every render goes, because a note's links and embeds resolve against the others.
+        // Resized images stay: each is keyed by its source's mtime, so an edited image is a
+        // new key and its stale variants are never served.
         self.renders.invalidate_root(root_id);
-        self.variants.invalidate_root(root_id);
 
         let origin = match origin {
             Some(origin) => {
-                let written = paths
-                    .iter()
-                    .map(|path| (path.clone(), mtime_of(&rebuilt, path)))
-                    .collect();
-                self.remember_write(root_id, &origin, written);
+                self.remember_write(root_id, &origin, mtimes_of(&rebuilt, &paths));
                 Some(origin)
             }
             // No caller means the watcher saw it. Attribute it to our own recent write
             // only if the file still holds exactly what we wrote.
             None => self.attribute_to_recent_write(root_id, &paths, &rebuilt),
         };
-
-        let _ = self.changes.send(ChangeEvent {
+        let absorbed = rebuilt
+            .paths_changed_since(&previous)
+            .into_iter()
+            .filter(|path| !paths.iter().any(|named| names(named, path)))
+            .collect();
+        let event = ChangeEvent {
             root_id: root_id.to_string(),
             paths,
             origin,
+            structural: !rebuilt.has_same_tree_as(&previous),
+        };
+        self.announce(event, absorbed);
+    }
+
+    /// Send `event`, and with it the paths the rebuild also took in that nobody named: an
+    /// external edit whose watcher batch is still waiting, or one landing while the
+    /// watcher's own rebuild ran. That batch will then match the index and be dropped, so
+    /// this is the only event that can name them. They go out unattributed, because the
+    /// tab that caused the rebuild ignores its own events and did not make them.
+    fn announce(&self, mut event: ChangeEvent, mut absorbed: Vec<String>) {
+        if event.origin.is_none() {
+            event.paths.append(&mut absorbed);
+        }
+        let unattributed = (!absorbed.is_empty()).then(|| ChangeEvent {
+            root_id: event.root_id.clone(),
+            paths: absorbed,
+            origin: None,
+            structural: event.structural,
         });
+        let _ = self.changes.send(event);
+        if let Some(unattributed) = unattributed {
+            let _ = self.changes.send(unattributed);
+        }
     }
 
     /// Record what we just wrote, with the mtime it left behind, so the watcher's echo of
@@ -228,37 +265,39 @@ impl AppState {
     }
 }
 
+/// A state over a fresh vault holding only `a.md`, with the root id `kb`. Returns the
+/// vault's canonical path, which is what the watcher reports events under.
+#[cfg(test)]
+pub(crate) fn scratch_state(label: &str) -> (Arc<AppState>, std::path::PathBuf) {
+    let base = std::env::temp_dir().join(format!("kbviewer-state-{label}"));
+    let _ = std::fs::remove_dir_all(&base);
+    let root = base.join("vault");
+    std::fs::create_dir_all(&root).unwrap();
+    std::fs::write(root.join("a.md"), "# A\n").unwrap();
+
+    let config = Config {
+        host: "127.0.0.1".into(),
+        port: 0,
+        data_dir: base.join("data"),
+        roots: vec![RootConfig {
+            id: "kb".into(),
+            name: "kb".into(),
+            path: root.canonicalize().unwrap(),
+            index_names: vec!["index.md".into()],
+            wikilinks: Some(true),
+            folder_notes: false,
+            read_only: false,
+        }],
+    };
+    let auth = AuthStore::open(&config.data_dir).unwrap();
+    let root = config.roots[0].path.clone();
+    (AppState::new(config, auth), root)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use kbviewer_core::config::{Config, RootConfig};
-    use std::path::PathBuf;
-
-    fn state(label: &str) -> (Arc<AppState>, PathBuf) {
-        let base = std::env::temp_dir().join(format!("kbviewer-state-{label}"));
-        let _ = std::fs::remove_dir_all(&base);
-        let root = base.join("vault");
-        std::fs::create_dir_all(&root).unwrap();
-        std::fs::write(root.join("a.md"), "# A\n").unwrap();
-
-        let config = Config {
-            host: "127.0.0.1".into(),
-            port: 0,
-            data_dir: base.join("data"),
-            roots: vec![RootConfig {
-                id: "kb".into(),
-                name: "kb".into(),
-                path: root.canonicalize().unwrap(),
-                index_names: vec!["index.md".into()],
-                wikilinks: Some(true),
-                folder_notes: false,
-                read_only: false,
-            }],
-        };
-        let auth = AuthStore::open(&config.data_dir).unwrap();
-        let root = config.roots[0].path.clone();
-        (AppState::new(config, auth), root)
-    }
+    use crate::render::variants::{Variant, VariantKey};
 
     /// Long enough for a coarse filesystem timestamp to advance between two writes.
     const MTIME_GRANULARITY_PAUSE: std::time::Duration = std::time::Duration::from_millis(20);
@@ -286,7 +325,7 @@ mod tests {
 
     #[test]
     fn the_watcher_echo_of_our_own_write_is_attributed_to_its_author() {
-        let (state, root) = state("echo");
+        let (state, root) = scratch_state("echo");
         let mut rx = state.changes.subscribe();
 
         write_and_reindex(&state, &root, "# A\nmine\n", Some("tabX"));
@@ -306,7 +345,7 @@ mod tests {
     /// discarded the very event it most needed to see.
     #[test]
     fn a_genuine_external_edit_soon_after_our_write_is_not_attributed_to_us() {
-        let (state, root) = state("external");
+        let (state, root) = scratch_state("external");
         let mut rx = state.changes.subscribe();
 
         write_and_reindex(&state, &root, "# A\nmine\n", Some("tabX"));
@@ -323,7 +362,7 @@ mod tests {
 
     #[test]
     fn a_later_echo_cannot_inherit_an_origin_after_an_external_edit_broke_the_match() {
-        let (state, root) = state("poison");
+        let (state, root) = scratch_state("poison");
         let mut rx = state.changes.subscribe();
 
         write_and_reindex(&state, &root, "# A\nmine\n", Some("tabX"));
@@ -341,7 +380,7 @@ mod tests {
 
     #[test]
     fn an_unrelated_path_is_never_attributed() {
-        let (state, root) = state("unrelated");
+        let (state, root) = scratch_state("unrelated");
         let mut rx = state.changes.subscribe();
 
         write_and_reindex(&state, &root, "# A\nmine\n", Some("tabX"));
@@ -350,5 +389,55 @@ mod tests {
         std::fs::write(root.join("b.md"), "# B\n").unwrap();
         state.reindex("kb", vec!["b.md".into()], None);
         assert_eq!(last_origin(&mut rx), None);
+    }
+
+    /// Every open tab refetches the whole tree on a structural event, so an edit, by far
+    /// the commonest change, must not be one.
+    #[test]
+    fn an_edit_is_not_structural_but_a_new_file_or_folder_is() {
+        let (state, root) = scratch_state("structural");
+        let mut rx = state.changes.subscribe();
+
+        write_and_reindex(&state, &root, "# A\nedited\n", None);
+        assert!(!rx.try_recv().unwrap().structural);
+
+        std::fs::write(root.join("b.md"), "# B\n").unwrap();
+        state.reindex("kb", vec!["b.md".into()], None);
+        assert!(rx.try_recv().unwrap().structural);
+
+        std::fs::create_dir(root.join("empty")).unwrap();
+        state.reindex("kb", vec!["empty".into()], None);
+        assert!(rx.try_recv().unwrap().structural);
+    }
+
+    /// Every note inside a renamed folder moved too, but the renaming tab named only the
+    /// folder. Announcing the notes as somebody else's change would reload, or flag as
+    /// changed on disk, the very page that tab just moved.
+    #[test]
+    fn a_folder_the_caller_moved_accounts_for_everything_inside_it() {
+        let (state, root) = scratch_state("folder-move");
+        std::fs::create_dir(root.join("sub")).unwrap();
+        std::fs::write(root.join("sub/x.md"), "# X\n").unwrap();
+        state.reindex("kb", vec!["sub/x.md".into()], None);
+        let mut rx = state.changes.subscribe();
+
+        std::fs::rename(root.join("sub"), root.join("moved")).unwrap();
+        state.reindex("kb", vec!["sub".into(), "moved".into()], Some("tab".into()));
+
+        assert_eq!(rx.try_recv().unwrap().origin.as_deref(), Some("tab"));
+        assert!(
+            rx.try_recv().is_err(),
+            "nothing announced as an outside change"
+        );
+    }
+
+    #[test]
+    fn a_reindex_keeps_resized_images() {
+        let (state, _root) = scratch_state("variants");
+        let key = VariantKey::new("kb", "photo.png", 1, crate::render::variants::WIDTHS[0]);
+        state.variants.put(key.clone(), Variant::NotWorthIt);
+
+        state.reindex("kb", vec!["a.md".into()], None);
+        assert!(state.variants.get(&key).is_some());
     }
 }

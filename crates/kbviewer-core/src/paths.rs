@@ -107,7 +107,8 @@ fn canonicalise_nearest_existing(target: &Path) -> PathBuf {
 /// Directories that are never part of the browsable document set.
 ///
 /// `@eaDir` and `.SynologyWorkingDirectory` are Synology sync artefacts; a vault living in
-/// SynologyDrive is full of them and they must not appear as content.
+/// SynologyDrive is full of them and they must not appear as content. `__pycache__` is
+/// written beside any script kept in the vault each time it runs.
 const EXCLUDED_DIRS: &[&str] = &[
     ".obsidian",
     ".trash",
@@ -116,6 +117,7 @@ const EXCLUDED_DIRS: &[&str] = &[
     "@eaDir",
     ".SynologyWorkingDirectory",
     "node_modules",
+    "__pycache__",
 ];
 
 pub fn is_excluded(relative: &Path) -> bool {
@@ -227,5 +229,15 @@ mod tests {
         assert!(is_excluded(Path::new("notes/@eaDir/thumb.jpg")));
         assert!(is_excluded(Path::new(".trash/old.md")));
         assert!(!is_excluded(Path::new("notes/real-note.md")));
+    }
+
+    /// Running a script kept in the vault writes bytecode beside it, and each write would
+    /// otherwise rebuild the index for a file nobody reads.
+    #[test]
+    fn python_bytecode_caches_are_not_content() {
+        assert!(is_excluded(Path::new(
+            "tools/__pycache__/kb-commit.cpython-312.pyc"
+        )));
+        assert!(!is_excluded(Path::new("tools/kb-commit.py")));
     }
 }

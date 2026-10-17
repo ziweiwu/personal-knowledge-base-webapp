@@ -52,6 +52,11 @@ impl Document {
             tags: self.tags.clone(),
         }
     }
+
+    /// The same file by the two things the scan reads without opening it.
+    fn is_unchanged_from(&self, before: &Document) -> bool {
+        self.size == before.size && self.mtime_ms == before.mtime_ms
+    }
 }
 
 pub struct Index {
@@ -185,6 +190,52 @@ impl Index {
 
     pub fn has_directory(&self, path: &str) -> bool {
         path.is_empty() || self.directories.contains(path)
+    }
+
+    /// Whether `path` is on disk exactly as this index recorded it: the same file by size
+    /// and mtime, the same folder, or absent from both. A watcher event for such a path
+    /// cannot change what a rebuild would produce — an attribute change, a temporary file
+    /// that came and went, the echo of a write already indexed.
+    ///
+    /// Read with `symlink_metadata` because the scan does not follow links either.
+    pub fn matches_disk(&self, root: &Path, path: &str) -> bool {
+        let on_disk = std::fs::symlink_metadata(root.join(path)).ok();
+        match (self.documents.get(path), on_disk) {
+            (Some(document), Some(metadata)) if metadata.is_file() => {
+                document.size == metadata.len() && document.mtime_ms == modified_millis(&metadata)
+            }
+            (Some(_), _) => false,
+            (None, Some(metadata)) if metadata.is_file() => false,
+            (None, Some(metadata)) if metadata.is_dir() => self.has_directory(path),
+            (None, _) => !self.has_directory(path),
+        }
+    }
+
+    /// Whether both indexes hold the same files and folders, which is everything the tree
+    /// shows. A content edit leaves it unchanged.
+    pub fn has_same_tree_as(&self, other: &Index) -> bool {
+        self.documents.keys().eq(other.documents.keys()) && self.directories == other.directories
+    }
+
+    /// Every file and folder that differs from `previous`: added, removed, or a file whose
+    /// size or mtime moved. What a rebuild took in, whichever change asked for it.
+    pub fn paths_changed_since(&self, previous: &Index) -> BTreeSet<String> {
+        let added_or_edited = self.documents.iter().filter(|(path, document)| {
+            previous
+                .documents
+                .get(*path)
+                .is_none_or(|before| !document.is_unchanged_from(before))
+        });
+        let removed = previous
+            .documents
+            .keys()
+            .filter(|path| !self.documents.contains_key(*path));
+        added_or_edited
+            .map(|(path, _)| path)
+            .chain(removed)
+            .chain(self.directories.symmetric_difference(&previous.directories))
+            .cloned()
+            .collect()
     }
 
     /// Children of one folder: subfolders first, then documents, each alphabetical.
@@ -664,5 +715,130 @@ mod tests {
             context_of("only-properties.md").as_deref(),
             Some("related: \"[[target]]\"")
         );
+    }
+
+    /// Long enough for a coarse filesystem timestamp to advance between two writes.
+    const MTIME_GRANULARITY_PAUSE: std::time::Duration = std::time::Duration::from_millis(20);
+
+    #[test]
+    fn a_file_left_as_indexed_matches_the_disk() {
+        let root = fixture_root("matches-untouched", &[("a.md", "# A\n")], None);
+        let index = Index::build(&root);
+        assert!(index.matches_disk(&root.path, "a.md"));
+        assert!(index.matches_disk(&root.path, ""), "the root itself");
+    }
+
+    #[test]
+    fn a_rewritten_file_no_longer_matches() {
+        let root = fixture_root("matches-rewritten", &[("a.md", "# A\n")], None);
+        let index = Index::build(&root);
+        std::thread::sleep(MTIME_GRANULARITY_PAUSE);
+        std::fs::write(root.path.join("a.md"), "# A\nmore\n").unwrap();
+        assert!(!index.matches_disk(&root.path, "a.md"));
+    }
+
+    /// Sync clients set extended attributes and permissions without touching content.
+    #[cfg(unix)]
+    #[test]
+    fn a_permission_change_alone_still_matches() {
+        use std::os::unix::fs::PermissionsExt;
+        let root = fixture_root("matches-chmod", &[("a.md", "# A\n")], None);
+        let index = Index::build(&root);
+        let file = root.path.join("a.md");
+        std::fs::set_permissions(&file, std::fs::Permissions::from_mode(0o600)).unwrap();
+        assert!(index.matches_disk(&root.path, "a.md"));
+    }
+
+    #[test]
+    fn a_new_file_or_folder_does_not_match() {
+        let root = fixture_root("matches-new", &[("a.md", "# A\n")], None);
+        let index = Index::build(&root);
+        std::fs::write(root.path.join("b.md"), "# B\n").unwrap();
+        std::fs::create_dir(root.path.join("empty")).unwrap();
+        assert!(!index.matches_disk(&root.path, "b.md"));
+        assert!(!index.matches_disk(&root.path, "empty"));
+    }
+
+    #[test]
+    fn a_deleted_file_or_folder_does_not_match() {
+        let root = fixture_root(
+            "matches-deleted",
+            &[("a.md", "# A\n"), ("sub/b.md", "# B\n")],
+            None,
+        );
+        let index = Index::build(&root);
+        std::fs::remove_file(root.path.join("a.md")).unwrap();
+        std::fs::remove_dir_all(root.path.join("sub")).unwrap();
+        assert!(!index.matches_disk(&root.path, "a.md"));
+        assert!(!index.matches_disk(&root.path, "sub"));
+    }
+
+    /// An editor's atomic save creates a temporary file and renames it away within the same
+    /// burst; by the time the batch is checked the temporary file is gone.
+    #[test]
+    fn a_file_that_came_and_went_matches() {
+        let root = fixture_root("matches-transient", &[("a.md", "# A\n")], None);
+        let index = Index::build(&root);
+        assert!(index.matches_disk(&root.path, "a.md.tmp-1234"));
+    }
+
+    /// The scan does not follow symlinks, so one appearing changes nothing it would see.
+    #[cfg(unix)]
+    #[test]
+    fn a_new_symlink_matches_because_the_index_ignores_it() {
+        let root = fixture_root("matches-symlink", &[("a.md", "# A\n")], None);
+        let index = Index::build(&root);
+        std::os::unix::fs::symlink(root.path.join("a.md"), root.path.join("link.md")).unwrap();
+        assert!(index.matches_disk(&root.path, "link.md"));
+    }
+
+    #[test]
+    fn an_edit_keeps_the_tree_while_a_new_file_or_folder_changes_it() {
+        let root = fixture_root("same-tree", &[("a.md", "# A\n")], None);
+        let before = Index::build(&root);
+
+        std::thread::sleep(MTIME_GRANULARITY_PAUSE);
+        std::fs::write(root.path.join("a.md"), "# A\nedited\n").unwrap();
+        assert!(Index::build(&root).has_same_tree_as(&before));
+
+        std::fs::create_dir(root.path.join("empty")).unwrap();
+        assert!(!Index::build(&root).has_same_tree_as(&before));
+
+        std::fs::remove_dir(root.path.join("empty")).unwrap();
+        std::fs::write(root.path.join("b.md"), "# B\n").unwrap();
+        assert!(!Index::build(&root).has_same_tree_as(&before));
+    }
+
+    #[test]
+    fn a_rebuild_names_every_file_and_folder_it_took_in() {
+        let root = fixture_root(
+            "changed-since",
+            &[
+                ("kept.md", "# Kept\n"),
+                ("edited.md", "# Edited\n"),
+                ("gone.md", "# Gone\n"),
+            ],
+            None,
+        );
+        let before = Index::build(&root);
+
+        std::thread::sleep(MTIME_GRANULARITY_PAUSE);
+        std::fs::write(root.path.join("edited.md"), "# Edited\nagain\n").unwrap();
+        std::fs::remove_file(root.path.join("gone.md")).unwrap();
+        std::fs::create_dir(root.path.join("sub")).unwrap();
+        std::fs::write(root.path.join("sub/new.md"), "# New\n").unwrap();
+
+        let changed: Vec<String> = Index::build(&root)
+            .paths_changed_since(&before)
+            .into_iter()
+            .collect();
+        assert_eq!(changed, ["edited.md", "gone.md", "sub", "sub/new.md"]);
+    }
+
+    #[test]
+    fn a_rebuild_of_an_untouched_root_names_nothing() {
+        let root = fixture_root("changed-none", &[("a.md", "# A\n")], None);
+        let before = Index::build(&root);
+        assert!(Index::build(&root).paths_changed_since(&before).is_empty());
     }
 }

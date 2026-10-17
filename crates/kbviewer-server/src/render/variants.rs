@@ -91,14 +91,6 @@ impl VariantCache {
             self.bytes.fetch_add(size, Ordering::Relaxed);
         }
     }
-
-    pub fn invalidate_root(&self, root_id: &str) {
-        self.entries.retain(|key, _| key.root_id != root_id);
-        // Recount rather than subtract: a `retain` that removed several entries leaves no
-        // per-entry hook to decrement from, and an over-count would evict early forever.
-        let total = self.entries.iter().map(|entry| entry.size()).sum();
-        self.bytes.store(total, Ordering::Relaxed);
-    }
 }
 
 /// The widths a variant may be requested at.
@@ -121,7 +113,6 @@ mod tests {
     /// Deliberately not in `WIDTHS`.
     const AN_UNOFFERED_WIDTH: u32 = 801;
     const SOME_BYTES: usize = 10;
-    const MORE_BYTES: usize = 20;
 
     fn variant(size: usize) -> Variant {
         Variant::Resized {
@@ -189,27 +180,6 @@ mod tests {
                 .is_some(),
             "the entry that triggered the clear must still be stored"
         );
-    }
-
-    #[test]
-    fn invalidating_a_root_leaves_the_others_and_recounts() {
-        let cache = VariantCache::new();
-        cache.put(
-            VariantKey::new("kb", "a.png", 1, A_WIDTH),
-            variant(SOME_BYTES),
-        );
-        cache.put(
-            VariantKey::new("other", "b.png", 1, A_WIDTH),
-            variant(MORE_BYTES),
-        );
-        cache.invalidate_root("kb");
-        assert!(cache
-            .get(&VariantKey::new("kb", "a.png", 1, A_WIDTH))
-            .is_none());
-        assert!(cache
-            .get(&VariantKey::new("other", "b.png", 1, A_WIDTH))
-            .is_some());
-        assert_eq!(cache.bytes.load(Ordering::Relaxed), MORE_BYTES);
     }
 
     /// A negative result is worth caching too: it costs a full decode to establish.

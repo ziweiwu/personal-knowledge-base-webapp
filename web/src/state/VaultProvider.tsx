@@ -22,8 +22,8 @@ export function VaultProvider({ rootId, children }: VaultProviderProps) {
   const { reload: reloadTree } = tree;
   const onChange = useCallback(
     (event: ChangeEvent) => {
-      // Any change inside this root can add or remove a node.
-      if (eventTouches(event, rootId, '')) reloadTree();
+      // An edit changes no node; only adding, removing or renaming one does.
+      if (event.structural && eventTouches(event, rootId, '')) reloadTree();
     },
     [rootId, reloadTree],
   );
