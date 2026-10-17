@@ -77,6 +77,13 @@ fn mtime_of(index: &Index, path: &str) -> i64 {
         .unwrap_or(0)
 }
 
+/// Whether a caller that listed `named` has accounted for `path`: the path itself, or
+/// anything inside it when it is a folder the caller renamed or trashed.
+fn names(named: &str, path: &str) -> bool {
+    path.strip_prefix(named)
+        .is_some_and(|rest| rest.is_empty() || rest.starts_with('/'))
+}
+
 fn mtimes_of(index: &Index, paths: &[String]) -> Vec<(String, i64)> {
     paths
         .iter()
@@ -180,7 +187,7 @@ impl AppState {
         let absorbed = rebuilt
             .paths_changed_since(&previous)
             .into_iter()
-            .filter(|path| !paths.contains(path))
+            .filter(|path| !paths.iter().any(|named| names(named, path)))
             .collect();
         let event = ChangeEvent {
             root_id: root_id.to_string(),
@@ -401,6 +408,27 @@ mod tests {
         std::fs::create_dir(root.join("empty")).unwrap();
         state.reindex("kb", vec!["empty".into()], None);
         assert!(rx.try_recv().unwrap().structural);
+    }
+
+    /// Every note inside a renamed folder moved too, but the renaming tab named only the
+    /// folder. Announcing the notes as somebody else's change would reload, or flag as
+    /// changed on disk, the very page that tab just moved.
+    #[test]
+    fn a_folder_the_caller_moved_accounts_for_everything_inside_it() {
+        let (state, root) = scratch_state("folder-move");
+        std::fs::create_dir(root.join("sub")).unwrap();
+        std::fs::write(root.join("sub/x.md"), "# X\n").unwrap();
+        state.reindex("kb", vec!["sub/x.md".into()], None);
+        let mut rx = state.changes.subscribe();
+
+        std::fs::rename(root.join("sub"), root.join("moved")).unwrap();
+        state.reindex("kb", vec!["sub".into(), "moved".into()], Some("tab".into()));
+
+        assert_eq!(rx.try_recv().unwrap().origin.as_deref(), Some("tab"));
+        assert!(
+            rx.try_recv().is_err(),
+            "nothing announced as an outside change"
+        );
     }
 
     #[test]
